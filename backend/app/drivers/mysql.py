@@ -139,6 +139,7 @@ class MySQLDriver(BaseDriver):
             f"password={_option_value(self._secrets.get('password', ''))}",
             f"host={_option_value(config.host)}",
             f"port={config.port}",
+            "protocol=tcp",  # "localhost" would otherwise use a socket and ignore the port
             f"ssl-mode={_SSL_MODES[config.tls_mode]}",
         ]
         if charset := config.extra_options.get("charset"):
