@@ -85,6 +85,10 @@ class LocalStorage(BaseStorage):
             raise PathNotAllowed("Storage keys must be relative.")
         return resolve_inside(self._root(), key)
 
+    def local_path(self, key: str) -> Path:
+        """The file behind `key` on this machine, inside the destination root."""
+        return self._target(key)
+
     async def test(self) -> StorageTestResult:
         return await asyncio.to_thread(self.test_sync)
 

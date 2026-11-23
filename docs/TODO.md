@@ -18,7 +18,7 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **TODO** |
+| 7 | Backups browser, download, restore | **In progress**: browser and download done, restore TODO |
 | 8 | Backup encryption (`age`) | **TODO** |
 | 9 | Hardening and 1.0 release | **TODO** |
 
@@ -55,17 +55,17 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 **Depends on:** milestones 3 to 6 (artifacts, local and Drive storage `get`, checksums).
 
 ### Backups browser
-- [ ] `GET /api/backups` with filters: job, source, database, destination, date range, status, pagination
-- [ ] UI: browse artifacts grouped by job and date, showing size, SHA-256, destination(s) holding a copy, and whether each copy is verified
-- [ ] "Verify now" action: re-read the stored file and compare size and checksum (local and Drive MD5)
-- [ ] Delete an artifact from the UI (with confirmation; audit-logged; removes the manifest too)
-- [ ] Mark artifacts whose files are missing on disk or in Drive (drift detection), with a "rescan destination" action
+- [x] `GET /api/backups` with filters: job, source, database, destination, date range, status, pagination
+- [x] UI: browse artifacts grouped by job and date, showing size, SHA-256, destination(s) holding a copy, and whether each copy is verified
+- [x] "Verify now" action: re-read the stored file and compare size and checksum (local and Drive MD5)
+- [x] Delete an artifact from the UI (with confirmation; audit-logged; removes the manifest too)
+- [x] Mark artifacts whose files are missing on disk or in Drive (drift detection), with a "rescan destination" action
 
 ### Download
-- [ ] `GET /api/backups/{id}/download` streams the file (never loads it into memory), with a safe `Content-Disposition` filename
-- [ ] Download from the local copy if present, otherwise stream from Google Drive
-- [ ] Verify the checksum while streaming, or before serving, and fail clearly on mismatch
-- [ ] Requires authentication; audit-log every download
+- [x] `GET /api/backups/{id}/download` streams the file (never loads it into memory), with a safe `Content-Disposition` filename
+- [x] Download from the local copy if present, otherwise stream from Google Drive
+- [x] Verify the checksum while streaming, or before serving, and fail clearly on mismatch
+- [x] Requires authentication; audit-log every download
 - [ ] Consider short-lived signed download URLs so large downloads work with browsers and reverse proxies
 
 ### Restore engine (all four drivers implement `restore()`)

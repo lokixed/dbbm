@@ -216,6 +216,8 @@ All primary keys are UUIDs. Timestamps are stored in UTC.
 | encrypted | bool | |
 | created_at / expires_at | datetime | |
 | deleted_at | datetime | soft delete for audit |
+| verified_at | datetime | last successful "Verify now"; null until then (it was verified at upload) |
+| missing_at | datetime | set when the file is not found at the destination (drift); cleared when it is back |
 
 ### `notification_channels`, `audit_log`
 - `notification_channels`: type (`slack`, `email`, `webhook`), config, encrypted secrets, enabled.
@@ -432,8 +434,10 @@ GET              /runs/{id}/logs       Server-Sent Events (live) or full text
 POST             /runs/{id}/cancel
 POST             /runs/{id}/retry      retry failed destinations only
 
-GET              /backups              list artifacts
-GET              /backups/{id}/download
+GET              /backups              list artifacts; filters: job, source, database, destination, status, date range
+GET              /backups/{id}/download  verifies the SHA-256 first; local copy preferred, else Drive
+POST             /backups/{id}/verify    re-read the stored copy (local SHA-256, Drive MD5)
+POST             /backups/rescan?destination_id=   mark artifacts whose files are gone
 DELETE           /backups/{id}
 POST             /backups/{id}/restore
 

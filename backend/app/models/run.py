@@ -101,6 +101,9 @@ class Artifact(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(UTCDateTime, nullable=False)
     )
-    # Retention and the backups browser use these in later milestones.
     expires_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, nullable=True))
     deleted_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, nullable=True))
+    # Last successful re-read of the stored copy (backups browser "Verify now").
+    verified_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, nullable=True))
+    # Set when the stored file was not found at its destination (drift); cleared when it is back.
+    missing_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, nullable=True))
