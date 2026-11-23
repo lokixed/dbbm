@@ -73,7 +73,7 @@ export function Layout() {
       activeKey={activeKey(pathname)}
       header={
         <span className="px-2">
-          <span className="text-lg font-semibold tracking-tight">DBBackup</span>
+          <span className="text-lg font-semibold tracking-tight">DBBM</span>
           {version.data && <span className="ml-2 text-xs text-app-muted">v{version.data.version}</span>}
         </span>
       }
@@ -94,7 +94,7 @@ export function Layout() {
         </div>
         <Outlet />
       </main>
-      <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left" width="max-w-xs" padded={false} title="DBBackup">
+      <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left" width="max-w-xs" padded={false} title="DBBM">
         <div onClick={() => setMenuOpen(false)}>{sidebar}</div>
       </Drawer>
       <ConfirmDialog

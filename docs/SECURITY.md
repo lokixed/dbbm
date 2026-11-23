@@ -1,6 +1,6 @@
 # Security notes
 
-## What DBBackup protects against
+## What DBBM protects against
 
 - **Stolen database file (`app.db`):** source, destination and channel credentials are encrypted
   (Fernet) with a key derived from the master key. The master key is never stored in the database.

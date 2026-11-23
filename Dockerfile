@@ -108,20 +108,20 @@ RUN sh /tmp/install-rclone.sh /usr/local/bin && rm -f /tmp/install-rclone.sh
 COPY scripts/install-age.sh /tmp/install-age.sh
 RUN sh /tmp/install-age.sh /usr/local/bin && rm -f /tmp/install-age.sh
 
-RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin dbbackup \
+RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin dbbm \
     && mkdir -p /data /backups \
-    && chown dbbackup:dbbackup /data /backups
+    && chown dbbm:dbbm /data /backups
 
 WORKDIR /app
 COPY backend/ ./
 # Install the dependencies only; the app itself runs from /app (it needs alembic/ beside it).
 RUN pip install --root-user-action=ignore . \
-    && pip uninstall -y dbbackup \
+    && pip uninstall -y dbbm \
     && rm -rf build ./*.egg-info \
     && python -c "from zoneinfo import ZoneInfo; ZoneInfo('Europe/Berlin'); ZoneInfo('Asia/Kolkata')"
 ENV PYTHONPATH=/app
 COPY --from=frontend /frontend/dist ./frontend/dist
 
-USER dbbackup
+USER dbbm
 EXPOSE 8080
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

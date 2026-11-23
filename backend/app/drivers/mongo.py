@@ -122,7 +122,7 @@ class MongoDriver(BaseDriver):
             "serverSelectionTimeoutMS": _TIMEOUT_MS,
             "connectTimeoutMS": _TIMEOUT_MS,
             "socketTimeoutMS": _TIMEOUT_MS,
-            "appname": "dbbackup",
+            "appname": "dbbm",
         }
         if isinstance(config, MongoUriConfig):
             return MongoClient(self._secrets["uri"], **common)

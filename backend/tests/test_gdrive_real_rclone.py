@@ -32,7 +32,7 @@ def drive(tmp_path: Path, token_store: MemoryStore) -> LocalBackedDrive:
 
 
 def leftovers() -> list[str]:
-    return [p.name for p in Path(tempfile.gettempdir()).glob("dbbackup-rclone-*")]
+    return [p.name for p in Path(tempfile.gettempdir()).glob("dbbm-rclone-*")]
 
 
 def test_real_rclone_connection_test(drive: LocalBackedDrive, token_store: MemoryStore) -> None:

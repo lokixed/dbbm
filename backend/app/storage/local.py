@@ -72,7 +72,7 @@ class LocalStorage(BaseStorage):
 
     @staticmethod
     def _probe_write(directory: Path) -> None:
-        with tempfile.NamedTemporaryFile(dir=directory, prefix=".dbbackup-write-test-") as handle:
+        with tempfile.NamedTemporaryFile(dir=directory, prefix=".dbbm-write-test-") as handle:
             handle.write(b"ok")
             handle.flush()
 

@@ -51,11 +51,11 @@ test-integration-docker: build
 	docker run --rm --user root --network host \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $(CURDIR)/backend:/src:ro \
-		--entrypoint sh dbbackup:local -c \
+		--entrypoint sh dbbm:local -c \
 		'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
 		&& cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'
 
-# DEV ONLY sample databases on the "dbbackup-dev" network (see dev/README.md).
+# DEV ONLY sample databases on the "dbbm-dev" network (see dev/README.md).
 dev-dbs-up:
 	docker compose -f dev/docker-compose.dev-dbs.yml up -d --wait
 
@@ -67,7 +67,7 @@ lint: $(STAMP)
 	cd frontend && yarn lint && yarn typecheck
 
 build:
-	docker build -t dbbackup:local .
+	docker build -t dbbm:local .
 
 up:
 	docker compose up --build -d
@@ -82,7 +82,7 @@ dev-echo-logs:
 
 # Time zone data inside the image (job schedules depend on it).
 smoke-tz: build
-	docker run --rm --entrypoint python dbbackup:local -c \
+	docker run --rm --entrypoint python dbbm:local -c \
 		"from zoneinfo import ZoneInfo; from datetime import datetime; print(datetime(2026, 3, 29, 12, tzinfo=ZoneInfo('Europe/Berlin')).isoformat())"
 
 down:

@@ -41,7 +41,7 @@ from app.storage.rclone_utils import (
 TEST_TIMEOUT = 120
 LIST_TIMEOUT = 300
 PROBE_BYTES = 1024
-PROBE_PREFIX = ".dbbackup-probe-"
+PROBE_PREFIX = ".dbbm-probe-"
 NOT_FOUND_CODES = (3, 4)
 
 # One lock per destination (per event loop). Every rclone call for a destination holds it

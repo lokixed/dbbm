@@ -88,7 +88,7 @@ def create_app(
             checkpoint_wal()
 
     app = FastAPI(
-        title="DBBackup",
+        title="DBBM - Database Backup & Management",
         lifespan=lifespan,
         docs_url="/api/docs" if settings.enable_docs else None,
         openapi_url="/api/openapi.json" if settings.enable_docs else None,

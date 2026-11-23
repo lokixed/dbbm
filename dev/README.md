@@ -23,13 +23,13 @@ Each server has a seeded `shop` database (customers and orders) and a dedicated 
 
 ## Attach the app container
 
-The servers live on the Docker network `dbbackup-dev`. Start the app attached to it:
+The servers live on the Docker network `dbbm-dev`. Start the app attached to it:
 
 ```bash
 docker compose -f docker-compose.yml -f dev/docker-compose.attach-dev-dbs.yml up --build -d
 ```
 
-Or connect an already running container: `docker network connect dbbackup-dev dbbackup-dbbackup-1`.
+Or connect an already running container: `docker network connect dbbm-dev dbbm-dbbm-1`.
 
 In the UI use the hostnames in the table (`dev-mysql`, ...). If you run the backend on the host instead (`make dev-backend`), use `127.0.0.1` and the host ports.
 
@@ -76,7 +76,7 @@ $D exec -T dev-mysql mysql -uroot -pdev-only-root-pw -e 'SELECT COUNT(*) FROM sc
 # PostgreSQL: restore with the app image's pg_restore (a dump from a newer pg_dump needs a
 # pg_restore at least as new; the dev server is 16, the image has 18).
 $D exec -T dev-postgres createdb -U postgres scratch
-docker run --rm --network dbbackup-dev -e PGPASSWORD=dev-only-root-pw -v "$PWD/backups:/backups:ro" --entrypoint sh dbbackup:local \
+docker run --rm --network dbbm-dev -e PGPASSWORD=dev-only-root-pw -v "$PWD/backups:/backups:ro" --entrypoint sh dbbm:local \
   -c 'pg_restore --no-owner -h dev-postgres -U postgres -d scratch /backups/dev/dev-pg/*/*/dev-pg_shop_*.dump'
 $D exec -T dev-postgres psql -U postgres -d scratch -c 'SELECT COUNT(*) FROM customers'
 ```
@@ -107,7 +107,7 @@ Using the same `local-dev` destination:
 To get more than one archive, add a database first:
 
 ```bash
-docker exec dbbackup-dev-dbs-dev-mongo-1 mongosh -u root -p dev-only-root-pw --authenticationDatabase admin \
+docker exec dbbm-dev-dbs-dev-mongo-1 mongosh -u root -p dev-only-root-pw --authenticationDatabase admin \
   --eval 'db.getSiblingDB("inventory").items.insertMany([{sku:"a"},{sku:"b"}])'
 ```
 
@@ -118,9 +118,9 @@ docker exec dbbackup-dev-dbs-dev-mongo-1 mongosh -u root -p dev-only-root-pw --a
 Restore by hand into a scratch server and compare counts (run as your own user, the archives are `0600`):
 
 ```bash
-docker run -d --name scratch-mongo --network dbbackup-dev mongo:7
+docker run -d --name scratch-mongo --network dbbm-dev mongo:7
 for f in backups/dev/dev-mongo-nightly/*/*/*.archive.gz; do
-  docker run --rm --user "$(id -u)" --network dbbackup-dev -v "$PWD/backups:/backups:ro" --entrypoint mongorestore dbbackup:local \
+  docker run --rm --user "$(id -u)" --network dbbm-dev -v "$PWD/backups:/backups:ro" --entrypoint mongorestore dbbm:local \
     --host scratch-mongo --archive="/$f" --gzip --drop
 done
 docker exec scratch-mongo mongosh --quiet --eval 'db.getSiblingDB("shop").customers.countDocuments()'   # 3
@@ -152,21 +152,21 @@ Steps:
 Needs a Google account; nothing here runs in CI (CI uses the real rclone against a local folder and a fake rclone for Drive errors).
 
 1. Create a Desktop OAuth client and publish the consent screen (see the README, "Google Drive destination").
-2. Install rclone on your own machine (any recent version), open **Destinations > Add destination > Google Drive**, set the folder to `dbbackup-dev`, enter the client ID and secret, and run the command shown in the form. Paste the output into **Token**.
-3. **Save and test**: all three checks pass and free space is shown. In Drive, the folder `dbbackup-dev` exists and is empty (the probe file was deleted, not trashed).
+2. Install rclone on your own machine (any recent version), open **Destinations > Add destination > Google Drive**, set the folder to `dbbm-dev`, enter the client ID and secret, and run the command shown in the form. Paste the output into **Token**.
+3. **Save and test**: all three checks pass and free space is shown. In Drive, the folder `dbbm-dev` exists and is empty (the probe file was deleted, not trashed).
 4. Create a job with the dev MySQL source and both the local destination and the Drive destination, then **Run now**.
 
 ### Manual end-to-end checklist
 
 - [ ] Run succeeds; the run page shows both destinations `ok` with upload and verify timings; each Drive artifact has an MD5.
-- [ ] Drive contains `dbbackup-dev/<job>/<YYYY>/<MM>/<file>` and its `.manifest.json`, named exactly like the local copy.
+- [ ] Drive contains `dbbm-dev/<job>/<YYYY>/<MM>/<file>` and its `.manifest.json`, named exactly like the local copy.
 - [ ] Run the job again: new files with a new timestamp; nothing overwritten, no duplicate names.
-- [ ] Network blocked (for example `docker network disconnect bridge dbbackup-dbbackup-1` while a run uploads, or block `www.googleapis.com`): the run ends `partial`, the local copy exists, Drive shows `network`.
+- [ ] Network blocked (for example `docker network disconnect bridge dbbm-dbbm-1` while a run uploads, or block `www.googleapis.com`): the run ends `partial`, the local copy exists, Drive shows `network`.
 - [ ] Reconnect the network, click **Retry failed destinations**: the retry run uploads from the local copy and verifies; the original run becomes `success` and links to the retry.
 - [ ] Revoke access at <https://myaccount.google.com/permissions> and run again: `partial`, Drive shows `auth_expired`, the destination shows **Reconnect needed** and the banner appears. The next run skips Drive in preflight without calling it.
 - [ ] **Reconnect**, paste a new token, retry the partial run: success; the banner disappears.
 - [ ] Token refresh: after a run more than an hour after the token was created, the stored token's expiry is newer (the run log says "Google Drive token refreshed"). Start two jobs using the same Drive destination at once: both succeed and the destination still tests OK afterwards.
-- [ ] No secrets anywhere: `grep -rE "ya29\.|1//0|GOCSPX" data/logs/` finds nothing; the API (`/api/destinations`, `/api/runs/<id>`) shows only `secrets_set` flags; `docker exec dbbackup-dbbackup-1 ls /tmp` shows no `dbbackup-rclone-*` directories after runs; `ps` during an upload shows no token in rclone's arguments.
+- [ ] No secrets anywhere: `grep -rE "ya29\.|1//0|GOCSPX" data/logs/` finds nothing; the API (`/api/destinations`, `/api/runs/<id>`) shows only `secrets_set` flags; `docker exec dbbm-dbbm-1 ls /tmp` shows no `dbbm-rclone-*` directories after runs; `ps` during an upload shows no token in rclone's arguments.
 
 ## Notifications, heartbeat and scheduling (milestone 6)
 
@@ -183,7 +183,7 @@ Channels to add under **Notifications**:
 | Email | SMTP host / Port | `dev-mailpit` / `1025` |
 | | Security | `None` (the UI warns; fine for Mailpit) |
 | | Username / Password | leave empty |
-| | From / To | `dbbackup@example.test` / `ops@example.test` |
+| | From / To | `dbbm@example.test` / `ops@example.test` |
 | Webhook | Webhook URL | `http://dev-echo:8080/hook` |
 | | HMAC secret | `dev-only-hmac-secret-123` |
 | | Extra header | `X-Token` = `dev-only-header` |
@@ -209,8 +209,8 @@ Checklist:
    without the URL.
 3. **Schedule.** Set the schedule to a minute two minutes ahead (e.g. `17 * * * *`) in your time
    zone; the dialog's preview shows it. The run appears with trigger `schedule` and *Scheduled for*.
-4. **Catch-up.** Set a schedule two minutes ahead, `docker compose stop dbbackup`, wait until the
-   minute has passed, `docker compose start dbbackup`: one catch-up run starts ("missed its run ...
+4. **Catch-up.** Set a schedule two minutes ahead, `docker compose stop dbbm`, wait until the
+   minute has passed, `docker compose start dbbm`: one catch-up run starts ("missed its run ...
    starting one catch-up run" in the log). With Settings > Missed-run grace at 60 and a restart
    more than 60 s after the due time: no run, and the log says "outside the grace window".
 5. **Single owner.** Start a second container on the same `./data` (e.g. `docker run` with the

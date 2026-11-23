@@ -80,7 +80,7 @@ def check_single_worker(
     )
     if workers > 1:
         raise RuntimeError(
-            f"DBBackup must run with exactly one uvicorn worker (configured: {workers}). "
+            f"DBBM must run with exactly one uvicorn worker (configured: {workers}). "
             "Remove --workers / WEB_CONCURRENCY."
         )
 
@@ -105,7 +105,7 @@ class SchedulerLock:
             # e.g. ENOLCK/EOPNOTSUPP on some network or host-mounted filesystems.
             logger.warning(
                 "The filesystem of %s does not support file locks (%s); assuming this is the "
-                "only DBBackup instance using this data directory.",
+                "only DBBM instance using this data directory.",
                 self._path, errno.errorcode.get(exc.errno or 0, "error"),
             )  # fmt: skip
         os.ftruncate(fd, 0)
@@ -179,7 +179,7 @@ class JobScheduler:
         if not await asyncio.to_thread(self._lock.acquire):
             self.state = SchedulerState.NOT_OWNER
             logger.error(
-                "SCHEDULER NOT STARTED: another DBBackup process holds %s. Only one instance "
+                "SCHEDULER NOT STARTED: another DBBM process holds %s. Only one instance "
                 "may use a data directory; this one will not run scheduled jobs.",
                 self._settings.scheduler_lock_path,
             )

@@ -303,7 +303,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
             state={secrets.url}
             onChange={setSecret("url")}
             required
-            placeholder="https://example.com/hooks/dbbackup"
+            placeholder="https://example.com/hooks/dbbm"
             error={problems.url}
           />
           <SecretField
@@ -356,7 +356,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
               error={problems.password}
             />
           </div>
-          <Field label="From" placeholder="dbbackup@example.com" autoComplete="off" {...text("from")} />
+          <Field label="From" placeholder="dbbm@example.com" autoComplete="off" {...text("from")} />
           <Field
             label="To"
             helperText="One or more addresses, separated by commas."

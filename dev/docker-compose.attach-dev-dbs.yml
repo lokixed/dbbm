@@ -2,14 +2,14 @@
 # Use together with the main file:
 #   docker compose -f docker-compose.yml -f dev/docker-compose.attach-dev-dbs.yml up --build -d
 services:
-  dbbackup:
-    networks: [default, dbbackup-dev]
+  dbbm:
+    networks: [default, dbbm-dev]
     environment:
       # DEV ONLY: Mailpit and the echo server are private Docker addresses, which are refused
       # by default. Never set this in production unless your targets really are internal.
       ALLOW_PRIVATE_NOTIFICATION_TARGETS: "true"
 
 networks:
-  dbbackup-dev:
+  dbbm-dev:
     external: true
-    name: dbbackup-dev
+    name: dbbm-dev

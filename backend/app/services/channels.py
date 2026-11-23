@@ -25,7 +25,7 @@ from app.services.outbound import (
 )
 
 SIGNATURE_HEADER = "X-Signature-256"
-USER_AGENT = "DBBackup-Notifier/1"
+USER_AGENT = "DBBM-Notifier/1"
 
 
 def sign(secret: str, body: bytes) -> str:
@@ -90,7 +90,7 @@ async def send_webhook(
 
 def email_message(config: EmailConfig, message: Message, now: datetime) -> EmailMessage:
     mail = EmailMessage()
-    mail["Subject"] = f"[DBBackup] {message.title}"
+    mail["Subject"] = f"[DBBM] {message.title}"
     mail["From"] = config.from_address
     mail["To"] = ", ".join(config.to)
     mail["Date"] = formatdate(now.timestamp(), usegmt=True)

@@ -17,7 +17,7 @@ def test_requests_do_not_log_secrets(client: TestClient, caplog: pytest.LogCaptu
     assert PASSWORD not in caplog.text
     assert "wrong-password-123" not in caplog.text
     assert MASTER_KEY not in caplog.text
-    session_cookie = client.cookies.get("dbbackup_session") or ""
+    session_cookie = client.cookies.get("dbbm_session") or ""
     assert session_cookie and session_cookie not in caplog.text
 
 

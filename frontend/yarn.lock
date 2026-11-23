@@ -1155,9 +1155,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dbbackup-frontend@workspace:.":
+"dbbm-frontend@workspace:.":
   version: 0.0.0-use.local
-  resolution: "dbbackup-frontend@workspace:."
+  resolution: "dbbm-frontend@workspace:."
   dependencies:
     "@eslint/js": "npm:^10.0.1"
     "@hookform/resolvers": "npm:^7.0.7"

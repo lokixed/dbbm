@@ -166,7 +166,7 @@ export default function DashboardPage() {
       )}
       {dashboard.isSuccess && dashboard.data.scheduler?.state === "not_owner" && (
         <Alert tone="danger">
-          Scheduling is off in this instance: another DBBackup process uses the same data directory and
+          Scheduling is off in this instance: another DBBM process uses the same data directory and
           owns the scheduler. Run only one instance per data directory.
         </Alert>
       )}

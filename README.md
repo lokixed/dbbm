@@ -1,4 +1,4 @@
-# DBBackup
+# DBBM — Database Backup & Management
 
 Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, with a web UI.
 
@@ -12,7 +12,7 @@ Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to
 
 # 2. Data directories, and run the container as your user so it can use them.
 mkdir -p data backups
-printf 'DBBACKUP_UID=%s\nDBBACKUP_GID=%s\n' "$(id -u)" "$(id -g)" > .env
+printf 'DBBM_UID=%s\nDBBM_GID=%s\n' "$(id -u)" "$(id -g)" > .env
 
 # 3. Build and start.
 docker compose up --build -d

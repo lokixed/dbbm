@@ -17,13 +17,13 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from app.core.config import Settings, get_settings
 from app.core.crypto import derive_key
 
-SESSION_COOKIE = "dbbackup_session"
-CSRF_COOKIE = "dbbackup_csrf"
+SESSION_COOKIE = "dbbm_session"
+CSRF_COOKIE = "dbbm_csrf"
 CSRF_HEADER = "X-CSRF-Token"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 _hasher = PasswordHasher()
-_DUMMY_HASH = _hasher.hash("dbbackup-timing-equalizer")
+_DUMMY_HASH = _hasher.hash("dbbm-timing-equalizer")
 
 
 # --- passwords ---------------------------------------------------------------
@@ -60,9 +60,7 @@ class SessionData:
 
 
 def _serializer(settings: Settings) -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(
-        derive_key(settings.master_key, b"session"), salt="dbbackup.session"
-    )
+    return URLSafeTimedSerializer(derive_key(settings.master_key, b"session"), salt="dbbm.session")
 
 
 def create_session_token(
@@ -92,7 +90,7 @@ DOWNLOAD_TTL_SECONDS = 60
 
 def _download_serializer(settings: Settings) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(
-        derive_key(settings.master_key, b"download"), salt="dbbackup.download"
+        derive_key(settings.master_key, b"download"), salt="dbbm.download"
     )
 
 

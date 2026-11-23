@@ -52,7 +52,7 @@ class Message:
         )
         lines = "".join(f"<p>{html.escape(line)}</p>" for line in self.lines)
         link = (
-            f"<p><a href='{html.escape(self.url, quote=True)}'>Open in DBBackup</a></p>"
+            f"<p><a href='{html.escape(self.url, quote=True)}'>Open in DBBM</a></p>"
             if self.url
             else ""
         )
@@ -231,7 +231,7 @@ def low_disk_message(label: str, free_percent: float, threshold: int, free_bytes
 def channel_test_message(channel_name: str) -> Message:
     return Message(
         event=EventType.TEST,
-        title="DBBackup test notification",
+        title="DBBM test notification",
         status="test",
         lines=[f"This is a test message for the channel '{channel_name}'."],
         data={"channel": channel_name},
@@ -245,7 +245,7 @@ def rate_limit_summary(suppressed: int, channel_name: str, event: str) -> Messag
         status="rate_limited",
         lines=[
             f"The channel '{channel_name}' reached its limit of messages per hour; "
-            f"{suppressed} message(s) were not sent. See the notification events in DBBackup."
+            f"{suppressed} message(s) were not sent. See the notification events in DBBM."
         ],
         data={"suppressed": suppressed},
     )

@@ -22,7 +22,7 @@ from tests.conftest import api_delete, api_post, api_put
 from tests.m6 import PUBLIC_IP, FakeClock, Outbound, db_ready, seed_job
 
 SLACK_URL = "https://hooks.slack.com/services/T000/B000/XXXXsecretXXXX"
-HOOK_URL = "https://hooks.example.com/dbbackup/s3cr3t-path-token"
+HOOK_URL = "https://hooks.example.com/dbbm/s3cr3t-path-token"
 HMAC_SECRET = "hmac-secret-0123456789abcdef"
 HEADER_VALUE = "Bearer header-secret-value-42"
 SMTP_PASSWORD = "smtp-Pa55word!"
@@ -282,7 +282,7 @@ def test_slack_payload(m6_client: TestClient, outbound: Outbound) -> None:
     assert request.headers["host"] == "hooks.slack.com"
     assert request.url.path == "/services/T000/B000/XXXXsecretXXXX"
     payload = json.loads(request.content)
-    assert payload["text"] == "DBBackup test notification"
+    assert payload["text"] == "DBBM test notification"
     assert payload["blocks"][0]["type"] == "section"
 
 
@@ -302,7 +302,7 @@ def _email(client: TestClient, security: str = "starttls") -> dict[str, Any]:
             "port": 587,
             "security": security,
             "username": "robot",
-            "from": "dbbackup@example.com",
+            "from": "dbbm@example.com",
             "to": ["ops@example.com", "oncall@example.com"],
         },
         "secrets": {"password": SMTP_PASSWORD},
@@ -315,7 +315,7 @@ def _email(client: TestClient, security: str = "starttls") -> dict[str, Any]:
 
 def test_email_via_stubbed_smtp(m6_client: TestClient, outbound: Outbound) -> None:
     channel = _email(m6_client)
-    assert channel["config"]["from"] == "dbbackup@example.com"
+    assert channel["config"]["from"] == "dbbm@example.com"
     assert channel["warnings"] == []
     assert api_post(m6_client, f"/api/notifications/{channel['id']}/test").json()["ok"] is True
     [mail] = outbound.mail

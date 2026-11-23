@@ -139,7 +139,7 @@ def export_configuration(session: Session) -> dict[str, Any]:
 
     jobs = dump(Job)
     return {
-        "format": "dbbackup-config",
+        "format": "dbbm-config",
         "version": CONFIG_EXPORT_VERSION,
         "exported_at": datetime.now(UTC).isoformat(),
         "note": "Secrets are not included; re-enter credentials after rebuilding.",

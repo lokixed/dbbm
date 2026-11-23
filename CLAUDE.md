@@ -1,4 +1,4 @@
-# Project: DBBackup
+# Project: DBBM (Database Backup & Management)
 
 Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to a
 local volume and Google Drive, with a web UI. The full design is in docs/DESIGN.md.

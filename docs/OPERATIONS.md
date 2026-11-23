@@ -1,6 +1,6 @@
 # Operations guide
 
-For people running DBBackup. Design and internals are in [DESIGN.md](DESIGN.md). Threat model:
+For people running DBBM. Design and internals are in [DESIGN.md](DESIGN.md). Threat model:
 [SECURITY.md](SECURITY.md).
 
 ## Install and upgrade
@@ -11,7 +11,7 @@ Upgrade:
 
 ```bash
 # 1. Copy the tool's own data first (see "Back up the tool itself").
-docker compose exec dbbackup python -m app.cli backup-db
+docker compose exec dbbm python -m app.cli backup-db
 # 2. Pull or build the new version and restart.
 docker compose pull   # or: docker compose build
 docker compose up -d
@@ -48,15 +48,15 @@ backup.example.com {
 }
 ```
 
-Traefik (labels on the `dbbackup` service, with Traefik on the same Docker network):
+Traefik (labels on the `dbbm` service, with Traefik on the same Docker network):
 
 ```yaml
 labels:
   - traefik.enable=true
-  - traefik.http.routers.dbbackup.rule=Host(`backup.example.com`)
-  - traefik.http.routers.dbbackup.entrypoints=websecure
-  - traefik.http.routers.dbbackup.tls.certresolver=letsencrypt
-  - traefik.http.services.dbbackup.loadbalancer.server.port=8080
+  - traefik.http.routers.dbbm.rule=Host(`backup.example.com`)
+  - traefik.http.routers.dbbm.entrypoints=websecure
+  - traefik.http.routers.dbbm.tls.certresolver=letsencrypt
+  - traefik.http.services.dbbm.loadbalancer.server.port=8080
 ```
 
 Large downloads and restores do not hold a request open: downloads use a one-use link and restores
@@ -72,9 +72,9 @@ master key means re-entering every stored credential. Back up both, in **differe
 
 ```bash
 # A consistent copy of the database; safe while the app runs.
-docker compose exec dbbackup python -m app.cli backup-db --out /data/app.db.copy
+docker compose exec dbbm python -m app.cli backup-db --out /data/app.db.copy
 # A list of sources, destinations, jobs and channels without any secret, to rebuild from.
-docker compose exec dbbackup python -m app.cli export-config --out /data/config-export.json
+docker compose exec dbbm python -m app.cli export-config --out /data/config-export.json
 ```
 
 Do not copy `app.db` with `cp` while the app runs: the write-ahead log (`app.db-wal`) holds recent
@@ -110,10 +110,10 @@ docker compose stop
 # 2. Write the new key (32+ characters) next to the old one.
 (umask 077; openssl rand -base64 32 > app_key.new)
 # 3. Dry run: decrypts everything, changes nothing.
-docker compose run --rm --no-deps -v "$PWD/app_key.new:/run/secrets/app_key_new:ro" dbbackup \
+docker compose run --rm --no-deps -v "$PWD/app_key.new:/run/secrets/app_key_new:ro" dbbm \
   python -m app.cli rotate-key --new-key-file /run/secrets/app_key_new --dry-run
 # 4. Real run. It first copies app.db to app.db.pre-rotate-<time> (still readable with the old key).
-docker compose run --rm --no-deps -v "$PWD/app_key.new:/run/secrets/app_key_new:ro" dbbackup \
+docker compose run --rm --no-deps -v "$PWD/app_key.new:/run/secrets/app_key_new:ro" dbbm \
   python -m app.cli rotate-key --new-key-file /run/secrets/app_key_new
 # 5. Swap the key file and start.
 mv app_key.txt app_key.old && mv app_key.new app_key.txt
@@ -130,7 +130,7 @@ Sign in and use **Settings > Change password** while you can. If you cannot sign
 the host (needs access to the container, which already means access to the data):
 
 ```bash
-docker compose exec dbbackup python -m app.cli reset-password admin
+docker compose exec dbbm python -m app.cli reset-password admin
 ```
 
 It asks for the new password twice, signs every session out and writes an audit entry.
@@ -168,4 +168,4 @@ Run a restore drill (README, Restoring) after any change to a source and at leas
 | Restore refuses: checksum mismatch | The stored file is damaged. Restore from another copy. |
 | Download link is "invalid or expired" | Links work once for 60 seconds. Click Download again. |
 | Locked out after failed logins | Wait for the lockout (default 15 minutes) or restart the container. |
-| `permission denied` on `./data` or `./backups` | Set `DBBACKUP_UID` and `DBBACKUP_GID` in `.env` to your user (README, Quick start). |
+| `permission denied` on `./data` or `./backups` | Set `DBBM_UID` and `DBBM_GID` in `.env` to your user (README, Quick start). |

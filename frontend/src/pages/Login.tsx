@@ -44,7 +44,7 @@ export default function LoginPage() {
         className="w-full max-w-sm"
         title="Sign in"
         headingLevel={2}
-        subtitle={state.notice ?? "Sign in to DBBackup."}
+        subtitle={state.notice ?? "Sign in to DBBM."}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field

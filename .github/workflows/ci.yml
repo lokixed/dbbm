@@ -92,30 +92,30 @@ jobs:
           context: .
           push: false
           load: true
-          tags: dbbackup:ci
+          tags: dbbm:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Client tools are installed
-        run: docker run --rm --entrypoint sh dbbackup:ci -c 'mysqldump --version && pg_dump --version && mongodump --version && mongorestore --version && rclone version'
+        run: docker run --rm --entrypoint sh dbbm:ci -c 'mysqldump --version && pg_dump --version && mongodump --version && mongorestore --version && rclone version'
       # rclone must run as the app user on a read-only root filesystem (config and cache in /tmp).
       - name: rclone runs read-only
-        run: docker run --rm --read-only --tmpfs /tmp --user 10001:10001 --entrypoint rclone dbbackup:ci version
+        run: docker run --rm --read-only --tmpfs /tmp --user 10001:10001 --entrypoint rclone dbbm:ci version
       # gcloud must work on a read-only root filesystem with its config under a writable path.
       - name: gcloud runs read-only
         run: |
           docker run --rm --read-only --tmpfs /tmp --user 10001:10001 \
             -e CLOUDSDK_CONFIG=/tmp/gcloud -e HOME=/tmp \
-            --entrypoint sh dbbackup:ci -c 'gcloud --version && gcloud firestore export --help >/dev/null'
+            --entrypoint sh dbbm:ci -c 'gcloud --version && gcloud firestore export --help >/dev/null'
       - name: Time zone data is available
         run: |
-          docker run --rm --entrypoint python dbbackup:ci -c \
+          docker run --rm --entrypoint python dbbm:ci -c \
             "from zoneinfo import ZoneInfo; ZoneInfo('Europe/Berlin'); ZoneInfo('America/New_York')"
       # The app starts read-only, owns the scheduler and reports it in /healthz.
       - name: Scheduler is healthy in the image
         run: |
           docker run -d --name smoke --read-only --tmpfs /tmp \
             --tmpfs /data:uid=10001,gid=10001 --tmpfs /backups:uid=10001,gid=10001 \
-            -e APP_SECRET_KEY=ci-only-master-key-0123456789-abcdefgh -p 127.0.0.1:18080:8080 dbbackup:ci
+            -e APP_SECRET_KEY=ci-only-master-key-0123456789-abcdefgh -p 127.0.0.1:18080:8080 dbbm:ci
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:18080/healthz > /tmp/health.json && break; sleep 2; done
           cat /tmp/health.json
           grep -q '"state": *"running"' /tmp/health.json
@@ -126,14 +126,14 @@ jobs:
           docker run --rm --user root --network host \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/backend:/src:ro" \
-            --entrypoint sh dbbackup:ci -c \
+            --entrypoint sh dbbm:ci -c \
             'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
             && cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'
       # Scan the built image for known vulnerabilities in OS packages and Python libraries.
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: dbbackup:ci
+          image-ref: dbbm:ci
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"

@@ -1,4 +1,4 @@
-const CSRF_COOKIE = "dbbackup_csrf";
+const CSRF_COOKIE = "dbbm_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

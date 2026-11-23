@@ -1,4 +1,4 @@
-# DBBackup — Design Document
+# DBBM (Database Backup & Management) — Design Document
 
 A self-hosted, Docker-installed tool with a web UI that schedules and runs backups of **MySQL, PostgreSQL, MongoDB and Firebase Firestore**, and stores every backup in **two places: a local drive and Google Drive**.
 
@@ -108,7 +108,7 @@ Run uvicorn with **one worker**. The scheduler, run queue and lock table live in
 ## 5. Repository layout
 
 ```
-dbbackup/
+dbbm/
 ├── Dockerfile                  # multi-stage: node build → python runtime
 ├── docker-compose.yml
 ├── README.md
@@ -541,8 +541,8 @@ The tools are added to the image incrementally: `mysqldump` and `pg_dump` in mil
 ### docker-compose.yml (example)
 ```yaml
 services:
-  dbbackup:
-    image: yourname/dbbackup:latest
+  dbbm:
+    image: yourname/dbbm:latest
     restart: unless-stopped
     ports: ["127.0.0.1:8080:8080"]
     environment:

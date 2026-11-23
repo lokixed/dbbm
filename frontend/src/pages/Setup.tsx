@@ -57,7 +57,7 @@ export default function SetupPage() {
       </div>
       <Card
         className="w-full max-w-sm"
-        title="Welcome to DBBackup"
+        title="Welcome to DBBM"
         headingLevel={2}
         subtitle="Create the administrator account to get started."
       >

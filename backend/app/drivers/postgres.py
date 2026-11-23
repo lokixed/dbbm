@@ -66,7 +66,7 @@ class PostgresDriver(BaseDriver):
             dbname=config.connection_database,
             sslmode=config.tls_mode,
             connect_timeout=CONNECT_TIMEOUT,
-            application_name=config.extra_options.get("application_name", "dbbackup"),
+            application_name=config.extra_options.get("application_name", "dbbm"),
             options=f"-c statement_timeout={CONNECT_TIMEOUT * 1000}",
             autocommit=True,
         ) as connection:
@@ -109,7 +109,7 @@ class PostgresDriver(BaseDriver):
         extra = {
             "PGSSLMODE": config.tls_mode,
             "PGCONNECT_TIMEOUT": str(CONNECT_TIMEOUT),
-            "PGAPPNAME": config.extra_options.get("application_name", "dbbackup"),
+            "PGAPPNAME": config.extra_options.get("application_name", "dbbm"),
         }
         if password := self._secrets.get("password"):
             extra["PGPASSWORD"] = password  # the child's environment only, never argv
@@ -218,7 +218,7 @@ class PostgresDriver(BaseDriver):
             dbname=config.connection_database,
             sslmode=config.tls_mode,
             connect_timeout=CONNECT_TIMEOUT,
-            application_name=config.extra_options.get("application_name", "dbbackup"),
+            application_name=config.extra_options.get("application_name", "dbbm"),
             autocommit=True,
         ) as connection:
             exists = connection.execute(

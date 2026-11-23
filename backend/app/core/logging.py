@@ -14,7 +14,7 @@ _SENSITIVE_PAIR = re.compile(
     [^\s,;"'}&]+
     """
 )
-_HANDLER_MARK = "_dbbackup_handler"
+_HANDLER_MARK = "_dbbm_handler"
 _UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 _MONGO_USERINFO = re.compile(r"(?i)(mongodb(?:\+srv)?://)[^/@\s]+@")

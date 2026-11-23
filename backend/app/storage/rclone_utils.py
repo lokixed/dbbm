@@ -253,7 +253,7 @@ async def rclone_session(
     sections: Mapping[str, str], *, cache_dir: Path | None, secrets: Sequence[str]
 ) -> AsyncIterator[RcloneSession]:
     """A 0700 temp dir (under the tmpfs /tmp) with a 0600 config; always removed afterwards."""
-    home = Path(tempfile.mkdtemp(prefix="dbbackup-rclone-"))
+    home = Path(tempfile.mkdtemp(prefix="dbbm-rclone-"))
     try:
         config_path = home / "rclone.conf"
         _write_private(config_path, render_config(sections))

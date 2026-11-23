@@ -50,7 +50,7 @@ def test_login_success_and_me(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["username"] == "admin"
     set_cookie = response.headers.get_list("set-cookie")
-    session_cookie = next(c for c in set_cookie if c.startswith("dbbackup_session="))
+    session_cookie = next(c for c in set_cookie if c.startswith("dbbm_session="))
     assert "HttpOnly" in session_cookie
     assert "SameSite=lax" in session_cookie
     assert client.get("/api/auth/me").json()["username"] == "admin"
@@ -93,7 +93,7 @@ def test_logout_ends_session(client: TestClient) -> None:
 def test_tampered_session_cookie_is_rejected(client: TestClient) -> None:
     setup_admin(client)
     login(client)
-    client.cookies.set("dbbackup_session", "garbage.value.here")
+    client.cookies.set("dbbm_session", "garbage.value.here")
     assert client.get("/api/auth/me").status_code == 401
 
 

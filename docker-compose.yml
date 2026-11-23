@@ -1,10 +1,10 @@
 services:
-  dbbackup:
+  dbbm:
     build: .
-    image: dbbackup:local
+    image: dbbm:local
     restart: unless-stopped
     # Match the host user so the bind mounts and the key file are readable and writable.
-    user: "${DBBACKUP_UID:-10001}:${DBBACKUP_GID:-10001}"
+    user: "${DBBM_UID:-10001}:${DBBM_GID:-10001}"
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -38,8 +38,8 @@ services:
       - no-new-privileges:true
     pids_limit: 512
     # Dumps stream through the tools, so memory use is small. Raise it if the OOM killer stops a run.
-    mem_limit: "${DBBACKUP_MEM_LIMIT:-2g}"
-    cpus: "${DBBACKUP_CPUS:-2}"
+    mem_limit: "${DBBM_MEM_LIMIT:-2g}"
+    cpus: "${DBBM_CPUS:-2}"
     tmpfs:
       - /tmp
     secrets:
