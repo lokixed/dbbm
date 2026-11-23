@@ -25,6 +25,7 @@ import {
   useTestChannel,
 } from "@/api/notifications";
 import type { ChannelRecord, NotificationEvent } from "@/api/types";
+import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChannelDialog } from "@/components/notifications/ChannelDialog";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
@@ -231,41 +232,15 @@ export default function NotificationsPage() {
       render: (channel) => {
         const sending = test.isPending && test.variables === channel.id;
         return (
-          <div className="flex justify-end gap-1 whitespace-nowrap">
-            <Button
-              variant="flat"
-              disabled={sending}
-              onClick={() => sendTest(channel)}
-              aria-label={`Send test to ${channel.name}`}
-              tooltip="Send test"
-            >
-              <SendIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="flat"
-              onClick={() => setEventsFor(channel)}
-              aria-label={`Events of ${channel.name}`}
-              tooltip="Events"
-            >
-              <HistoryIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="flat"
-              onClick={() => setEditor({ open: true, channel })}
-              aria-label={`Edit ${channel.name}`}
-              tooltip="Edit"
-            >
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="flat"
-              onClick={() => setDeleting(channel)}
-              aria-label={`Delete ${channel.name}`}
-              tooltip="Delete"
-            >
-              <Trash2Icon className="h-4 w-4" />
-            </Button>
-          </div>
+          <RowMenu
+            label={`Actions for ${channel.name}`}
+            items={[
+              { key: "test", label: "Send test", icon: <SendIcon className="h-4 w-4" />, disabled: sending, onClick: () => sendTest(channel) },
+              { key: "events", label: "Events", icon: <HistoryIcon className="h-4 w-4" />, onClick: () => setEventsFor(channel) },
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, channel }) },
+              { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(channel) },
+            ]}
+          />
         );
       },
     },

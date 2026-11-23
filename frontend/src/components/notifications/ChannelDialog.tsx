@@ -7,13 +7,13 @@ import Button from "xedonium/Button";
 import Field from "xedonium/Field";
 import Input from "xedonium/Input";
 import Loader from "xedonium/Loader";
-import Modal from "xedonium/Modal";
 import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
 import HelperText from "xedonium/HelperText";
 import PlusIcon from "xedonium/icons/Plus";
 import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
+import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { useSaveChannel, useTestChannel } from "@/api/notifications";
 import type { ChannelRecord, ChannelTestResult } from "@/api/types";
 import { SecretField } from "@/components/SecretField";
@@ -376,7 +376,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
         </Alert>
       )}
 
-      <div className="flex justify-end gap-2">
+      <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
           {record && testResult ? "Close" : "Cancel"}
         </Button>
@@ -387,7 +387,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
           <SendIcon className="h-4 w-4" />
           Save and send test
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }
@@ -400,7 +400,7 @@ interface ChannelDialogProps {
 
 export function ChannelDialog({ open, channel, onClose }: ChannelDialogProps) {
   return (
-    <Modal
+    <DialogFrame
       open={open}
       onClose={onClose}
       title={channel ? "Edit notification channel" : "Add notification channel"}
@@ -412,6 +412,6 @@ export function ChannelDialog({ open, channel, onClose }: ChannelDialogProps) {
       </HelperText>
       <ChannelForm channel={channel} onClose={onClose} />
       </div>
-    </Modal>
+    </DialogFrame>
   );
 }

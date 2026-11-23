@@ -6,10 +6,10 @@ import Button from "xedonium/Button";
 import Checkbox from "xedonium/Checkbox";
 import Field from "xedonium/Field";
 import HelperText from "xedonium/HelperText";
-import Modal from "xedonium/Modal";
 import RadioGroup from "xedonium/RadioGroup";
 import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
+import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useSaveSource, useTestSource } from "@/api/sources";
 import type { SourceRecord, SourceType, TestResult } from "@/api/types";
@@ -351,7 +351,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
       <TestResultPanel pending={test.isPending} result={testResult} error={testError} />
 
-      <div className="flex justify-end gap-2">
+      <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
           {record && testResult ? "Close" : "Cancel"}
         </Button>
@@ -361,7 +361,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
         <Button type="button" onClick={submit(true)} disabled={busy}>
           Save and test
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }
@@ -374,14 +374,14 @@ interface SourceDialogProps {
 
 export function SourceDialog({ open, source, onClose }: SourceDialogProps) {
   return (
-    <Modal open={open} onClose={onClose} title={source ? "Edit source" : "Add source"} maxWidth="max-w-2xl">
+    <DialogFrame open={open} onClose={onClose} title={source ? "Edit source" : "Add source"} maxWidth="max-w-2xl">
       <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         Credentials are encrypted at rest and never shown again after saving.
       </HelperText>
       <SourceDialogBody source={source} onClose={onClose} />
       </div>
-    </Modal>
+    </DialogFrame>
   );
 }
 

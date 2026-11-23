@@ -73,7 +73,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
           onChange={onCron}
           placeholder="0 3 * * *"
           autoComplete="off"
-          className="font-mono"
+          style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
         />
         <Select label="Time zone" value={timezone} onChange={onTimezone} options={zoneOptions} />
       </div>

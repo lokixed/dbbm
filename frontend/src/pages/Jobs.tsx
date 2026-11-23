@@ -16,6 +16,7 @@ import Trash2Icon from "xedonium/icons/Trash2";
 import RelativeTime from "xedonium/RelativeTime";
 import { useDeleteJob, useJobs, useRunJob, useSetJobEnabled } from "@/api/jobs";
 import type { JobRecord } from "@/api/types";
+import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
@@ -94,15 +95,9 @@ export default function JobsPage() {
     {
       key: "name",
       header: "Name",
-      render: (job) => (
-        <div className="font-medium">
-          {job.name}
-          <div className="mt-1">
-            <ScheduleBadge job={job} />
-          </div>
-        </div>
-      ),
+      render: (job) => <span className="font-medium">{job.name}</span>,
     },
+    { key: "schedule", header: "Schedule", render: (job) => <ScheduleBadge job={job} /> },
     {
       key: "source",
       header: "Source",
@@ -153,33 +148,14 @@ export default function JobsPage() {
         const starting = run.isPending && run.variables === job.id;
         const active = job.last_run?.status === "queued" || job.last_run?.status === "running";
         return (
-          <div className="flex justify-end gap-1 whitespace-nowrap">
-            <Button
-              variant="flat"
-              disabled={starting || active}
-              onClick={() => runNow(job)}
-              aria-label={`Run ${job.name} now`}
-              tooltip="Run now"
-            >
-              <PlayIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="flat"
-              onClick={() => setEditor({ open: true, job })}
-              aria-label={`Edit ${job.name}`}
-              tooltip="Edit"
-            >
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="flat"
-              onClick={() => setDeleting(job)}
-              aria-label={`Delete ${job.name}`}
-              tooltip="Delete"
-            >
-              <Trash2Icon className="h-4 w-4" />
-            </Button>
-          </div>
+          <RowMenu
+            label={`Actions for ${job.name}`}
+            items={[
+              { key: "run", label: "Run now", icon: <PlayIcon className="h-4 w-4" />, disabled: starting || active, onClick: () => runNow(job) },
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, job }) },
+              { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(job) },
+            ]}
+          />
         );
       },
     },

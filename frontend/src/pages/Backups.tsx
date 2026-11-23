@@ -30,6 +30,7 @@ import {
 import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
+import { RowMenu } from "@/components/RowMenu";
 import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/toast";
@@ -194,43 +195,15 @@ export default function BackupsPage() {
       header: "Actions",
       align: "right",
       render: (backup) => (
-        <div className="flex justify-end gap-1 whitespace-nowrap">
-          <Button
-            variant="secondary"
-            aria-label={`Download ${backup.source_database}`}
-            tooltip="Download"
-            disabled={backup.missing}
-            onClick={() => onDownload(backup)}
-          >
-            <DownloadIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="secondary"
-            aria-label={`Restore ${backup.source_database}`}
-            tooltip="Restore"
-            disabled={backup.missing}
-            onClick={() => setRestoring(backup)}
-          >
-            <RotateCcwIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="secondary"
-            aria-label={`Verify ${backup.source_database}`}
-            tooltip="Verify now"
-            disabled={verify.isPending && verify.variables === backup.id}
-            onClick={() => onVerify(backup)}
-          >
-            <ShieldCheckIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="secondary"
-            aria-label={`Delete ${backup.source_database}`}
-            tooltip="Delete"
-            onClick={() => setPendingDelete(backup)}
-          >
-            <Trash2Icon className="h-4 w-4" />
-          </Button>
-        </div>
+        <RowMenu
+          label={`Actions for ${backup.source_database}`}
+          items={[
+            { key: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => onDownload(backup) },
+            { key: "restore", label: "Restore", icon: <RotateCcwIcon className="h-4 w-4" />, disabled: backup.missing, hasDialog: true, onClick: () => setRestoring(backup) },
+            { key: "verify", label: "Verify now", icon: <ShieldCheckIcon className="h-4 w-4" />, disabled: verify.isPending && verify.variables === backup.id, onClick: () => onVerify(backup) },
+            { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setPendingDelete(backup) },
+          ]}
+        />
       ),
     },
   ];

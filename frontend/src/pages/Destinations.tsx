@@ -12,6 +12,7 @@ import PlusIcon from "xedonium/icons/Plus";
 import Trash2Icon from "xedonium/icons/Trash2";
 import { useDeleteDestination, useDestinations, useTestDestination } from "@/api/destinations";
 import type { DestinationRecord } from "@/api/types";
+import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { DestinationDialog } from "@/components/destinations/DestinationDialog";
@@ -111,21 +112,14 @@ export default function DestinationsPage() {
       render: (d) => {
         const testing = test.isPending && test.variables === d.id;
         return (
-          <div className="flex justify-end gap-1 whitespace-nowrap">
-            <Button
-              variant="flat"
-              onClick={() => setEditor({ open: true, destination: d, focusToken: false })}
-              aria-label={`Edit ${d.name}`}
-            >
-              <PencilIcon className="h-4 w-4" /> Edit
-            </Button>
-            <Button variant="flat" disabled={testing} onClick={() => runTest(d)} aria-label={`Test ${d.name}`}>
-              <PlayIcon className="h-4 w-4" /> Test
-            </Button>
-            <Button variant="flat" onClick={() => setDeleting(d)} aria-label={`Delete ${d.name}`}>
-              <Trash2Icon className="h-4 w-4" /> Delete
-            </Button>
-          </div>
+          <RowMenu
+            label={`Actions for ${d.name}`}
+            items={[
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, destination: d, focusToken: false }) },
+              { key: "test", label: "Test connection", icon: <PlayIcon className="h-4 w-4" />, disabled: testing, onClick: () => runTest(d) },
+              { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(d) },
+            ]}
+          />
         );
       },
     },

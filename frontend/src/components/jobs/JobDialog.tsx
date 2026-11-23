@@ -1,5 +1,5 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link } from "react-router-dom";
 import Alert from "xedonium/Alert";
@@ -9,9 +9,9 @@ import Field from "xedonium/Field";
 import HelperText from "xedonium/HelperText";
 import Label from "xedonium/Label";
 import Loader from "xedonium/Loader";
-import Modal from "xedonium/Modal";
 import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
+import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useDestinations } from "@/api/destinations";
 import { useSaveJob } from "@/api/jobs";
@@ -62,6 +62,7 @@ function JobForm({
 }) {
   const { toast } = useToast();
   const save = useSaveJob();
+  const formId = useId();
   const sources = useSources();
   const destinations = useDestinations();
   const channels = useChannels();
@@ -136,7 +137,7 @@ function JobForm({
   const noDestinations = destinations.isSuccess && destinations.data.length === 0;
 
   return (
-    <form onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
+    <form id={formId} onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
       <Field label="Name" autoComplete="off" {...bindText(form, "name")} error={errors.name?.message} />
 
       <div className="space-y-1.5">
@@ -332,14 +333,14 @@ function JobForm({
 
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <div className="flex justify-end gap-2">
+      <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
           Cancel
         </Button>
-        <Button type="submit" disabled={save.isPending}>
+        <Button type="submit" form={formId} disabled={save.isPending}>
           Save job
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }
@@ -357,7 +358,7 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
   // The form takes its defaults on mount, so wait until the lookups it depends on have loaded.
   const ready = !settings.isPending && !sources.isPending && !destinations.isPending;
   return (
-    <Modal open={open} onClose={onClose} title={job ? "Edit job" : "Add job"} maxWidth="max-w-2xl">
+    <DialogFrame open={open} onClose={onClose} title={job ? "Edit job" : "Add job"} maxWidth="max-w-2xl">
       <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         A job backs up every database of one source to one or more destinations.
@@ -368,6 +369,6 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
         <Loader variant="inline" label="Loading..." />
       )}
       </div>
-    </Modal>
+    </DialogFrame>
   );
 }

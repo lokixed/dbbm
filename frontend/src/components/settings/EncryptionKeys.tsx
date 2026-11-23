@@ -8,6 +8,7 @@ import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
 import Table, { type TableColumn } from "xedonium/Table";
 import { useAddRecipient, useDeleteRecipient, useRecipients, type Recipient } from "@/api/recipients";
+import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/toast";
 
@@ -57,9 +58,10 @@ export function EncryptionKeys() {
       header: "",
       align: "right",
       render: (r) => (
-        <Button variant="secondary" aria-label={`Remove ${r.name}`} onClick={() => setPendingDelete(r)}>
-          Remove
-        </Button>
+        <RowMenu
+          label={`Actions for ${r.name}`}
+          items={[{ key: "remove", label: "Remove", tone: "danger", onClick: () => setPendingDelete(r) }]}
+        />
       ),
     },
   ];

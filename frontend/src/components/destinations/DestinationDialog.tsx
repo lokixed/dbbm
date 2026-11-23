@@ -5,8 +5,8 @@ import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Field from "xedonium/Field";
 import HelperText from "xedonium/HelperText";
-import Modal from "xedonium/Modal";
 import Select from "xedonium/Select";
+import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useRetentionPreview, useSaveDestination, useTestDestination } from "@/api/destinations";
 import type { DestinationRecord, RetentionPreview, TestResult } from "@/api/types";
@@ -245,7 +245,7 @@ function DestinationForm({
       />
       {confirm && <PreviewSummary preview={confirm.preview} />}
 
-      <div className="flex justify-end gap-2">
+      <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
           {record && testResult ? "Close" : "Cancel"}
         </Button>
@@ -255,7 +255,7 @@ function DestinationForm({
         <Button type="button" onClick={submit(true)} disabled={busy}>
           Save and test
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }
@@ -270,7 +270,7 @@ interface DestinationDialogProps {
 
 export function DestinationDialog({ open, destination, focusToken = false, onClose }: DestinationDialogProps) {
   return (
-    <Modal
+    <DialogFrame
       open={open}
       onClose={onClose}
       title={focusToken ? "Reconnect Google Drive" : destination ? "Edit destination" : "Add destination"}
@@ -282,6 +282,6 @@ export function DestinationDialog({ open, destination, focusToken = false, onClo
       </HelperText>
       <DestinationForm destination={destination} focusToken={focusToken} onClose={onClose} />
       </div>
-    </Modal>
+    </DialogFrame>
   );
 }
