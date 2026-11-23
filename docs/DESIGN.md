@@ -396,11 +396,15 @@ Rules:
 - argon2 password hashes; HttpOnly, SameSite, Secure session cookies; CSRF protection on state-changing requests; login rate limiting and lockout.
 - All inputs validated with Pydantic; no shell string concatenation (always `exec` with argument lists); path inputs sanitized.
 - Secrets are redacted from logs, error messages and API responses (the API never returns stored passwords or tokens).
+- Every response carries a strict Content-Security-Policy, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `nosniff`; HSTS when `COOKIE_SECURE=true`; `Cache-Control: no-store` on `/api`. `/api/docs` is off unless `ENABLE_DOCS=true`.
+- The admin can change their password (all other sessions are signed out). A lost password is reset from the host with `python -m app.cli reset-password`.
+- Backup downloads use a one-use signed link (60 seconds) so a browser or proxy can fetch large files with a plain GET.
 
 ### Credentials at rest
 - Source passwords, Drive tokens, service-account JSON and notification secrets are encrypted before they go in SQLite.
 - The master key comes from an env var or Docker secret (`APP_SECRET_KEY` / `APP_SECRET_KEY_FILE`), never from the database or image.
-- Document clearly: **losing the master key means re-entering all credentials.** Provide a key-rotation command.
+- Document clearly: **losing the master key means re-entering all credentials.**
+- Offline admin commands (`python -m app.cli`): `rotate-key` (all-or-nothing, dry run, keeps a pre-rotation copy of the database), `backup-db` (SQLite online backup API), `export-config` (no secrets), `reset-password`.
 
 ### Backup encryption
 - Optional per-job `age` encryption using public keys (recipients) stored in the `age_recipients` table and linked to jobs in `job_recipients`; the private key is **not** kept on the server.
@@ -445,10 +449,12 @@ POST             /runs/{id}/retry      retry failed destinations only
 
 GET              /backups              list artifacts; filters: job, source, database, destination, status, date range
 GET              /backups/{id}/download  verifies the SHA-256 first; local copy preferred, else Drive
+POST             /backups/{id}/download-link  one-use URL, valid 60 seconds
+GET              /backups/download/{token}    serves the file for a link (the token is the credential)
 POST             /backups/{id}/verify    re-read the stored copy (local SHA-256, Drive MD5)
 POST             /backups/rescan?destination_id=   mark artifacts whose files are gone
 DELETE           /backups/{id}
-POST             /backups/{id}/restore  body: target_source_id, target_database, drop, confirm_database, confirm_overwrite_original, private_key (encrypted backups only); starts a run of kind `restore`
+POST             /backups/{id}/restore  body: target_source_id, target_database, drop, only (collections/tables; MongoDB and PostgreSQL per-database backups), confirm_database, confirm_overwrite_original, private_key (encrypted backups only); starts a run of kind `restore`
 GET/POST         /recipients           age public keys for backup encryption; DELETE /recipients/{id} (refused while a job uses the key)
 
 GET/POST/PUT/DELETE /notifications
@@ -597,7 +603,8 @@ A backup tool is only trustworthy if **restores are tested** — treat the resto
 | 5 | All Google Drive work: install rclone in the image, add the `gdrive` destination type (migration), Drive token form and connection test, Drive adapter, verification, per-destination status, retry | Offsite copy works; partial failures are visible and retryable |
 | 6 | Scheduler, retention, notifications, interrupted-run recovery | Runs unattended |
 | 7 | Backups browser, download, restore wizard | Full round trip tested |
-| 8 | Hardening: audit log, rate limiting, key rotation, docs, CI, release image | Production-ready 1.0 |
+| 8 | Backup encryption (age) | Encrypted backups restore with the private key |
+| 9 | Hardening: audit log, key rotation, security headers, scans in CI, docs, release image | Production-ready 1.0 (see docs/TODO.md for the open acceptance checks) |
 
 Milestones 1–3 produce something usable quickly; 4 and 5 hold the harder integrations.
 

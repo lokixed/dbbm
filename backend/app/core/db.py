@@ -31,6 +31,15 @@ def get_engine() -> Engine:
     return engine
 
 
+def checkpoint_wal() -> None:
+    """Fold the write-ahead log into the main database file (done on clean shutdown, so the
+    file alone is a complete copy of the data)."""
+    if not get_engine.cache_info().currsize:
+        return
+    with get_engine().connect() as connection:
+        connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
 def reset_engine() -> None:
     if get_engine.cache_info().currsize:
         get_engine().dispose()

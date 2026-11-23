@@ -2,7 +2,7 @@
 
 Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, with a web UI.
 
-> **Status: Milestone 5 (Google Drive).** MySQL, PostgreSQL, MongoDB and Firestore sources can be backed up to local and Google Drive destinations with **Run now**, with live logs, per-destination verification and retry of failed uploads. Schedules, retention, notifications, the backups browser and restore arrive in later milestones. See [docs/DESIGN.md](docs/DESIGN.md) for the full design and milestone plan.
+> **Status: 1.0.0 release candidate.** Backups of MySQL, PostgreSQL, MongoDB and Firestore to local and Google Drive destinations, schedules, retention, notifications, a backups browser with download and restore, age encryption, an audit log and admin tools. See [CHANGELOG.md](CHANGELOG.md) for what is left before 1.0, and [docs/DESIGN.md](docs/DESIGN.md) for the design.
 
 ## Quick start
 
@@ -43,7 +43,7 @@ No databases to try? `make dev-dbs-up` starts sample MySQL, PostgreSQL and Mongo
 
 Backup user privileges: MySQL needs `SELECT`, `SHOW VIEW`, `TRIGGER`, `EVENT` on the databases and the global `SHOW_ROUTINE` privilege (8.0.20+) if they contain stored routines; a dump that cannot read a routine fails instead of silently leaving it out. PostgreSQL needs `CONNECT` and `SELECT` on everything (for example membership in `pg_read_all_data`).
 
-Restoring: open **Backups**, click the restore button on a copy and follow the wizard: choose the copy, the target source and database name, the options, then type the database name to confirm. The target is a registered source and its credentials are used. The default is a new database name; restoring into the original database needs an extra confirmation. A restore is a run like a backup (live log, **Cancel run**), and it checks the file's SHA-256 before it changes anything. MongoDB, MySQL, PostgreSQL and Firestore are supported. Firestore imports go into the target source's own database, overwrite documents with the same ID and never delete documents. The PostgreSQL roles file is not restored: download it and apply it with `psql`.
+Restoring: open **Backups**, click the restore button on a copy and follow the wizard: choose the copy, the target source and database name, the options, then type the database name to confirm. The target is a registered source and its credentials are used. The default is a new database name; restoring into the original database needs an extra confirmation. A restore is a run like a backup (live log, **Cancel run**), and it checks the file's SHA-256 before it changes anything. MongoDB, MySQL, PostgreSQL and Firestore are supported. For MongoDB and PostgreSQL per-database backups you can restore only some collections or tables. Downloads use a one-use link that expires after 60 seconds. Firestore imports go into the target source's own database, overwrite documents with the same ID and never delete documents. The PostgreSQL roles file is not restored: download it and apply it with `psql`.
 
 Restore user privileges: restoring needs write access, so create a separate restore user and use it for the target source instead of the read-only backup user. MySQL needs `ALL` on the target databases plus `CREATE` and `DROP` on `*.*` (the restore creates the database, and drops it with "replace existing"). PostgreSQL needs `CREATEDB` (or an existing, owned target database); objects are created with the restore user as owner. MongoDB needs the `restore` role on the target databases. Firestore needs `roles/datastore.importExportAdmin` and permission to create and delete objects in the staging bucket.
 
@@ -73,6 +73,14 @@ age --decrypt -i backup-key.txt -o backup.sql.gz backup.sql.gz.age
 Rotating keys: add the new public key, add it to the jobs, then remove the old one from the jobs. Backups made earlier stay readable only with the key they were encrypted to, so keep the old private key as long as you keep those backups. To re-encrypt an old backup, decrypt it and encrypt it to the new key: `age -d -i old-key.txt backup.age | age -r age1NEWPUBLICKEY -o backup-new.age`.
 
 Recovery drill, at least once per quarter: take a backup from your storage (not from the server's disk), fetch the private key from where you keep it, decrypt it with `age`, and restore it into a scratch database. If any step fails, fix it while you still have the original data.
+
+## More documentation
+
+- [docs/OPERATIONS.md](docs/OPERATIONS.md): upgrades, HTTPS with Caddy or Traefik, backing up the tool itself, the disaster recovery drill, master key rotation, a lost admin password, monitoring and troubleshooting.
+- [docs/SECURITY.md](docs/SECURITY.md): what the tool protects against and what it does not.
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+
+Admin commands run inside the container: `python -m app.cli --help` (`rotate-key`, `backup-db`, `export-config`, `reset-password`).
 
 ## Supported databases
 

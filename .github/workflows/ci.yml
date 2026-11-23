@@ -54,6 +54,33 @@ jobs:
       - run: yarn typecheck
       - run: yarn build
 
+  # Dependency, secret and image scanning. High severity findings fail the build.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (Python dependencies)
+        run: |
+          python -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install -q ./backend pip-audit
+          /tmp/audit-venv/bin/pip-audit --local --progress-spinner off --skip-editable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - name: yarn npm audit (frontend dependencies)
+        working-directory: frontend
+        run: yarn npm audit --all --recursive --severity high
+      - name: gitleaks (secrets in the repository history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   docker:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
@@ -102,3 +129,11 @@ jobs:
             --entrypoint sh dbbackup:ci -c \
             'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
             && cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'
+      # Scan the built image for known vulnerabilities in OS packages and Python libraries.
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: dbbackup:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

@@ -37,3 +37,8 @@ class UserOut(BaseModel):
 
 class AuthStatus(BaseModel):
     setup_required: bool
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: SecretStr = Field(min_length=1, max_length=256)
+    new_password: SecretStr = Field(min_length=12, max_length=128)

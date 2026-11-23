@@ -18,7 +18,13 @@ from app.core.security import (
     verify_password,
 )
 from app.models import User
-from app.schemas.auth import AuthStatus, LoginRequest, SetupRequest, UserOut
+from app.schemas.auth import (
+    AuthStatus,
+    ChangePasswordRequest,
+    LoginRequest,
+    SetupRequest,
+    UserOut,
+)
 from app.services.audit import write_audit
 
 logger = logging.getLogger(__name__)
@@ -146,4 +152,40 @@ def me(
     user: CurrentUser,
 ) -> UserOut:
     ensure_csrf_cookie(request, response, settings, session_data)
+    return _user_out(user)
+
+
+@router.post("/change-password")
+def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    response: Response,
+    settings: SettingsDep,
+    db: SessionDep,
+    user: CurrentUser,
+) -> UserOut:
+    """Change the signed-in user's password. Every other session is signed out."""
+    ip = client_ip(request)
+    limiter = get_rate_limiter()
+    if limiter.retry_after(ip, user.username):
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Try again later.")
+    current = body.current_password.get_secret_value()
+    new = body.new_password.get_secret_value()
+    if not verify_password(user.password_hash, current):
+        limiter.record_failure(ip, user.username)
+        write_audit(db, "auth.password_change_failed", user=user, ip=ip)
+        db.commit()
+        raise HTTPException(status_code=403, detail="The current password is wrong.")
+    if new == current:
+        raise HTTPException(
+            status_code=422, detail="The new password must differ from the current one."
+        )
+    user.password_hash = hash_password(new)
+    user.session_version += 1  # signs out every session; this one gets a fresh cookie below
+    db.add(user)
+    write_audit(db, "auth.password_changed", user=user, ip=ip)
+    db.commit()
+    token, data = create_session_token(settings, user.id, user.session_version)
+    set_session_cookies(response, settings, token, data)
+    logger.info("Password changed")
     return _user_out(user)

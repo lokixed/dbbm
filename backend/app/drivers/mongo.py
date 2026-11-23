@@ -259,6 +259,16 @@ class MongoDriver(BaseDriver):
             raise RestoreError(str(exc)) from None
         return {"mongorestore": (output.strip().splitlines() or ["unknown"])[0]}
 
+    def check_restore_compatibility(self, tools: dict[str, str]) -> list[str]:
+        match = re.search(r"(\d+)\.\d+", tools.get("mongorestore", ""))
+        server = re.match(r"\d+", self._server_version or "")
+        if match and server and int(match.group(1)) < int(server.group()):
+            return [
+                f"mongorestore {match.group(0)} is older than the MongoDB server "
+                f"({self._server_version}); some features may not be restored."
+            ]
+        return []
+
     @staticmethod
     def _restore_argv(config_file: Path, artifact: Path, options: RestoreOptions) -> list[str]:
         argv = ["mongorestore", f"--config={config_file}", f"--archive={artifact}", "--gzip"]
@@ -266,7 +276,10 @@ class MongoDriver(BaseDriver):
             argv.append("--drop")
         if options.full_instance:
             return [*argv, "--oplogReplay"]
-        argv.append(f"--nsInclude={options.database}.*")
+        if options.only:
+            argv += [f"--nsInclude={options.database}.{name}" for name in options.only]
+        else:
+            argv.append(f"--nsInclude={options.database}.*")
         if options.target_database != options.database:
             argv += [f"--nsFrom={options.database}.*", f"--nsTo={options.target_database}.*"]
         return argv

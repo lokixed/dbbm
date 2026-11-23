@@ -79,8 +79,14 @@ export function useBackups(filters: BackupFilters, page: number) {
   });
 }
 
-export function downloadUrl(id: string): string {
-  return `/api/backups/${encodeURIComponent(id)}/download`;
+export interface DownloadLink {
+  url: string;
+  expires_in: number;
+}
+
+/** A one-use link (valid for a minute) that the browser can fetch with a plain GET. */
+export function requestDownloadLink(id: string): Promise<DownloadLink> {
+  return api<DownloadLink>(`/api/backups/${encodeURIComponent(id)}/download-link`, { method: "POST" });
 }
 
 export function useVerifyBackup() {

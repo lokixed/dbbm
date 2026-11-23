@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
-import ButtonLink from "xedonium/ButtonLink";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
 import Input from "xedonium/Input";
@@ -20,7 +19,7 @@ import Trash2Icon from "xedonium/icons/Trash2";
 import RelativeTime from "xedonium/RelativeTime";
 import {
   PAGE_SIZE,
-  downloadUrl,
+  requestDownloadLink,
   useBackups,
   useDeleteBackup,
   useRescanDestination,
@@ -118,6 +117,16 @@ export default function BackupsPage() {
         toast({ title: "Could not verify the backup", description: error.message, variant: "error" }),
     });
 
+  const onDownload = (backup: Backup) => {
+    requestDownloadLink(backup.id)
+      .then((link) => {
+        window.location.assign(link.url);
+      })
+      .catch((error: Error) =>
+        toast({ title: "Could not start the download", description: error.message, variant: "error" }),
+      );
+  };
+
   const onDelete = () => {
     if (!pendingDelete) return;
     remove.mutate(pendingDelete.id, {
@@ -186,15 +195,15 @@ export default function BackupsPage() {
       align: "right",
       render: (backup) => (
         <div className="flex justify-end gap-1 whitespace-nowrap">
-          <ButtonLink
+          <Button
             variant="secondary"
-            href={backup.missing ? undefined : downloadUrl(backup.id)}
-            download
-            disabled={backup.missing}
             aria-label={`Download ${backup.source_database}`}
+            tooltip="Download"
+            disabled={backup.missing}
+            onClick={() => onDownload(backup)}
           >
             <DownloadIcon className="h-4 w-4" />
-          </ButtonLink>
+          </Button>
           <Button
             variant="secondary"
             aria-label={`Restore ${backup.source_database}`}

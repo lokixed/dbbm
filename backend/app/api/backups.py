@@ -10,15 +10,28 @@ from sqlalchemy import ColumnElement, func
 from sqlmodel import Session, col, select
 from starlette.background import BackgroundTask
 
-from app.api.deps import CurrentUser, ServicesDep, client_ip
+from app.api.deps import CurrentUser, ServicesDep, SettingsDep, client_ip
 from app.api.run_views import summarize_runs
 from app.core.db import SessionDep
+from app.core.security import (
+    DOWNLOAD_TTL_SECONDS,
+    create_download_token,
+    read_download_token,
+    used_download_tokens,
+)
 from app.drivers import DRIVERS
 from app.drivers.base import BaseDriver, RestoreOptions
 from app.drivers.mongo import FULL_INSTANCE
-from app.models import Artifact, Destination, Job, Run, Source
+from app.models import Artifact, Destination, Job, Run, Source, User
 from app.models.base import utcnow
-from app.schemas.backup import BackupOut, BackupPage, RescanOut, RestoreIn, VerifyOut
+from app.schemas.backup import (
+    BackupOut,
+    BackupPage,
+    DownloadLinkOut,
+    RescanOut,
+    RestoreIn,
+    VerifyOut,
+)
 from app.schemas.job import RunSummaryOut
 from app.schemas.source import FirestoreConfig
 from app.services import backups as svc
@@ -149,25 +162,40 @@ def list_backups(
     return BackupPage(items=[_out(r) for r in rows], total=int(total))
 
 
-@router.get("/{backup_id}/download", response_class=FileResponse)
-async def download_backup(
-    backup_id: uuid.UUID, request: Request, db: SessionDep, user: CurrentUser
+async def _serve_download(
+    db: Session,
+    request: Request,
+    artifact: Artifact,
+    dest: Destination,
+    who: User | str,
+    via: str,
 ) -> FileResponse:
-    artifact, dest = _artifact_or_404(db, backup_id)
+    def audit(action: str, **extra: object) -> None:
+        write_audit(
+            db,
+            action,
+            user=who if isinstance(who, User) else None,
+            username=who if isinstance(who, str) else None,
+            object_type="artifact",
+            object_id=str(artifact.id),
+            details={"path": artifact.path, "via": via, **extra},
+            ip=client_ip(request),
+        )
+
     try:
         download = await svc.prepare_download(db, artifact, dest)
     except svc.BackupError as exc:
-        _audit(db, "backup.download_failed", user, request, artifact, error=str(exc))
+        audit("backup.download_failed", error=str(exc))
         db.commit()
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
     except Exception as exc:
         message = svc.describe(exc)
-        _audit(db, "backup.download_failed", user, request, artifact, error=message)
+        audit("backup.download_failed", error=message)
         db.commit()
         raise HTTPException(
             status_code=502, detail=f"Could not read the backup: {message}"
         ) from None
-    _audit(db, "backup.download", user, request, artifact, destination=dest.name)
+    audit("backup.download", destination=dest.name)
     db.commit()
     background = (
         BackgroundTask(svc.remove_dir, download.cleanup_dir) if download.cleanup_dir else None
@@ -178,6 +206,45 @@ async def download_backup(
         filename=download.filename,
         background=background,
     )
+
+
+@router.get("/{backup_id}/download", response_class=FileResponse)
+async def download_backup(
+    backup_id: uuid.UUID, request: Request, db: SessionDep, user: CurrentUser
+) -> FileResponse:
+    artifact, dest = _artifact_or_404(db, backup_id)
+    return await _serve_download(db, request, artifact, dest, user, "session")
+
+
+@router.post("/{backup_id}/download-link")
+def create_download_link(
+    backup_id: uuid.UUID,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    settings: SettingsDep,
+) -> DownloadLinkOut:
+    """A one-use link, valid for a minute, that a browser or download manager can fetch
+    with a plain GET (no cookies needed, so large downloads work through proxies)."""
+    artifact, _dest = _artifact_or_404(db, backup_id)
+    token = create_download_token(settings, artifact.id, user.username)
+    _audit(db, "backup.download_link", user, request, artifact)
+    db.commit()
+    return DownloadLinkOut(url=f"/api/backups/download/{token}", expires_in=DOWNLOAD_TTL_SECONDS)
+
+
+@router.get("/download/{token}", response_class=FileResponse)
+async def download_with_link(
+    token: str, request: Request, db: SessionDep, settings: SettingsDep
+) -> FileResponse:
+    grant = read_download_token(settings, token)
+    if grant is None or not used_download_tokens.redeem(grant.nonce):
+        raise HTTPException(status_code=403, detail="This download link is invalid or expired.")
+    user = db.exec(select(User).where(col(User.username) == grant.username)).first()
+    if user is None:
+        raise HTTPException(status_code=403, detail="This download link is invalid or expired.")
+    artifact, dest = _artifact_or_404(db, grant.artifact_id)
+    return await _serve_download(db, request, artifact, dest, user, "signed_link")
 
 
 @router.post("/{backup_id}/verify")
@@ -273,6 +340,18 @@ def _check_firestore_target(target: Source, body: RestoreIn) -> None:
         )
 
 
+def _check_only(kind: str, full: bool, body: RestoreIn) -> None:
+    """Per-collection / per-table restore: MongoDB and PostgreSQL only, never a full instance."""
+    if not body.only:
+        return
+    if kind not in ("mongo", "postgres") or full:
+        raise HTTPException(
+            status_code=422,
+            detail="Restoring selected collections or tables is available for MongoDB and "
+            "PostgreSQL per-database backups only.",
+        )
+
+
 def _private_key_for(artifact: Artifact, body: RestoreIn) -> str | None:
     """The age private key for an encrypted backup (validated); None for a plain one."""
     if not artifact.encrypted:
@@ -357,6 +436,7 @@ async def restore_backup(
                 f"use '{FULL_INSTANCE}' as the target name."
             ),
         )
+    _check_only(kind, full, body)
     if body.confirm_database != body.target_database:
         raise HTTPException(status_code=422, detail="Type the target database name to confirm.")
     overwrites_original = (original.id if original else None) == target.id and (
@@ -373,7 +453,9 @@ async def restore_backup(
     private_key = _private_key_for(artifact, body)
     if _rate_limited(user.username):
         raise HTTPException(status_code=429, detail="Too many restores started. Wait a minute.")
-    options = RestoreOptions(artifact.source_database, body.target_database, body.drop, full)
+    options = RestoreOptions(
+        artifact.source_database, body.target_database, body.drop, full, tuple(body.only)
+    )
     try:
         plan = load_restore_plan(
             artifact, copy, target, options, DEFAULT_TIMEOUT, user.username, private_key

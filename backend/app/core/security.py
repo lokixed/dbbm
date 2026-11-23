@@ -85,6 +85,60 @@ def read_session(settings: Settings, token: str | None) -> SessionData | None:
         return None
 
 
+# --- signed download links ---------------------------------------------------
+
+DOWNLOAD_TTL_SECONDS = 60
+
+
+def _download_serializer(settings: Settings) -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(
+        derive_key(settings.master_key, b"download"), salt="dbbackup.download"
+    )
+
+
+def create_download_token(settings: Settings, artifact_id: uuid.UUID, username: str) -> str:
+    """A short-lived token that lets one plain GET fetch one backup."""
+    return _download_serializer(settings).dumps(
+        {"aid": str(artifact_id), "u": username, "n": secrets.token_urlsafe(12)}
+    )
+
+
+@dataclass(frozen=True)
+class DownloadGrant:
+    artifact_id: uuid.UUID
+    username: str
+    nonce: str
+
+
+def read_download_token(settings: Settings, token: str) -> DownloadGrant | None:
+    try:
+        payload = _download_serializer(settings).loads(token, max_age=DOWNLOAD_TTL_SECONDS)
+        return DownloadGrant(uuid.UUID(payload["aid"]), str(payload["u"]), str(payload["n"]))
+    except (BadSignature, KeyError, ValueError, TypeError):
+        return None
+
+
+class UsedTokens:
+    """Remembers redeemed download tokens until they expire, so each link works once."""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._seen: dict[str, float] = {}
+
+    def redeem(self, nonce: str) -> bool:
+        now = self._clock()
+        with self._lock:
+            self._seen = {n: t for n, t in self._seen.items() if now - t < DOWNLOAD_TTL_SECONDS}
+            if nonce in self._seen:
+                return False
+            self._seen[nonce] = now
+            return True
+
+
+used_download_tokens = UsedTokens()
+
+
 # --- CSRF (double-submit token, HMAC-signed) ---------------------------------
 
 

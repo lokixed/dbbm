@@ -31,6 +31,7 @@ class AppSettingsIn(BaseModel):
     default_timezone: str = "UTC"
     log_retention_days: Annotated[int, Field(strict=True, ge=1, le=3650)] = 90
     run_history_days: Annotated[int, Field(strict=True, ge=1, le=36500)] = 365
+    audit_retention_days: Annotated[int, Field(strict=True, ge=30, le=36500)] = 365
     misfire_grace_seconds: Annotated[int, Field(strict=True, ge=0, le=7 * 86400)] = 3600
     housekeeping_time: str = "03:30"
     low_disk_threshold_percent: Annotated[int, Field(strict=True, ge=0, le=90)] = 10

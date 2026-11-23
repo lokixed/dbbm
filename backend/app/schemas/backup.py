@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field, SecretStr
 
@@ -41,6 +42,11 @@ class VerifyOut(BaseModel):
     verified_at: datetime | None = None
 
 
+class DownloadLinkOut(BaseModel):
+    url: str
+    expires_in: int
+
+
 class RescanOut(BaseModel):
     destination_id: str
     checked: int
@@ -52,6 +58,10 @@ class RestoreIn(BaseModel):
     # Safe for every engine and for command-line arguments.
     target_database: str = Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$")
     drop: bool = False
+    # Restore only these collections (MongoDB) or tables (PostgreSQL); empty restores everything.
+    only: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,126}$")]] = Field(
+        default_factory=list, max_length=200
+    )
     # The user must type the target database name.
     confirm_database: str
     # Needed only when the restore would overwrite the original database.

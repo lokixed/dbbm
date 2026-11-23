@@ -49,6 +49,7 @@ class RestoreOptions:
     target_database: str  # where its contents are restored to
     drop: bool = False  # replace existing collections/tables of the target
     full_instance: bool = False  # the artifact is a whole-server dump
+    only: tuple[str, ...] = ()  # restore just these collections/tables (empty: everything)
 
 
 @dataclass(frozen=True)
@@ -183,3 +184,8 @@ class BaseDriver(ABC):
     async def restore_tool_versions(self) -> dict[str, str]:
         """Versions of the client tools a restore needs; raises RestoreError if one is missing."""
         return {}
+
+    def check_restore_compatibility(self, tools: dict[str, str]) -> list[str]:
+        """Warnings about the installed restore tools versus the target server. Raises
+        RestoreError when the restore cannot work at all. Needs a prior test_connection()."""
+        return []

@@ -14,9 +14,10 @@ import LogOutIcon from "xedonium/icons/LogOut";
 import MenuIcon from "xedonium/icons/Menu";
 import MoonIcon from "xedonium/icons/Moon";
 import PlayIcon from "xedonium/icons/Play";
+import FileTextIcon from "xedonium/icons/FileText";
 import SettingsIcon from "xedonium/icons/Settings";
 import SunIcon from "xedonium/icons/Sun";
-import { useLogout, useMe } from "@/api/auth";
+import { useLogout, useMe, useVersion } from "@/api/auth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const NAV_ITEMS: SidebarItem[] = [
@@ -27,6 +28,7 @@ const NAV_ITEMS: SidebarItem[] = [
   { key: "/runs", label: "Runs", href: "/runs", icon: <PlayIcon className="h-4 w-4" /> },
   { key: "/backups", label: "Backups", href: "/backups", icon: <ArchiveIcon className="h-4 w-4" /> },
   { key: "/notifications", label: "Notifications", href: "/notifications", icon: <BellIcon className="h-4 w-4" /> },
+  { key: "/audit", label: "Audit log", href: "/audit", icon: <FileTextIcon className="h-4 w-4" /> },
   { key: "/settings", label: "Settings", href: "/settings", icon: <SettingsIcon className="h-4 w-4" /> },
 ];
 
@@ -42,6 +44,7 @@ export function Layout() {
   const { pathname } = useLocation();
   const { data: user } = useMe();
   const logout = useLogout();
+  const version = useVersion();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
@@ -68,7 +71,12 @@ export function Layout() {
     <Sidebar
       items={items}
       activeKey={activeKey(pathname)}
-      header={<span className="px-2 text-lg font-semibold tracking-tight">DBBackup</span>}
+      header={
+        <span className="px-2">
+          <span className="text-lg font-semibold tracking-tight">DBBackup</span>
+          {version.data && <span className="ml-2 text-xs text-app-muted">v{version.data.version}</span>}
+        </span>
+      }
       linkComponent={Link}
       linkProp="to"
       label="Main navigation"

@@ -38,3 +38,15 @@ def decrypt(token: bytes) -> str:
         return _fernet(get_settings().master_key).decrypt(token).decode("utf-8")
     except InvalidToken as exc:
         raise DecryptionError("Cannot decrypt value with the configured master key.") from exc
+
+
+def encrypt_with(master_key: bytes, plaintext: bytes) -> bytes:
+    """Encrypt with an explicit master key (used by key rotation)."""
+    return _fernet(master_key).encrypt(plaintext)
+
+
+def decrypt_with(master_key: bytes, token: bytes) -> bytes:
+    try:
+        return _fernet(master_key).decrypt(token)
+    except InvalidToken as exc:
+        raise DecryptionError("Cannot decrypt value with the given master key.") from exc

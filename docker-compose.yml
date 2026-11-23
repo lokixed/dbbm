@@ -31,6 +31,15 @@ services:
       - ./data:/data
       - ./backups:/backups
     read_only: true
+    # Hardening: no Linux capabilities, no privilege escalation, bounded memory and processes.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    # Dumps stream through the tools, so memory use is small. Raise it if the OOM killer stops a run.
+    mem_limit: "${DBBACKUP_MEM_LIMIT:-2g}"
+    cpus: "${DBBACKUP_CPUS:-2}"
     tmpfs:
       - /tmp
     secrets:

@@ -85,6 +85,31 @@ def test_download_streams_the_file_and_is_audited(authed: TestClient) -> None:
     assert "backup.download" in audit_actions()
 
 
+def test_signed_download_link_works_once_without_cookies(authed: TestClient) -> None:
+    backed_up(authed)
+    item = listing(authed)["items"][0]
+    link = api_post(authed, f"/api/backups/{item['id']}/download-link")
+    assert link.status_code == 200 and link.json()["expires_in"] == 60
+    url = link.json()["url"]
+    authed.cookies.clear()
+    first = authed.get(url)
+    assert first.status_code == 200
+    assert hashlib.sha256(first.content).hexdigest() == item["sha256"]
+    assert authed.get(url).status_code == 403  # one use only
+    assert {"backup.download_link", "backup.download"} <= set(audit_actions())
+
+
+def test_signed_download_link_rejects_tampering_and_needs_login(
+    authed: TestClient, client: TestClient
+) -> None:
+    backed_up(authed)
+    item = listing(authed)["items"][0]
+    url = api_post(authed, f"/api/backups/{item['id']}/download-link").json()["url"]
+    assert authed.get(url[:-2] + "xx").status_code == 403
+    authed.cookies.clear()
+    assert api_post(authed, f"/api/backups/{item['id']}/download-link").status_code in (401, 403)
+
+
 def test_download_refuses_a_corrupt_file(authed: TestClient) -> None:
     backed_up(authed)
     item = listing(authed)["items"][0]

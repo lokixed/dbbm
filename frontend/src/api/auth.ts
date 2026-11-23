@@ -55,3 +55,22 @@ export function useLogout() {
     onSettled: () => queryClient.clear(),
   });
 }
+
+export interface PasswordChange {
+  current_password: string;
+  new_password: string;
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (input: PasswordChange) => api<User>("/api/auth/change-password", { method: "POST", body: input }),
+  });
+}
+
+export function useVersion() {
+  return useQuery({
+    queryKey: ["version"],
+    staleTime: Infinity,
+    queryFn: () => api<{ version: string }>("/api/version", { redirectOn401: false }),
+  });
+}

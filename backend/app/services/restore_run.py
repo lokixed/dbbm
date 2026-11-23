@@ -92,6 +92,7 @@ class RestorePlan:
             "target_database": self.options.target_database,
             "drop": self.options.drop,
             "full_instance": self.options.full_instance,
+            "only": list(self.options.only),
             "encrypted": self.encrypted,
         }
 
@@ -216,8 +217,11 @@ async def _preflight(driver: Any, log: RunLogger) -> None:
         raise RunFailedError(f"Cannot connect to the target: {result.message}")
     log.info(result.message)
     try:
-        for name, version in (await driver.restore_tool_versions()).items():
+        tools = await driver.restore_tool_versions()
+        for name, version in tools.items():
             log.info(f"{name}: {version}")
+        for warning in driver.check_restore_compatibility(tools):
+            log.warning(warning)
     except RestoreError as exc:
         raise RunFailedError(str(exc)) from None
 

@@ -6,6 +6,7 @@ import { setUnauthorizedHandler } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ToastProvider } from "@/components/toast";
+import AuditPage from "@/pages/Audit";
 import BackupsPage from "@/pages/Backups";
 import DashboardPage from "@/pages/Dashboard";
 import DestinationsPage from "@/pages/Destinations";
@@ -54,6 +55,7 @@ export default function App() {
                   <Route path="runs/:id" element={<RunDetailPage />} />
                   <Route path="backups" element={<BackupsPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="audit" element={<AuditPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Route>

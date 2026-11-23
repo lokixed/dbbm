@@ -195,6 +195,18 @@ class PostgresDriver(BaseDriver):
         self._restore_client = client_major(line)
         return {"pg_restore": line}
 
+    def check_restore_compatibility(self, tools: dict[str, str]) -> list[str]:
+        client, server = (
+            client_major(tools.get("pg_restore", "")),
+            server_major(self._server_version),
+        )
+        if client is not None and server is not None and client < server:
+            raise RestoreError(
+                f"pg_restore {client} is older than the PostgreSQL server ({server}) and cannot "
+                f"restore into it. Rebuild the image with PG_MAJOR={server} or newer."
+            )
+        return []
+
     def _prepare_target_sync(self, options: RestoreOptions) -> None:
         """Create the target database if it does not exist yet."""
         config = PostgresConfig.model_validate(self._config)
@@ -255,6 +267,8 @@ class PostgresDriver(BaseDriver):
             argv.append("--single-transaction")
         if options.drop:
             argv += ["--clean", "--if-exists"]
+        for table in options.only:
+            argv += ["-t", table]
         argv.append(str(artifact))
         await run_restore(
             tool="pg_restore",

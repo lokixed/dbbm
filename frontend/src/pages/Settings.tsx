@@ -12,6 +12,7 @@ import { z } from "zod";
 import { useTimezones } from "@/api/schedule";
 import { useAppSettings, useSaveSettings } from "@/api/settings";
 import type { AppSettings, AppSettingsRecord } from "@/api/types";
+import { ChangePassword } from "@/components/settings/ChangePassword";
 import { EncryptionKeys } from "@/components/settings/EncryptionKeys";
 import { useToast } from "@/components/toast";
 import { bindText } from "@/lib/formBinding";
@@ -21,6 +22,7 @@ interface SettingsFormValues {
   defaultTimezone: string;
   logRetentionDays: string;
   runHistoryDays: string;
+  auditRetentionDays: string;
   misfireGraceSeconds: string;
   housekeepingTime: string;
   lowDiskThresholdPercent: string;
@@ -46,6 +48,7 @@ const schema = z.object({
   defaultTimezone: z.string().min(1, "Choose a time zone"),
   logRetentionDays: intField(1, 3650, "Log retention"),
   runHistoryDays: intField(1, 36500, "Run history"),
+  auditRetentionDays: intField(30, 36500, "Audit log"),
   misfireGraceSeconds: intField(0, 7 * 86400, "Grace period"),
   housekeepingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)"),
   lowDiskThresholdPercent: intField(0, 90, "Threshold"),
@@ -58,6 +61,7 @@ function toValues(s: AppSettingsRecord): SettingsFormValues {
     defaultTimezone: s.default_timezone,
     logRetentionDays: String(s.log_retention_days),
     runHistoryDays: String(s.run_history_days),
+    auditRetentionDays: String(s.audit_retention_days),
     misfireGraceSeconds: String(s.misfire_grace_seconds),
     housekeepingTime: s.housekeeping_time,
     lowDiskThresholdPercent: String(s.low_disk_threshold_percent),
@@ -71,6 +75,7 @@ function toInput(v: SettingsFormValues): AppSettings {
     default_timezone: v.defaultTimezone,
     log_retention_days: Number(v.logRetentionDays),
     run_history_days: Number(v.runHistoryDays),
+    audit_retention_days: Number(v.auditRetentionDays),
     misfire_grace_seconds: Number(v.misfireGraceSeconds),
     housekeeping_time: v.housekeepingTime,
     low_disk_threshold_percent: Number(v.lowDiskThresholdPercent),
@@ -157,6 +162,11 @@ function SettingsForm({ settings }: { settings: AppSettingsRecord }) {
             helperText="Runs whose backups still exist are always kept."
             {...text("runHistoryDays", { numeric: true })}
           />
+          <Field
+            label="Keep audit log (days)"
+            helperText="At least 30 days. Older entries are deleted by the daily housekeeping."
+            {...text("auditRetentionDays", { numeric: true })}
+          />
         </div>
       </Card>
 
@@ -191,6 +201,7 @@ export default function SettingsPage() {
       )}
       {settings.isSuccess && <SettingsForm settings={settings.data} />}
       <EncryptionKeys />
+      <ChangePassword />
     </div>
   );
 }

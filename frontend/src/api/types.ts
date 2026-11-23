@@ -365,6 +365,7 @@ export interface AppSettings {
   default_timezone: string;
   log_retention_days: number;
   run_history_days: number;
+  audit_retention_days: number;
   misfire_grace_seconds: number;
   housekeeping_time: string;
   low_disk_threshold_percent: number;

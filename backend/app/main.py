@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import (
+    audit,
     auth,
     backups,
     dashboard,
@@ -27,6 +28,8 @@ from app.api import settings as settings_api
 from app.api.deps import csrf_protect
 from app.core.clock import Clock
 from app.core.config import get_settings
+from app.core.db import checkpoint_wal
+from app.core.headers import SecurityHeadersMiddleware
 from app.core.logging import setup_logging
 from app.core.migrations import run_migrations
 from app.services.container import Services
@@ -82,6 +85,7 @@ def create_app(
             yield
         finally:
             await services.stop()
+            checkpoint_wal()
 
     app = FastAPI(
         title="DBBackup",
@@ -92,8 +96,10 @@ def create_app(
         dependencies=[Depends(csrf_protect)],
     )
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(audit.router)
     app.include_router(sources.router)
     app.include_router(destinations.router)
     app.include_router(jobs.router)

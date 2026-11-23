@@ -8,15 +8,15 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import exists
+from sqlalchemy import CursorResult, delete, exists
 from sqlmodel import Session, col, select
 
 from app.core.clock import SYSTEM_CLOCK, Clock
 from app.core.config import Settings
 from app.core.db import get_engine
-from app.models import Artifact, Destination, Run
+from app.models import Artifact, AuditLog, Destination, Run
 from app.models.run import ACTIVE_STATUSES
 from app.services.app_settings import load_settings
 from app.services.audit import write_audit
@@ -104,6 +104,7 @@ class Housekeeping:
             ("retention", self.retention),
             ("logs", self.prune_logs),
             ("history", self.prune_history),
+            ("audit", self.prune_audit),
             ("work_dirs", self.clean_work_dirs),
             ("low_disk", self.check_disks),
         ]
@@ -172,6 +173,20 @@ class Housekeeping:
                 db.delete(run)
             db.commit()
             return {"removed": len(rows)}
+
+    async def prune_audit(self) -> dict[str, Any]:
+        days = (await asyncio.to_thread(load_settings)).audit_retention_days
+        return await asyncio.to_thread(self._prune_audit, self._clock.now() - timedelta(days=days))
+
+    @staticmethod
+    def _prune_audit(cutoff: datetime) -> dict[str, Any]:
+        with Session(get_engine()) as db:
+            result = cast(
+                "CursorResult[Any]",
+                db.execute(delete(AuditLog).where(col(AuditLog.timestamp) < cutoff)),
+            )
+            db.commit()
+            return {"removed": int(result.rowcount or 0)}
 
     async def clean_work_dirs(self) -> dict[str, Any]:
         return await asyncio.to_thread(self._clean_work_dirs)
