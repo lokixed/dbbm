@@ -114,7 +114,7 @@ def mysql_restore(ep: Endpoint, artifact: Path, scratch: str) -> None:
         cur.execute(f"DROP DATABASE IF EXISTS {scratch}")
         cur.execute(f"CREATE DATABASE {scratch}")
     env = {**os.environ, "MYSQL_PWD": MYSQL_ROOT_PW}
-    command = ["mysql", "-h", ep.host, "-P", str(ep.port), "-u", "root", scratch]
+    command = ["mysql", "--protocol=tcp", "-h", ep.host, "-P", str(ep.port), "-u", "root", scratch]
     done = subprocess.run(command, input=sql, env=env, capture_output=True)
     assert done.returncode == 0, done.stderr.decode()  # noqa: S603
 
