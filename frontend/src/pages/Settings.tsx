@@ -1,17 +1,19 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import Field from "xedonium/Field";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Select from "xedonium/Select";
 import { z } from "zod";
 import { useTimezones } from "@/api/schedule";
 import { useAppSettings, useSaveSettings } from "@/api/settings";
 import type { AppSettings, AppSettingsRecord } from "@/api/types";
-import { FormField } from "@/components/FormField";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
+import { bindText } from "@/lib/formBinding";
 
 interface SettingsFormValues {
   publicBaseUrl: string;
@@ -84,7 +86,7 @@ function SettingsForm({ settings }: { settings: AppSettingsRecord }) {
     resolver: standardSchemaResolver(schema),
     defaultValues: toValues(settings),
   });
-  const { register, formState, reset } = form;
+  const { formState, reset } = form;
   const errors = formState.errors;
 
   useEffect(() => reset(toValues(settings)), [settings, reset]);
@@ -101,96 +103,65 @@ function SettingsForm({ settings }: { settings: AppSettingsRecord }) {
 
   const zones = timezones.data ?? [settings.default_timezone];
 
+  const text = (name: keyof SettingsFormValues, props: { placeholder?: string; numeric?: boolean } = {}) => ({
+    ...bindText(form, name),
+    placeholder: props.placeholder,
+    inputMode: props.numeric ? ("numeric" as const) : undefined,
+    error: errors[name]?.message,
+  });
+
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-6" noValidate>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">General</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField
-            id="publicBaseUrl"
+      <Card title="General">
+        <div className="space-y-4">
+          <Field
             label="Public base URL"
-            hint="Used for links in notifications, e.g. https://backup.example.com. Leave empty for no links."
-            error={errors.publicBaseUrl?.message}
-          >
-            <Input id="publicBaseUrl" {...register("publicBaseUrl")} placeholder="https://backup.example.com" />
-          </FormField>
-          <FormField
-            id="defaultTimezone"
+            helperText="Used for links in notifications, e.g. https://backup.example.com. Leave empty for no links."
+            {...text("publicBaseUrl", { placeholder: "https://backup.example.com" })}
+          />
+          <Select
             label="Default time zone"
-            hint="Pre-selected for new jobs and used for the housekeeping time."
+            helperText="Pre-selected for new jobs and used for the housekeeping time."
+            options={zones.map((zone) => ({ value: zone, label: zone }))}
+            {...bindText(form, "defaultTimezone")}
             error={errors.defaultTimezone?.message}
-          >
-            <Select id="defaultTimezone" {...register("defaultTimezone")}>
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Scheduling and housekeeping</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            id="housekeepingTime"
-            label="Housekeeping time (HH:MM)"
-            hint="Daily retention, log and history cleanup and disk checks. Changes apply immediately."
-            error={errors.housekeepingTime?.message}
-          >
-            <Input id="housekeepingTime" {...register("housekeepingTime")} placeholder="03:30" />
-          </FormField>
-          <FormField
-            id="misfireGraceSeconds"
-            label="Missed-run grace (seconds)"
-            hint="After a restart, a run missed within this window is caught up once."
-            error={errors.misfireGraceSeconds?.message}
-          >
-            <Input id="misfireGraceSeconds" inputMode="numeric" {...register("misfireGraceSeconds")} />
-          </FormField>
-          <FormField
-            id="overdueGracePercent"
-            label="Overdue grace (% of the interval)"
-            hint="A job is overdue when no success arrives within max(grace, interval x this %)."
-            error={errors.overdueGracePercent?.message}
-          >
-            <Input id="overdueGracePercent" inputMode="numeric" {...register("overdueGracePercent")} />
-          </FormField>
-          <FormField
-            id="lowDiskThresholdPercent"
-            label="Low-disk warning below (% free)"
-            error={errors.lowDiskThresholdPercent?.message}
-          >
-            <Input id="lowDiskThresholdPercent" inputMode="numeric" {...register("lowDiskThresholdPercent")} />
-          </FormField>
-          <FormField id="logRetentionDays" label="Keep run logs (days)" error={errors.logRetentionDays?.message}>
-            <Input id="logRetentionDays" inputMode="numeric" {...register("logRetentionDays")} />
-          </FormField>
-          <FormField
-            id="runHistoryDays"
-            label="Keep run history (days)"
-            hint="Runs whose backups still exist are always kept."
-            error={errors.runHistoryDays?.message}
-          >
-            <Input id="runHistoryDays" inputMode="numeric" {...register("runHistoryDays")} />
-          </FormField>
-        </CardContent>
-      </Card>
-
-      {formError && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {formError}
+          />
         </div>
-      )}
+      </Card>
+
+      <Card title="Scheduling and housekeeping">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Housekeeping time (HH:MM)"
+            helperText="Daily retention, log and history cleanup and disk checks. Changes apply immediately."
+            {...text("housekeepingTime", { placeholder: "03:30" })}
+          />
+          <Field
+            label="Missed-run grace (seconds)"
+            helperText="After a restart, a run missed within this window is caught up once."
+            {...text("misfireGraceSeconds", { numeric: true })}
+          />
+          <Field
+            label="Overdue grace (% of the interval)"
+            helperText="A job is overdue when no success arrives within max(grace, interval x this %)."
+            {...text("overdueGracePercent", { numeric: true })}
+          />
+          <Field
+            label="Low-disk warning below (% free)"
+            {...text("lowDiskThresholdPercent", { numeric: true })}
+          />
+          <Field label="Keep run logs (days)" {...text("logRetentionDays", { numeric: true })} />
+          <Field
+            label="Keep run history (days)"
+            helperText="Runs whose backups still exist are always kept."
+            {...text("runHistoryDays", { numeric: true })}
+          />
+        </div>
+      </Card>
+
+      {formError && <Alert tone="danger">{formError}</Alert>}
       <div className="flex justify-end">
         <Button type="submit" disabled={save.isPending || !formState.isDirty}>
-          {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           Save settings
         </Button>
       </div>
@@ -202,24 +173,20 @@ export default function SettingsPage() {
   const settings = useAppSettings();
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Application-wide behaviour for schedules, notifications and cleanup.
-        </p>
-      </div>
-      {settings.isPending && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading settings...
-        </p>
-      )}
+      <PageHeader
+        title="Settings"
+        subtitle="Application-wide behaviour for schedules, notifications and cleanup."
+      />
+      {settings.isPending && <Loader variant="inline" label="Loading settings..." />}
       {settings.isError && (
-        <div role="alert" className="flex items-center justify-between gap-4 text-sm text-destructive">
-          <span>Could not load settings: {settings.error.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => void settings.refetch()}>
-            Retry
-          </Button>
-        </div>
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load settings: {settings.error.message}</span>
+            <Button variant="secondary" onClick={() => void settings.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
       )}
       {settings.isSuccess && <SettingsForm settings={settings.data} />}
     </div>

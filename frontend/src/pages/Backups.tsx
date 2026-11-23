@@ -1,6 +1,22 @@
-import { Download, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Badge from "xedonium/Badge";
+import Button from "xedonium/Button";
+import ButtonLink from "xedonium/ButtonLink";
+import Card from "xedonium/Card";
+import HelperText from "xedonium/HelperText";
+import Input from "xedonium/Input";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Select from "xedonium/Select";
+import Table, { type TableColumn } from "xedonium/Table";
+import Tooltip from "xedonium/Tooltip";
+import DownloadIcon from "xedonium/icons/Download";
+import RefreshCwIcon from "xedonium/icons/RefreshCw";
+import RotateCcwIcon from "xedonium/icons/RotateCcw";
+import ShieldCheckIcon from "xedonium/icons/ShieldCheck";
+import Trash2Icon from "xedonium/icons/Trash2";
 import {
   PAGE_SIZE,
   downloadUrl,
@@ -16,13 +32,7 @@ import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
 import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 import { formatBytes, formatTime } from "@/lib/format";
 
 const EMPTY: BackupFilters = {
@@ -42,18 +52,18 @@ function monthOf(iso: string): string {
 function CopyStatus({ backup }: { backup: Backup }) {
   if (backup.missing) {
     return (
-      <Badge variant="danger" title="The file was not found at the destination.">
-        Missing
-      </Badge>
+      <Tooltip text="The file was not found at the destination.">
+        <Badge badgeContent="Missing" color="danger" />
+      </Tooltip>
     );
   }
   const title = backup.verified_at
     ? `Re-verified ${formatTime(backup.verified_at)}`
     : "Checked against its checksum when it was stored.";
   return (
-    <Badge variant="success" title={title}>
-      Verified
-    </Badge>
+    <Tooltip text={title}>
+      <Badge badgeContent="Verified" color="success" />
+    </Tooltip>
   );
 }
 
@@ -125,214 +135,195 @@ export default function BackupsPage() {
     });
   };
 
+  const columns: TableColumn<Backup>[] = [
+    {
+      key: "database",
+      header: "Database",
+      render: (backup) => (
+        <Tooltip text="Open the run">
+          <Link to={`/runs/${backup.run_id}`} className="font-medium hover:underline">
+            {backup.source_database}
+          </Link>
+        </Tooltip>
+      ),
+    },
+    { key: "created", header: "Created", render: (backup) => formatTime(backup.created_at) },
+    { key: "size", header: "Size", align: "right", render: (backup) => formatBytes(backup.size_bytes) },
+    {
+      key: "sha",
+      header: "SHA-256",
+      render: (backup) => (
+        <Tooltip text={backup.sha256}>
+          <code className="text-xs">{backup.sha256.slice(0, 12)}…</code>
+        </Tooltip>
+      ),
+    },
+    { key: "destination", header: "Destination", render: (backup) => backup.destination_name ?? "(deleted)" },
+    { key: "copy", header: "Copy", render: (backup) => <CopyStatus backup={backup} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (backup) => (
+        <div className="flex justify-end gap-1">
+          <ButtonLink
+            variant="secondary"
+            href={backup.missing ? undefined : downloadUrl(backup.id)}
+            download
+            disabled={backup.missing}
+            aria-label={`Download ${backup.source_database}`}
+          >
+            <DownloadIcon className="h-4 w-4" />
+          </ButtonLink>
+          <Button
+            variant="secondary"
+            aria-label={`Restore ${backup.source_database}`}
+            tooltip="Restore"
+            disabled={backup.missing}
+            onClick={() => setRestoring(backup)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            aria-label={`Verify ${backup.source_database}`}
+            tooltip="Verify now"
+            disabled={verify.isPending && verify.variables === backup.id}
+            onClick={() => onVerify(backup)}
+          >
+            <ShieldCheckIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            aria-label={`Delete ${backup.source_database}`}
+            tooltip="Delete"
+            onClick={() => setPendingDelete(backup)}
+          >
+            <Trash2Icon className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   const total = backups.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Backups</h1>
-        <p className="text-sm text-muted-foreground">
-          Every stored backup file, by job and month. Download, re-check or delete a copy.
-        </p>
-      </div>
+      <PageHeader
+        title="Backups"
+        subtitle="Every stored backup file, by job and month. Download, re-check or delete a copy."
+      />
 
       <div className="flex flex-wrap items-end gap-3">
         <Select
           aria-label="Filter by job"
           className="w-48"
           value={filters.jobId}
-          onChange={(event) => setFilter({ jobId: event.target.value })}
-        >
-          <option value="">All jobs</option>
-          {jobs.data?.map((job) => (
-            <option key={job.id} value={job.id}>
-              {job.name}
-            </option>
-          ))}
-        </Select>
+          onChange={(jobId) => setFilter({ jobId })}
+          options={[{ value: "", label: "All jobs" }, ...(jobs.data ?? []).map((j) => ({ value: j.id, label: j.name }))]}
+        />
         <Select
           aria-label="Filter by source"
           className="w-48"
           value={filters.sourceId}
-          onChange={(event) => setFilter({ sourceId: event.target.value })}
-        >
-          <option value="">All sources</option>
-          {sources.data?.map((source) => (
-            <option key={source.id} value={source.id}>
-              {source.name}
-            </option>
-          ))}
-        </Select>
+          onChange={(sourceId) => setFilter({ sourceId })}
+          options={[
+            { value: "", label: "All sources" },
+            ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        />
         <Select
           aria-label="Filter by destination"
           className="w-48"
           value={filters.destinationId}
-          onChange={(event) => setFilter({ destinationId: event.target.value })}
-        >
-          <option value="">All destinations</option>
-          {destinations.data?.map((destination) => (
-            <option key={destination.id} value={destination.id}>
-              {destination.name}
-            </option>
-          ))}
-        </Select>
+          onChange={(destinationId) => setFilter({ destinationId })}
+          options={[
+            { value: "", label: "All destinations" },
+            ...(destinations.data ?? []).map((d) => ({ value: d.id, label: d.name })),
+          ]}
+        />
         <Input
           aria-label="Filter by database"
           className="w-44"
           placeholder="Database name"
           value={filters.database}
-          onChange={(event) => setFilter({ database: event.target.value })}
+          onChange={(database) => setFilter({ database })}
         />
         <Select
           aria-label="Filter by status"
           className="w-40"
           value={filters.status}
-          onChange={(event) => setFilter({ status: event.target.value as BackupFilters["status"] })}
-        >
-          <option value="">Any status</option>
-          <option value="ok">Present</option>
-          <option value="missing">Missing</option>
-        </Select>
+          onChange={(status) => setFilter({ status: status as BackupFilters["status"] })}
+          options={[
+            { value: "", label: "Any status" },
+            { value: "ok", label: "Present" },
+            { value: "missing", label: "Missing" },
+          ]}
+        />
         <Input
           aria-label="From date"
           type="date"
           className="w-40"
           value={filters.from}
-          onChange={(event) => setFilter({ from: event.target.value })}
+          onChange={(from) => setFilter({ from })}
         />
         <Input
           aria-label="To date"
           type="date"
           className="w-40"
           value={filters.to}
-          onChange={(event) => setFilter({ to: event.target.value })}
+          onChange={(to) => setFilter({ to })}
         />
         <Button
           variant="secondary"
           onClick={onRescan}
           disabled={!filters.destinationId || rescan.isPending}
-          title={filters.destinationId ? undefined : "Choose a destination to rescan it"}
+          tooltip={filters.destinationId ? undefined : "Choose a destination to rescan it"}
         >
-          <RefreshCw className={rescan.isPending ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+          <RefreshCwIcon className="mr-2 h-4 w-4" />
           Rescan destination
         </Button>
       </div>
 
-      {backups.isPending && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading backups...
-        </p>
-      )}
+      {backups.isPending && <Loader variant="inline" label="Loading backups..." />}
       {backups.isError && (
-        <div role="alert" className="flex items-center justify-between gap-4 text-sm text-destructive">
-          <span>Could not load backups: {backups.error.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => void backups.refetch()}>
-            Retry
-          </Button>
-        </div>
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load backups: {backups.error.message}</span>
+            <Button variant="secondary" onClick={() => void backups.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
       )}
       {backups.isSuccess && total === 0 && (
         <Card>
-          <p className="p-6 text-sm text-muted-foreground">
-            No backups match. Run a job from the Jobs page to create one.
-          </p>
+          <HelperText>No backups match. Run a job from the Jobs page to create one.</HelperText>
         </Card>
       )}
 
       {groups.map(([title, items]) => (
-        <Card key={title}>
-          <h2 className="border-b px-4 py-3 text-sm font-semibold">{title}</h2>
-          <Table>
-            <THead>
-              <tr>
-                <TH>Database</TH>
-                <TH>Created</TH>
-                <TH className="text-right">Size</TH>
-                <TH>SHA-256</TH>
-                <TH>Destination</TH>
-                <TH>Copy</TH>
-                <TH className="text-right">Actions</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {items.map((backup) => (
-                <TR key={backup.id} className={backup.missing ? "bg-destructive/5" : undefined}>
-                  <TD className="font-medium">
-                    <Link to={`/runs/${backup.run_id}`} className="hover:underline" title="Open the run">
-                      {backup.source_database}
-                    </Link>
-                  </TD>
-                  <TD>{formatTime(backup.created_at)}</TD>
-                  <TD className="text-right">{formatBytes(backup.size_bytes)}</TD>
-                  <TD>
-                    <code className="text-xs" title={backup.sha256}>
-                      {backup.sha256.slice(0, 12)}…
-                    </code>
-                  </TD>
-                  <TD>{backup.destination_name ?? "(deleted)"}</TD>
-                  <TD>
-                    <CopyStatus backup={backup} />
-                  </TD>
-                  <TD className="space-x-1 text-right">
-                    {backup.missing ? (
-                      <Button variant="secondary" size="sm" disabled title="The file is missing">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <Button asChild variant="secondary" size="sm">
-                        <a href={downloadUrl(backup.id)} download aria-label={`Download ${backup.source_database}`}>
-                          <Download className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label={`Restore ${backup.source_database}`}
-                      title="Restore"
-                      disabled={backup.missing}
-                      onClick={() => setRestoring(backup)}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label={`Verify ${backup.source_database}`}
-                      title="Verify now"
-                      disabled={verify.isPending && verify.variables === backup.id}
-                      onClick={() => onVerify(backup)}
-                    >
-                      <ShieldCheck className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label={`Delete ${backup.source_database}`}
-                      title="Delete"
-                      onClick={() => setPendingDelete(backup)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
+        <Card key={title} title={title} headingLevel={2} padded={false}>
+          <Table
+            columns={columns}
+            rows={items}
+            rowProps={(backup) => ({ className: backup.missing ? "bg-red-500/5" : undefined })}
+          />
         </Card>
       ))}
 
       {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center justify-between text-sm text-app-muted">
           <span>
             Page {page + 1} of {pages} ({total} backups)
           </span>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
               Previous
             </Button>
-            <Button variant="secondary" size="sm" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>
+            <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>
               Next
             </Button>
           </div>

@@ -1,17 +1,18 @@
-import { Copy } from "lucide-react";
-import type { FieldErrors, UseFormRegister } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
+import { AccordionSection } from "xedonium/Accordion";
+import Checkbox from "xedonium/Checkbox";
+import CodeDisplay from "xedonium/CodeDisplay";
+import Field from "xedonium/Field";
+import HelperText from "xedonium/HelperText";
+import Select from "xedonium/Select";
 import type { DriveScope } from "@/api/types";
-import { FormField } from "@/components/FormField";
 import { SecretField } from "@/components/SecretField";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { useToast } from "@/components/ui/toast";
 import {
   authorizeCommand,
   CHUNK_SIZES_MB,
   type DestinationFormValues,
 } from "@/lib/destinationForm";
+import { bindBool, bindText } from "@/lib/formBinding";
 import type { SecretState } from "@/lib/secrets";
 
 const SCOPE_HELP: Record<DriveScope, string> = {
@@ -21,8 +22,7 @@ const SCOPE_HELP: Record<DriveScope, string> = {
 };
 
 interface GdriveFieldsProps {
-  register: UseFormRegister<DestinationFormValues>;
-  errors: FieldErrors<DestinationFormValues>;
+  form: UseFormReturn<DestinationFormValues>;
   scope: DriveScope;
   clientId: string;
   secretsSet: Record<string, boolean>;
@@ -43,36 +43,22 @@ function AuthorizeCommand({
   clientId: string;
   clientSecret: SecretState;
 }) {
-  const { toast } = useToast();
   const typedSecret = clientSecret.action === "set" ? clientSecret.value : "";
   const command = authorizeCommand(scope, clientId, typedSecret);
   if (!command) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <HelperText>
         Type the client secret above (saved secrets are never shown again) to generate the command.
-      </p>
+      </HelperText>
     );
   }
-  const copy = () =>
-    void navigator.clipboard
-      .writeText(command)
-      .then(() => toast({ title: "Command copied", variant: "success" }))
-      .catch(() => toast({ title: "Could not copy; select the text instead", variant: "error" }));
-  return (
-    <div className="flex items-start gap-2">
-      <code className="block flex-1 break-all rounded-md bg-muted p-2 font-mono text-xs">{command}</code>
-      <Button type="button" size="sm" variant="secondary" onClick={copy} aria-label="Copy command">
-        <Copy className="h-4 w-4" />
-      </Button>
-    </div>
-  );
+  return <CodeDisplay code={command} language="bash" copyable wrap highlight={false} />;
 }
 
 function SetupSteps({ scope, clientId, clientSecret }: Pick<GdriveFieldsProps, "scope" | "clientId" | "clientSecret">) {
   return (
-    <details className="rounded-md border p-3 text-sm" open>
-      <summary className="cursor-pointer font-medium">How to get a token</summary>
-      <ol className="mt-2 list-decimal space-y-2 pl-5 text-muted-foreground">
+    <AccordionSection title="How to get a token" defaultOpen>
+      <ol className="list-decimal space-y-2 pl-5 text-sm text-app-muted">
         <li>
           Optional but recommended: in Google Cloud Console create an OAuth client of type{" "}
           <strong>Desktop app</strong>, enable the Google Drive API, and enter its client ID and secret
@@ -93,13 +79,12 @@ function SetupSteps({ scope, clientId, clientSecret }: Pick<GdriveFieldsProps, "
           <code>&lt;---End paste</code> into the token field.
         </li>
       </ol>
-    </details>
+    </AccordionSection>
   );
 }
 
 export function GdriveFields({
-  register,
-  errors,
+  form,
   scope,
   clientId,
   secretsSet,
@@ -110,37 +95,42 @@ export function GdriveFields({
   secretErrors,
   focusToken,
 }: GdriveFieldsProps) {
+  const errors = form.formState.errors;
   return (
     <>
-      <FormField
-        id="remoteFolder"
+      <Field
         label="Folder in Google Drive"
-        hint="Created if missing, e.g. db-backups or backups/prod."
+        helperText="Created if missing, e.g. db-backups or backups/prod."
+        autoComplete="off"
+        {...bindText(form, "remoteFolder")}
         error={errors.remoteFolder?.message}
-      >
-        <Input id="remoteFolder" {...register("remoteFolder")} autoComplete="off" />
-      </FormField>
+      />
 
-      <FormField id="scope" label="Access scope" hint={SCOPE_HELP[scope]}>
-        <Select id="scope" {...register("scope")}>
-          <option value="drive.file">drive.file (only files rclone creates)</option>
-          <option value="drive">drive (full Drive access)</option>
-        </Select>
-      </FormField>
+      <Select
+        label="Access scope"
+        helperText={SCOPE_HELP[scope]}
+        options={[
+          { value: "drive.file", label: "drive.file (only files rclone creates)" },
+          { value: "drive", label: "drive (full Drive access)" },
+        ]}
+        {...bindText(form, "scope")}
+      />
 
-      <FormField
-        id="sharedDriveId"
+      <Field
         label="Shared drive ID (optional)"
-        hint="Leave empty to use My Drive."
+        helperText="Leave empty to use My Drive."
+        autoComplete="off"
+        {...bindText(form, "sharedDriveId")}
         error={errors.sharedDriveId?.message}
-      >
-        <Input id="sharedDriveId" {...register("sharedDriveId")} autoComplete="off" />
-      </FormField>
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <FormField id="clientId" label="OAuth client ID (optional)" error={errors.clientId?.message}>
-          <Input id="clientId" {...register("clientId")} autoComplete="off" />
-        </FormField>
+        <Field
+          label="OAuth client ID (optional)"
+          autoComplete="off"
+          {...bindText(form, "clientId")}
+          error={errors.clientId?.message}
+        />
         <SecretField
           id="secret-client_secret"
           label="OAuth client secret"
@@ -168,25 +158,19 @@ export function GdriveFields({
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <FormField id="chunkSizeMb" label="Upload chunk size" hint="Memory used per upload.">
-          <Select id="chunkSizeMb" {...register("chunkSizeMb")}>
-            {CHUNK_SIZES_MB.map((size) => (
-              <option key={size} value={String(size)}>
-                {size} MiB
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <label className="flex items-start gap-2 pt-6 text-sm">
-          <input type="checkbox" className="mt-1" {...register("deletePermanently")} />
-          <span>
-            Delete permanently
-            <span className="block text-xs text-muted-foreground">
-              Off: deleted backups go to the Drive trash (and still count against your quota until it is
-              emptied).
-            </span>
-          </span>
-        </label>
+        <Select
+          label="Upload chunk size"
+          helperText="Memory used per upload."
+          options={CHUNK_SIZES_MB.map((size) => ({ value: String(size), label: `${size} MiB` }))}
+          {...bindText(form, "chunkSizeMb")}
+        />
+        <div className="pt-6">
+          <Checkbox
+            label="Delete permanently"
+            description="Off: deleted backups go to the Drive trash (and still count against your quota until it is emptied)."
+            {...bindBool(form, "deletePermanently")}
+          />
+        </div>
       </div>
     </>
   );

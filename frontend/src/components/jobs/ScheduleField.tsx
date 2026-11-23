@@ -1,10 +1,11 @@
-import { Loader2 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { useSchedulePreview, useTimezones } from "@/api/schedule";
-import { FormField } from "@/components/FormField";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Field from "xedonium/Field";
+import Label from "xedonium/Label";
+import Loader from "xedonium/Loader";
+import Select from "xedonium/Select";
 import { formatTime } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 
@@ -40,19 +41,22 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
   const debouncedZone = useDebounced(timezone);
   const preview = useSchedulePreview(debouncedCron, debouncedZone);
   const zones = timezones.data ?? [timezone];
+  const zoneOptions = (zones.includes(timezone) ? zones : [timezone, ...zones]).map((zone) => ({
+    value: zone,
+    label: zone,
+  }));
 
   return (
-    <fieldset className="space-y-3 rounded-md border p-3">
-      <legend className="px-1 text-sm font-medium">Schedule</legend>
+    <div className="space-y-3 border border-app-border p-3">
+      <Label>Schedule</Label>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant={cron.trim() === "" ? "default" : "secondary"} onClick={() => onCron("")}>
+        <Button type="button" variant={cron.trim() === "" ? "default" : "secondary"} onClick={() => onCron("")}>
           Manual only
         </Button>
         {SCHEDULE_PRESETS.map((preset) => (
           <Button
             key={preset.cron}
             type="button"
-            size="sm"
             variant={cron.trim() === preset.cron ? "default" : "secondary"}
             onClick={() => onCron(preset.cron)}
           >
@@ -61,57 +65,37 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
         ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <FormField
-          id="job-schedule"
+        <Field
           label="Cron expression"
-          hint="minute hour day-of-month month day-of-week (0 or 7 = Sunday). At most every 5 minutes."
+          helperText="minute hour day-of-month month day-of-week (0 or 7 = Sunday). At most every 5 minutes."
           error={error ?? serverError ?? undefined}
-        >
-          <Input
-            id="job-schedule"
-            value={cron}
-            onChange={(event) => onCron(event.target.value)}
-            placeholder="0 3 * * *"
-            autoComplete="off"
-            className="font-mono"
-          />
-        </FormField>
-        <FormField id="job-timezone" label="Time zone">
-          <Select id="job-timezone" value={timezone} onChange={(event) => onTimezone(event.target.value)}>
-            {!zones.includes(timezone) && <option value={timezone}>{timezone}</option>}
-            {zones.map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </Select>
-        </FormField>
+          value={cron}
+          onChange={onCron}
+          placeholder="0 3 * * *"
+          autoComplete="off"
+          className="font-mono"
+        />
+        <Select label="Time zone" value={timezone} onChange={onTimezone} options={zoneOptions} />
       </div>
       {cron.trim() !== "" && (
         <div className="text-sm" aria-live="polite">
           <p className="mb-1 font-medium">Next 5 runs</p>
           {(preview.isFetching || debouncedCron !== cron.trim()) && !preview.isError && (
-            <p className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculating...
-            </p>
+            <Loader variant="inline" size="sm" label="Calculating..." />
           )}
-          {preview.isError && !preview.isFetching && (
-            <p role="alert" className="text-destructive">
-              {previewError(preview.error)}
-            </p>
-          )}
+          {preview.isError && !preview.isFetching && <Alert tone="danger">{previewError(preview.error)}</Alert>}
           {preview.isSuccess && !preview.isFetching && (
             <ul className="space-y-0.5 font-mono text-xs">
               {preview.data.fires.map((fire) => (
                 <li key={fire.utc}>
                   {localWallTime(fire.local)}{" "}
-                  <span className="text-muted-foreground">- your time {formatTime(fire.utc)}</span>
+                  <span className="text-app-muted">- your time {formatTime(fire.utc)}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
       )}
-    </fieldset>
+    </div>
   );
 }

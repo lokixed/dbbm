@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Badge, { type BadgeColor } from "xedonium/Badge";
+import XLogViewer, { type LogEntry } from "xedonium/LogViewer";
 import { fetchRunLog } from "@/api/runs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 type Connection = "connecting" | "live" | "reconnecting" | "ended" | "unavailable";
 
@@ -14,8 +13,15 @@ const CONNECTION_LABEL: Record<Connection, string> = {
   unavailable: "Live stream unavailable - showing the saved log",
 };
 
+const CONNECTION_COLOR: Record<Connection, BadgeColor> = {
+  connecting: "secondary",
+  live: "success",
+  reconnecting: "secondary",
+  ended: "secondary",
+  unavailable: "warning",
+};
+
 const FLUSH_MS = 100;
-const BOTTOM_TOLERANCE_PX = 24;
 
 function toLines(text: string): string[] {
   const lines = text.split("\n");
@@ -23,10 +29,9 @@ function toLines(text: string): string[] {
   return lines;
 }
 
-function lineClass(line: string): string {
-  if (line.includes("[ERROR]")) return "text-destructive";
-  if (line.includes("[WARN]")) return "text-amber-600 dark:text-amber-400";
-  return "";
+function toEntry(line: string, index: number): LogEntry {
+  const level = line.includes("[ERROR]") ? "error" : line.includes("[WARN]") ? "warn" : "info";
+  return { id: index, level, message: line };
 }
 
 interface LogViewerProps {
@@ -40,8 +45,6 @@ export function LogViewer({ runId, onDone }: LogViewerProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [connection, setConnection] = useState<Connection>("connecting");
   const [following, setFollowing] = useState(true);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const followRef = useRef(true);
   const onDoneRef = useRef(onDone);
 
   useEffect(() => {
@@ -97,56 +100,17 @@ export function LogViewer({ runId, onDone }: LogViewerProps) {
     };
   }, [runId]);
 
-  useEffect(() => {
-    const box = boxRef.current;
-    if (box && followRef.current) box.scrollTop = box.scrollHeight;
-  }, [lines]);
-
-  const onScroll = () => {
-    const box = boxRef.current;
-    if (!box) return;
-    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < BOTTOM_TOLERANCE_PX;
-    followRef.current = atBottom;
-    setFollowing(atBottom);
-  };
-
-  const resume = () => {
-    const box = boxRef.current;
-    if (box) box.scrollTop = box.scrollHeight;
-    followRef.current = true;
-    setFollowing(true);
-  };
+  const entries = useMemo(() => lines.map(toEntry), [lines]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <Badge variant={connection === "live" ? "success" : connection === "unavailable" ? "warning" : "neutral"}>
-          {CONNECTION_LABEL[connection]}
-        </Badge>
-        {!following && (
-          <Button type="button" size="sm" variant="secondary" onClick={resume}>
-            Paused - jump to latest
-          </Button>
-        )}
-      </div>
-      <div
-        ref={boxRef}
-        onScroll={onScroll}
-        role="log"
-        aria-label="Run log"
-        tabIndex={0}
-        className="h-96 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-5"
-      >
-        {lines.length === 0 ? (
-          <p className="text-muted-foreground">Waiting for log output...</p>
-        ) : (
-          lines.map((line, index) => (
-            <div key={index} className={cn("whitespace-pre-wrap break-words", lineClass(line))}>
-              {line}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+    <XLogViewer
+      logs={entries}
+      label="Run log"
+      height={384}
+      autoScroll={following}
+      onAutoScrollChange={setFollowing}
+      emptyText="Waiting for log output..."
+      toolbarStart={<Badge badgeContent={CONNECTION_LABEL[connection]} color={CONNECTION_COLOR[connection]} />}
+    />
   );
 }

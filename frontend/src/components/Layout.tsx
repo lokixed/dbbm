@@ -1,34 +1,40 @@
-import {
-  Archive,
-  Bell,
-  CalendarClock,
-  Database,
-  HardDrive,
-  LayoutDashboard,
-  LogOut,
-  Play,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import AppShell from "xedonium/AppShell";
+import Button from "xedonium/Button";
+import Sidebar, { type SidebarItem } from "xedonium/Sidebar";
+import ThemeToggle from "xedonium/ThemeToggle";
+import ArchiveIcon from "xedonium/icons/Archive";
+import BellIcon from "xedonium/icons/Bell";
+import CalendarClockIcon from "xedonium/icons/CalendarClock";
+import DatabaseIcon from "xedonium/icons/Database";
+import HardDriveIcon from "xedonium/icons/HardDrive";
+import LayoutDashboardIcon from "xedonium/icons/LayoutDashboard";
+import LogOutIcon from "xedonium/icons/LogOut";
+import PlayIcon from "xedonium/icons/Play";
+import SettingsIcon from "xedonium/icons/Settings";
 import { useLogout, useMe } from "@/api/auth";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-const NAV_ITEMS: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/sources", label: "Sources", icon: Database },
-  { to: "/destinations", label: "Destinations", icon: HardDrive },
-  { to: "/jobs", label: "Jobs", icon: CalendarClock },
-  { to: "/runs", label: "Runs", icon: Play },
-  { to: "/backups", label: "Backups", icon: Archive },
-  { to: "/notifications", label: "Notifications", icon: Bell },
-  { to: "/settings", label: "Settings", icon: Settings },
+const NAV_ITEMS: SidebarItem[] = [
+  { key: "/", label: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-4 w-4" /> },
+  { key: "/sources", label: "Sources", href: "/sources", icon: <DatabaseIcon className="h-4 w-4" /> },
+  { key: "/destinations", label: "Destinations", href: "/destinations", icon: <HardDriveIcon className="h-4 w-4" /> },
+  { key: "/jobs", label: "Jobs", href: "/jobs", icon: <CalendarClockIcon className="h-4 w-4" /> },
+  { key: "/runs", label: "Runs", href: "/runs", icon: <PlayIcon className="h-4 w-4" /> },
+  { key: "/backups", label: "Backups", href: "/backups", icon: <ArchiveIcon className="h-4 w-4" /> },
+  { key: "/notifications", label: "Notifications", href: "/notifications", icon: <BellIcon className="h-4 w-4" /> },
+  { key: "/settings", label: "Settings", href: "/settings", icon: <SettingsIcon className="h-4 w-4" /> },
 ];
+
+function activeKey(pathname: string): string {
+  const match = NAV_ITEMS.find(
+    (item) => item.key !== "/" && (pathname === item.key || pathname.startsWith(`${item.key}/`)),
+  );
+  return match?.key ?? "/";
+}
 
 export function Layout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { data: user } = useMe();
   const logout = useLogout();
 
@@ -36,42 +42,35 @@ export function Layout() {
     logout.mutate(undefined, { onSettled: () => navigate("/login", { replace: true }) });
   };
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-card">
-        <div className="px-5 py-4 text-lg font-semibold tracking-tight">DBBackup</div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive && "bg-accent text-accent-foreground",
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end gap-2 border-b px-6">
-          <span className="mr-2 text-sm text-muted-foreground">{user?.username}</span>
-          <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={handleLogout} disabled={logout.isPending}>
-            <LogOut className="h-4 w-4" />
-            Log out
-          </Button>
-        </header>
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
-      </div>
+  const header = (
+    <div className="flex h-14 items-center justify-end gap-2 border-b border-app-border px-6">
+      <span className="mr-2 text-sm text-app-muted">{user?.username}</span>
+      <ThemeToggle />
+      <Button variant="flat" onClick={handleLogout} disabled={logout.isPending}>
+        <LogOutIcon className="h-4 w-4" />
+        Log out
+      </Button>
     </div>
+  );
+
+  return (
+    <AppShell
+      header={header}
+      sidebarTitle="DBBackup"
+      sidebar={
+        <Sidebar
+          items={NAV_ITEMS}
+          activeKey={activeKey(pathname)}
+          header={<span className="px-2 text-lg font-semibold tracking-tight">DBBackup</span>}
+          linkComponent={Link}
+          linkProp="to"
+          label="Main navigation"
+        />
+      }
+    >
+      <main className="p-6">
+        <Outlet />
+      </main>
+    </AppShell>
   );
 }

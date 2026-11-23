@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import Button from "xedonium/Button";
+import Checkbox from "xedonium/Checkbox";
+import HelperText from "xedonium/HelperText";
+import Input from "xedonium/Input";
+import RadioGroup from "xedonium/RadioGroup";
 
 interface DatabaseMultiSelectProps {
   all: boolean;
@@ -32,33 +35,30 @@ export function DatabaseMultiSelect({
   };
 
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Databases to back up</legend>
-      <div className="flex gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="radio" name="db-scope" checked={all} onChange={() => onChange(true, selected)} />
-          All databases
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="db-scope" checked={!all} onChange={() => onChange(false, selected)} />
-          Selected databases
-        </label>
-      </div>
+    <div className="space-y-2">
+      <RadioGroup
+        label="Databases to back up"
+        name="db-scope"
+        direction="row"
+        value={all ? "all" : "selected"}
+        onChange={(value) => onChange(value === "all", selected)}
+        options={[
+          { value: "all", label: "All databases" },
+          { value: "selected", label: "Selected databases" },
+        ]}
+      />
       {!all && (
-        <div className="space-y-2 rounded-md border p-3">
+        <div className="space-y-2 border border-app-border p-3">
           {discovered === null && (
-            <p className="text-xs text-muted-foreground">
+            <HelperText>
               Use "Save and test" to discover the databases this user can see, or add names by hand.
-            </p>
+            </HelperText>
           )}
           {options.length > 0 && (
             <ul className="grid max-h-40 grid-cols-2 gap-1 overflow-y-auto">
               {options.map((name) => (
                 <li key={name}>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={selected.includes(name)} onChange={() => toggle(name)} />
-                    <span className="truncate">{name}</span>
-                  </label>
+                  <Checkbox label={name} checked={selected.includes(name)} onChange={() => toggle(name)} />
                 </li>
               ))}
             </ul>
@@ -66,7 +66,7 @@ export function DatabaseMultiSelect({
           <div className="flex gap-2">
             <Input
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={setDraft}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
@@ -83,10 +83,10 @@ export function DatabaseMultiSelect({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <HelperText role="alert" className="!text-red-600 dark:!text-red-400">
           {error}
-        </p>
+        </HelperText>
       )}
-    </fieldset>
+    </div>
   );
 }

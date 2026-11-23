@@ -1,16 +1,22 @@
-import { Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Table, { type TableColumn } from "xedonium/Table";
+import PencilIcon from "xedonium/icons/Pencil";
+import PlayIcon from "xedonium/icons/Play";
+import PlusIcon from "xedonium/icons/Plus";
+import Trash2Icon from "xedonium/icons/Trash2";
 import { useDeleteDestination, useDestinations, useTestDestination } from "@/api/destinations";
 import type { DestinationRecord } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { DestinationDialog } from "@/components/destinations/DestinationDialog";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 
 interface EditorState {
   open: boolean;
@@ -84,103 +90,75 @@ export default function DestinationsPage() {
     });
   };
 
+  const columns: TableColumn<DestinationRecord>[] = [
+    { key: "name", header: "Name", render: (d) => <span className="font-medium">{d.name}</span> },
+    { key: "type", header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
+    { key: "location", header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
+    {
+      key: "status",
+      header: "Status",
+      render: (d) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge lastTest={d.last_test} />
+          <AuthBadge type={d.type} status={d.auth_status} />
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (d) => {
+        const testing = test.isPending && test.variables === d.id;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="flat"
+              onClick={() => setEditor({ open: true, destination: d, focusToken: false })}
+              aria-label={`Edit ${d.name}`}
+            >
+              <PencilIcon className="h-4 w-4" /> Edit
+            </Button>
+            <Button variant="flat" disabled={testing} onClick={() => runTest(d)} aria-label={`Test ${d.name}`}>
+              <PlayIcon className="h-4 w-4" /> Test
+            </Button>
+            <Button variant="flat" onClick={() => setDeleting(d)} aria-label={`Delete ${d.name}`}>
+              <Trash2Icon className="h-4 w-4" /> Delete
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Destinations</h1>
-          <p className="text-sm text-muted-foreground">Where backups are stored.</p>
-        </div>
+      <PageHeader title="Destinations" subtitle="Where backups are stored.">
         <Button onClick={() => setEditor({ open: true, destination: null, focusToken: false })}>
-          <Plus className="h-4 w-4" /> Add destination
+          <PlusIcon className="h-4 w-4" /> Add destination
         </Button>
-      </div>
+      </PageHeader>
 
       <ReauthBanner destinations={needsReauth} onReconnect={reconnect} />
 
-      <Card>
-        {destinations.isPending && (
-          <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading destinations...
-          </p>
-        )}
+      <Card padded={false}>
+        {destinations.isPending && <Loader variant="inline" label="Loading destinations..." className="p-6" />}
         {destinations.isError && (
-          <div role="alert" className="flex items-center justify-between gap-4 p-6 text-sm text-destructive">
-            <span>Could not load destinations: {destinations.error.message}</span>
-            <Button variant="secondary" size="sm" onClick={() => void destinations.refetch()}>
-              Retry
-            </Button>
-          </div>
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-4">
+              <span>Could not load destinations: {destinations.error.message}</span>
+              <Button variant="secondary" onClick={() => void destinations.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
         )}
-        {destinations.isSuccess && destinations.data.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">
-            No destinations yet. Add a local folder or a Google Drive folder to store backups.
-          </p>
-        )}
-        {destinations.isSuccess && destinations.data.length > 0 && (
-          <Table>
-            <THead>
-              <tr>
-                <TH>Name</TH>
-                <TH>Type</TH>
-                <TH>Location</TH>
-                <TH>Status</TH>
-                <TH className="text-right">Actions</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {destinations.data.map((destination) => {
-                const testing = test.isPending && test.variables === destination.id;
-                return (
-                  <TR key={destination.id}>
-                    <TD className="font-medium">{destination.name}</TD>
-                    <TD>{destination.type === "gdrive" ? "Google Drive" : "Local drive"}</TD>
-                    <TD className="font-mono text-xs">{location(destination)}</TD>
-                    <TD>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge lastTest={destination.last_test} />
-                        <AuthBadge type={destination.type} status={destination.auth_status} />
-                      </div>
-                    </TD>
-                    <TD>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditor({ open: true, destination, focusToken: false })}
-                          aria-label={`Edit ${destination.name}`}
-                        >
-                          <Pencil className="h-4 w-4" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={testing}
-                          onClick={() => runTest(destination)}
-                          aria-label={`Test ${destination.name}`}
-                        >
-                          {testing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                          Test
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(destination)}
-                          aria-label={`Delete ${destination.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </Button>
-                      </div>
-                    </TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
+        {destinations.isSuccess && (
+          <Table
+            columns={columns}
+            rows={destinations.data}
+            empty="No destinations yet. Add a local folder or a Google Drive folder to store backups."
+          />
         )}
       </Card>
 

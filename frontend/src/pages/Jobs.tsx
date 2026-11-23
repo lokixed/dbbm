@@ -1,33 +1,42 @@
-import { Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Badge from "xedonium/Badge";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Switch from "xedonium/Switch";
+import Table, { type TableColumn } from "xedonium/Table";
+import Tooltip from "xedonium/Tooltip";
+import PencilIcon from "xedonium/icons/Pencil";
+import PlayIcon from "xedonium/icons/Play";
+import PlusIcon from "xedonium/icons/Plus";
+import Trash2Icon from "xedonium/icons/Trash2";
 import { useDeleteJob, useJobs, useRunJob, useSetJobEnabled } from "@/api/jobs";
 import type { JobRecord } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 import { formatTime } from "@/lib/format";
 
 function ScheduleBadge({ job }: { job: JobRecord }) {
-  if (!job.schedule) return <Badge variant="neutral">Manual</Badge>;
+  if (!job.schedule) return <Badge badgeContent="Manual" color="secondary" />;
   if (job.schedule_error) {
     return (
-      <Badge variant="danger" title={job.schedule_error}>
-        Invalid schedule: <span className="ml-1 font-mono">{job.schedule}</span>
-      </Badge>
+      <Tooltip text={job.schedule_error}>
+        <Badge badgeContent={`Invalid schedule: ${job.schedule}`} color="danger" />
+      </Tooltip>
     );
   }
   return (
-    <Badge variant={job.enabled ? "info" : "neutral"} title={`Time zone ${job.timezone}`}>
-      <span className="font-mono">{job.schedule}</span>
-      <span className="ml-1">({job.timezone})</span>
-      {!job.enabled && <span className="ml-1">paused</span>}
-    </Badge>
+    <Tooltip text={`Time zone ${job.timezone}`}>
+      <Badge
+        badgeContent={`${job.schedule} (${job.timezone})${job.enabled ? "" : " paused"}`}
+        color={job.enabled ? "info" : "secondary"}
+      />
+    </Tooltip>
   );
 }
 
@@ -81,142 +90,116 @@ export default function JobsPage() {
     });
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Jobs</h1>
-          <p className="text-sm text-muted-foreground">
-            What to back up, where it goes and when it runs.
-          </p>
+  const columns: TableColumn<JobRecord>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (job) => (
+        <div className="font-medium">
+          {job.name}
+          <div className="mt-1">
+            <ScheduleBadge job={job} />
+          </div>
         </div>
-        <Button onClick={() => setEditor({ open: true, job: null })}>
-          <Plus className="h-4 w-4" /> Add job
-        </Button>
-      </div>
-
-      <Card>
-        {jobs.isPending && (
-          <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading jobs...
-          </p>
-        )}
-        {jobs.isError && (
-          <div role="alert" className="flex items-center justify-between gap-4 p-6 text-sm text-destructive">
-            <span>Could not load jobs: {jobs.error.message}</span>
-            <Button variant="secondary" size="sm" onClick={() => void jobs.refetch()}>
-              Retry
+      ),
+    },
+    {
+      key: "source",
+      header: "Source",
+      render: (job) => (
+        <>
+          {job.source.name} <span className="text-xs text-app-muted">({job.source.type})</span>
+        </>
+      ),
+    },
+    { key: "destinations", header: "Destinations", render: (job) => job.destinations.map((d) => d.name).join(", ") },
+    {
+      key: "enabled",
+      header: "Enabled",
+      render: (job) => (
+        <Switch
+          checked={job.enabled}
+          disabled={setEnabled.isPending}
+          onChange={() => toggle(job)}
+          aria-label={`${job.enabled ? "Disable" : "Enable"} ${job.name}`}
+          label={job.enabled ? "On" : "Off"}
+        />
+      ),
+    },
+    {
+      key: "next",
+      header: "Next run",
+      render: (job) =>
+        job.next_run_at ? formatTime(job.next_run_at) : <span className="text-app-muted">-</span>,
+    },
+    {
+      key: "last",
+      header: "Last run",
+      render: (job) =>
+        job.last_run ? (
+          <Link to={`/runs/${job.last_run.id}`} className="inline-flex items-center gap-2 hover:underline">
+            <RunStatusBadge status={job.last_run.status} />
+            <span className="text-xs text-app-muted">{formatTime(job.last_run.created_at)}</span>
+          </Link>
+        ) : (
+          <RunStatusBadge status={null} />
+        ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (job) => {
+        const starting = run.isPending && run.variables === job.id;
+        const active = job.last_run?.status === "queued" || job.last_run?.status === "running";
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="flat"
+              disabled={starting || active}
+              onClick={() => runNow(job)}
+              aria-label={`Run ${job.name} now`}
+            >
+              <PlayIcon className="h-4 w-4" /> Run now
+            </Button>
+            <Button variant="flat" onClick={() => setEditor({ open: true, job })} aria-label={`Edit ${job.name}`}>
+              <PencilIcon className="h-4 w-4" /> Edit
+            </Button>
+            <Button variant="flat" onClick={() => setDeleting(job)} aria-label={`Delete ${job.name}`}>
+              <Trash2Icon className="h-4 w-4" /> Delete
             </Button>
           </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Jobs" subtitle="What to back up, where it goes and when it runs.">
+        <Button onClick={() => setEditor({ open: true, job: null })}>
+          <PlusIcon className="h-4 w-4" /> Add job
+        </Button>
+      </PageHeader>
+
+      <Card padded={false}>
+        {jobs.isPending && <Loader variant="inline" label="Loading jobs..." className="p-6" />}
+        {jobs.isError && (
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-4">
+              <span>Could not load jobs: {jobs.error.message}</span>
+              <Button variant="secondary" onClick={() => void jobs.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
         )}
-        {jobs.isSuccess && jobs.data.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">
-            No jobs yet. Add a source and a destination, then create a job to back them up.
-          </p>
-        )}
-        {jobs.isSuccess && jobs.data.length > 0 && (
-          <Table>
-            <THead>
-              <tr>
-                <TH>Name</TH>
-                <TH>Source</TH>
-                <TH>Destinations</TH>
-                <TH>Enabled</TH>
-                <TH>Next run</TH>
-                <TH>Last run</TH>
-                <TH className="text-right">Actions</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {jobs.data.map((job) => {
-                const starting = run.isPending && run.variables === job.id;
-                const active = job.last_run?.status === "queued" || job.last_run?.status === "running";
-                return (
-                  <TR key={job.id}>
-                    <TD className="font-medium">
-                      {job.name}
-                      <div className="mt-1">
-                        <ScheduleBadge job={job} />
-                      </div>
-                    </TD>
-                    <TD>
-                      {job.source.name}{" "}
-                      <span className="text-xs text-muted-foreground">({job.source.type})</span>
-                    </TD>
-                    <TD>{job.destinations.map((d) => d.name).join(", ")}</TD>
-                    <TD>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={job.enabled}
-                          disabled={setEnabled.isPending}
-                          onChange={() => toggle(job)}
-                          aria-label={`${job.enabled ? "Disable" : "Enable"} ${job.name}`}
-                        />
-                        {job.enabled ? "On" : "Off"}
-                      </label>
-                    </TD>
-                    <TD className="text-sm">
-                      {job.next_run_at ? (
-                        formatTime(job.next_run_at)
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TD>
-                    <TD>
-                      {job.last_run ? (
-                        <Link
-                          to={`/runs/${job.last_run.id}`}
-                          className="inline-flex items-center gap-2 hover:underline"
-                        >
-                          <RunStatusBadge status={job.last_run.status} />
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(job.last_run.created_at)}
-                          </span>
-                        </Link>
-                      ) : (
-                        <RunStatusBadge status={null} />
-                      )}
-                    </TD>
-                    <TD>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={starting || active}
-                          onClick={() => runNow(job)}
-                          aria-label={`Run ${job.name} now`}
-                        >
-                          {starting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                          Run now
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditor({ open: true, job })}
-                          aria-label={`Edit ${job.name}`}
-                        >
-                          <Pencil className="h-4 w-4" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(job)}
-                          aria-label={`Delete ${job.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </Button>
-                      </div>
-                    </TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
+        {jobs.isSuccess && (
+          <Table
+            columns={columns}
+            rows={jobs.data}
+            empty="No jobs yet. Add a source and a destination, then create a job to back them up."
+          />
         )}
       </Card>
 

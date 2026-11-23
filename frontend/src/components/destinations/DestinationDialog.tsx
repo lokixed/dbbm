@@ -1,20 +1,21 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Field from "xedonium/Field";
+import HelperText from "xedonium/HelperText";
+import Modal from "xedonium/Modal";
+import Select from "xedonium/Select";
 import { ApiError } from "@/api/client";
 import { useRetentionPreview, useSaveDestination, useTestDestination } from "@/api/destinations";
 import type { DestinationRecord, RetentionPreview, TestResult } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GdriveFields } from "@/components/destinations/GdriveFields";
 import { PreviewSummary, RetentionSection } from "@/components/destinations/RetentionSection";
-import { FormField } from "@/components/FormField";
 import { TestResultPanel } from "@/components/TestResultPanel";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
+import { bindText } from "@/lib/formBinding";
 import {
   destinationDefaults,
   destinationSchema,
@@ -71,7 +72,7 @@ function DestinationForm({
     resolver: standardSchemaResolver(destinationSchema),
     defaultValues: destination ? recordToValues(destination) : destinationDefaults,
   });
-  const { register, formState, control } = form;
+  const { formState, control } = form;
   const errors = formState.errors;
   const busy = save.isPending || test.isPending || retentionPreview.isPending;
   const type = useWatch({ control, name: "type" });
@@ -171,36 +172,32 @@ function DestinationForm({
 
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5" noValidate>
-      <FormField id="type" label="Type">
-        <Select id="type" disabled={record !== null} {...register("type")}>
-          <option value="local">Local drive</option>
-          <option value="gdrive">Google Drive</option>
-        </Select>
-      </FormField>
+      <Select
+        label="Type"
+        disabled={record !== null}
+        options={[
+          { value: "local", label: "Local drive" },
+          { value: "gdrive", label: "Google Drive" },
+        ]}
+        {...bindText(form, "type")}
+      />
 
-      {record?.secrets_error && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {record.secrets_error}
-        </div>
-      )}
+      {record?.secrets_error && <Alert tone="danger">{record.secrets_error}</Alert>}
 
-      <FormField id="name" label="Name" error={errors.name?.message}>
-        <Input id="name" {...register("name")} autoComplete="off" />
-      </FormField>
+      <Field label="Name" autoComplete="off" {...bindText(form, "name")} error={errors.name?.message} />
 
       {type === "local" ? (
-        <FormField
-          id="path"
+        <Field
           label="Path"
-          hint="Relative to the backup directory (e.g. daily/mysql). Absolute paths must be inside it."
+          helperText="Relative to the backup directory (e.g. daily/mysql). Absolute paths must be inside it."
+          placeholder="daily"
+          autoComplete="off"
+          {...bindText(form, "path")}
           error={errors.path?.message}
-        >
-          <Input id="path" {...register("path")} placeholder="daily" autoComplete="off" />
-        </FormField>
+        />
       ) : (
         <GdriveFields
-          register={register}
-          errors={errors}
+          form={form}
           scope={scope}
           clientId={clientId}
           secretsSet={secretsSet}
@@ -215,18 +212,13 @@ function DestinationForm({
 
       <RetentionSection
         destinationId={record?.id ?? null}
-        register={register}
-        errors={errors}
+        form={form}
         keepLast={keepLast}
         keepDays={keepDays}
         unsaved={retentionChanged}
       />
 
-      {formError && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {formError}
-        </div>
-      )}
+      {formError && <Alert tone="danger">{formError}</Alert>}
 
       <TestResultPanel pending={test.isPending} result={testResult} error={testError} />
 
@@ -261,7 +253,6 @@ function DestinationForm({
           Save
         </Button>
         <Button type="button" onClick={submit(true)} disabled={busy}>
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           Save and test
         </Button>
       </div>
@@ -279,13 +270,16 @@ interface DestinationDialogProps {
 
 export function DestinationDialog({ open, destination, focusToken = false, onClose }: DestinationDialogProps) {
   return (
-    <Dialog
+    <Modal
       open={open}
       onClose={onClose}
       title={focusToken ? "Reconnect Google Drive" : destination ? "Edit destination" : "Add destination"}
-      description="Backups are copied to every destination of a job and verified there."
+      maxWidth="max-w-2xl"
     >
+      <HelperText className="mb-4">
+        Backups are copied to every destination of a job and verified there.
+      </HelperText>
       <DestinationForm destination={destination} focusToken={focusToken} onClose={onClose} />
-    </Dialog>
+    </Modal>
   );
 }

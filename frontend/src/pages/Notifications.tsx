@@ -1,6 +1,20 @@
-import { History, Loader2, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Badge from "xedonium/Badge";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import HelperText from "xedonium/HelperText";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Switch from "xedonium/Switch";
+import Table, { type TableColumn } from "xedonium/Table";
+import Tooltip from "xedonium/Tooltip";
+import HistoryIcon from "xedonium/icons/History";
+import PencilIcon from "xedonium/icons/Pencil";
+import PlusIcon from "xedonium/icons/Plus";
+import SendIcon from "xedonium/icons/Send";
+import Trash2Icon from "xedonium/icons/Trash2";
 import {
   EVENTS_PAGE_SIZE,
   useChannelEvents,
@@ -9,99 +23,85 @@ import {
   useSaveChannel,
   useTestChannel,
 } from "@/api/notifications";
-import type { ChannelRecord } from "@/api/types";
+import type { ChannelRecord, NotificationEvent } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChannelDialog } from "@/components/notifications/ChannelDialog";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
 import { formatTime } from "@/lib/format";
 
 const TYPE_LABEL = { slack: "Slack", email: "Email", webhook: "Webhook" } as const;
+
+const EVENT_COLUMNS: TableColumn<NotificationEvent>[] = [
+  {
+    key: "time",
+    header: "Time",
+    render: (event) => <span className="whitespace-nowrap text-xs">{formatTime(event.created_at)}</span>,
+  },
+  {
+    key: "event",
+    header: "Event",
+    render: (event) => (
+      <>
+        {event.event_type.replace("_", " ")}
+        {event.run_id && (
+          <Link className="ml-2 text-xs underline" to={`/runs/${event.run_id}`}>
+            run
+          </Link>
+        )}
+      </>
+    ),
+  },
+  { key: "status", header: "Status", render: (event) => <EventStatusBadge status={event.status} /> },
+  { key: "attempts", header: "Attempts", render: (event) => event.attempts },
+  {
+    key: "error",
+    header: "Error",
+    render: (event) => <span className="text-xs text-app-muted">{event.error ?? ""}</span>,
+  },
+];
 
 function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () => void }) {
   const [page, setPage] = useState(0);
   const events = useChannelEvents(channel.id, page);
   const pages = events.data ? Math.max(1, Math.ceil(events.data.total / EVENTS_PAGE_SIZE)) : 1;
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base">Delivery events: {channel.name}</CardTitle>
-        <Button variant="ghost" size="sm" onClick={onClose}>
+    <Card
+      title={`Delivery events: ${channel.name}`}
+      padded={false}
+      actions={
+        <Button variant="flat" onClick={onClose}>
           Close
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-3 p-0 pb-4">
-        {events.isPending && (
-          <p className="flex items-center gap-2 px-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading events...
-          </p>
-        )}
-        {events.isError && (
-          <p role="alert" className="px-6 text-sm text-destructive">
-            Could not load events: {events.error.message}
-          </p>
-        )}
-        {events.isSuccess && events.data.items.length === 0 && (
-          <p className="px-6 text-sm text-muted-foreground">No messages sent through this channel yet.</p>
-        )}
-        {events.isSuccess && events.data.items.length > 0 && (
+      }
+    >
+      <div className="space-y-3 pb-4">
+        {events.isPending && <Loader variant="inline" label="Loading events..." className="px-6" />}
+        {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
+        {events.isSuccess && (
           <>
-            <Table>
-              <THead>
-                <tr>
-                  <TH>Time</TH>
-                  <TH>Event</TH>
-                  <TH>Status</TH>
-                  <TH>Attempts</TH>
-                  <TH>Error</TH>
-                </tr>
-              </THead>
-              <TBody>
-                {events.data.items.map((event) => (
-                  <TR key={event.id}>
-                    <TD className="whitespace-nowrap text-xs">{formatTime(event.created_at)}</TD>
-                    <TD>
-                      {event.event_type.replace("_", " ")}
-                      {event.run_id && (
-                        <Link className="ml-2 text-xs underline" to={`/runs/${event.run_id}`}>
-                          run
-                        </Link>
-                      )}
-                    </TD>
-                    <TD>
-                      <EventStatusBadge status={event.status} />
-                    </TD>
-                    <TD>{event.attempts}</TD>
-                    <TD className="max-w-md text-xs text-muted-foreground">{event.error ?? ""}</TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-            <div className="flex items-center justify-end gap-2 px-6 text-sm">
-              <span className="text-muted-foreground">
-                Page {page + 1} of {pages} ({events.data.total} events)
-              </span>
-              <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={page + 1 >= pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Table
+              columns={EVENT_COLUMNS}
+              rows={events.data.items}
+              empty="No messages sent through this channel yet."
+            />
+            {events.data.items.length > 0 && (
+              <div className="flex items-center justify-end gap-2 px-6 text-sm">
+                <span className="text-app-muted">
+                  Page {page + 1} of {pages} ({events.data.total} events)
+                </span>
+                <Button variant="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                  Previous
+                </Button>
+                <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>
+                  Next
+                </Button>
+              </div>
+            )}
           </>
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 }
@@ -159,128 +159,130 @@ export default function NotificationsPage() {
       : `"${deleting.name}" and its delivery history will be deleted.`
     : "";
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
-          <p className="text-sm text-muted-foreground">
-            Where failures, recoveries, overdue jobs and system warnings are sent. Pick channels per job
-            on the Jobs page; system warnings go to every enabled channel.
-          </p>
+  const columns: TableColumn<ChannelRecord>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (channel) => (
+        <div className="font-medium">
+          {channel.name}
+          {channel.warnings.map((w) => (
+            <HelperText key={w} className="mt-1 font-normal text-amber-700 dark:text-amber-400">
+              {w}
+            </HelperText>
+          ))}
+          {channel.secrets_error && (
+            <HelperText className="mt-1 font-normal !text-red-600 dark:!text-red-400">
+              {channel.secrets_error}
+            </HelperText>
+          )}
         </div>
-        <Button onClick={() => setEditor({ open: true, channel: null })}>
-          <Plus className="h-4 w-4" /> Add channel
-        </Button>
-      </div>
-
-      <Card>
-        {channels.isPending && (
-          <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading channels...
-          </p>
-        )}
-        {channels.isError && (
-          <div role="alert" className="flex items-center justify-between gap-4 p-6 text-sm text-destructive">
-            <span>Could not load channels: {channels.error.message}</span>
-            <Button variant="secondary" size="sm" onClick={() => void channels.refetch()}>
-              Retry
+      ),
+    },
+    { key: "type", header: "Type", render: (channel) => TYPE_LABEL[channel.type] },
+    {
+      key: "enabled",
+      header: "Enabled",
+      render: (channel) => (
+        <Switch
+          checked={channel.enabled}
+          disabled={save.isPending}
+          onChange={() => toggle(channel)}
+          aria-label={`${channel.enabled ? "Disable" : "Enable"} ${channel.name}`}
+        />
+      ),
+    },
+    {
+      key: "test",
+      header: "Last test",
+      render: (channel) => {
+        const inline = results[channel.id];
+        if (inline) {
+          return (
+            <span className={inline.ok ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+              {inline.ok ? "Delivered" : `Failed: ${inline.message}`}
+            </span>
+          );
+        }
+        if (!channel.last_test) return <span className="text-app-muted">Never tested</span>;
+        const badge = (
+          <Badge
+            badgeContent={channel.last_test.ok ? "OK" : "Failed"}
+            color={channel.last_test.ok ? "success" : "danger"}
+          />
+        );
+        return (
+          <span className="inline-flex items-center gap-2 text-xs">
+            {channel.last_test.message ? <Tooltip text={channel.last_test.message}>{badge}</Tooltip> : badge}
+            <span className="text-app-muted">{formatTime(channel.last_test.at)}</span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "jobs",
+      header: "Jobs",
+      render: (channel) => <span className="text-xs">{channel.jobs.map((j) => j.name).join(", ") || "-"}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (channel) => {
+        const sending = test.isPending && test.variables === channel.id;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button variant="flat" disabled={sending} onClick={() => sendTest(channel)}>
+              <SendIcon className="h-4 w-4" /> Send test
+            </Button>
+            <Button variant="flat" onClick={() => setEventsFor(channel)}>
+              <HistoryIcon className="h-4 w-4" /> Events
+            </Button>
+            <Button
+              variant="flat"
+              onClick={() => setEditor({ open: true, channel })}
+              aria-label={`Edit ${channel.name}`}
+            >
+              <PencilIcon className="h-4 w-4" /> Edit
+            </Button>
+            <Button variant="flat" onClick={() => setDeleting(channel)} aria-label={`Delete ${channel.name}`}>
+              <Trash2Icon className="h-4 w-4" /> Delete
             </Button>
           </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Notifications"
+        subtitle="Where failures, recoveries, overdue jobs and system warnings are sent. Pick channels per job on the Jobs page; system warnings go to every enabled channel."
+      >
+        <Button onClick={() => setEditor({ open: true, channel: null })}>
+          <PlusIcon className="h-4 w-4" /> Add channel
+        </Button>
+      </PageHeader>
+
+      <Card padded={false}>
+        {channels.isPending && <Loader variant="inline" label="Loading channels..." className="p-6" />}
+        {channels.isError && (
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-4">
+              <span>Could not load channels: {channels.error.message}</span>
+              <Button variant="secondary" onClick={() => void channels.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
         )}
-        {channels.isSuccess && channels.data.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">
-            No channels yet. Add Slack, email or a webhook to be told when a backup fails.
-          </p>
-        )}
-        {channels.isSuccess && channels.data.length > 0 && (
-          <Table>
-            <THead>
-              <tr>
-                <TH>Name</TH>
-                <TH>Type</TH>
-                <TH>Enabled</TH>
-                <TH>Last test</TH>
-                <TH>Jobs</TH>
-                <TH className="text-right">Actions</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {channels.data.map((channel) => {
-                const sending = test.isPending && test.variables === channel.id;
-                const inline = results[channel.id];
-                return (
-                  <TR key={channel.id}>
-                    <TD className="font-medium">
-                      {channel.name}
-                      {channel.warnings.map((w) => (
-                        <p key={w} className="mt-1 text-xs font-normal text-amber-700 dark:text-amber-400">
-                          {w}
-                        </p>
-                      ))}
-                      {channel.secrets_error && (
-                        <p className="mt-1 text-xs font-normal text-destructive">{channel.secrets_error}</p>
-                      )}
-                    </TD>
-                    <TD>{TYPE_LABEL[channel.type]}</TD>
-                    <TD>
-                      <Switch
-                        checked={channel.enabled}
-                        disabled={save.isPending}
-                        onChange={() => toggle(channel)}
-                        label={`${channel.enabled ? "Disable" : "Enable"} ${channel.name}`}
-                        hideLabel
-                      />
-                    </TD>
-                    <TD className="max-w-xs text-xs">
-                      {inline ? (
-                        <span className={inline.ok ? "text-green-700 dark:text-green-400" : "text-destructive"}>
-                          {inline.ok ? "Delivered" : `Failed: ${inline.message}`}
-                        </span>
-                      ) : channel.last_test ? (
-                        <span title={channel.last_test.message ?? ""}>
-                          <Badge variant={channel.last_test.ok ? "success" : "danger"}>
-                            {channel.last_test.ok ? "OK" : "Failed"}
-                          </Badge>{" "}
-                          <span className="text-muted-foreground">{formatTime(channel.last_test.at)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Never tested</span>
-                      )}
-                    </TD>
-                    <TD className="text-xs">{channel.jobs.map((j) => j.name).join(", ") || "-"}</TD>
-                    <TD>
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" disabled={sending} onClick={() => sendTest(channel)}>
-                          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          Send test
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEventsFor(channel)}>
-                          <History className="h-4 w-4" /> Events
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditor({ open: true, channel })}
-                          aria-label={`Edit ${channel.name}`}
-                        >
-                          <Pencil className="h-4 w-4" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(channel)}
-                          aria-label={`Delete ${channel.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </Button>
-                      </div>
-                    </TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
+        {channels.isSuccess && (
+          <Table
+            columns={columns}
+            rows={channels.data}
+            empty="No channels yet. Add Slack, email or a webhook to be told when a backup fails."
+          />
         )}
       </Card>
 

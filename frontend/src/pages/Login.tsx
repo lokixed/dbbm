@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import Field from "xedonium/Field";
+import PasswordInput from "xedonium/PasswordInput";
+import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useLogin, useMe } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface LocationState {
   from?: string;
@@ -39,45 +40,33 @@ export default function LoginPage() {
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>{state.notice ?? "Sign in to DBBackup."}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                autoComplete="username"
-                autoFocus
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {login.error && (
-              <p role="alert" className="text-sm text-destructive">
-                {login.error.message}
-              </p>
-            )}
-            <Button type="submit" className="w-full" disabled={login.isPending}>
-              {login.isPending ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
+      <Card
+        className="w-full max-w-sm"
+        title="Sign in"
+        headingLevel={2}
+        subtitle={state.notice ?? "Sign in to DBBackup."}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field
+            label="Username"
+            autoComplete="username"
+            autoFocus
+            required
+            value={username}
+            onChange={setUsername}
+          />
+          <PasswordInput
+            label="Password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={setPassword}
+          />
+          {login.error && <Alert tone="danger">{login.error.message}</Alert>}
+          <Button type="submit" className="w-full" disabled={login.isPending}>
+            {login.isPending ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
       </Card>
     </div>
   );

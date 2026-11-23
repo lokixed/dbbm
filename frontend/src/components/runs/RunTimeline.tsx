@@ -1,4 +1,11 @@
-import { AlertTriangle, CheckCircle2, CircleDashed, Loader2, MinusCircle, XCircle } from "lucide-react";
+import Alert from "xedonium/Alert";
+import HelperText from "xedonium/HelperText";
+import Loader from "xedonium/Loader";
+import AlertTriangleIcon from "xedonium/icons/AlertTriangle";
+import CheckCircleIcon from "xedonium/icons/CheckCircle";
+import CircleDotIcon from "xedonium/icons/CircleDot";
+import MinusIcon from "xedonium/icons/Minus";
+import XCircleIcon from "xedonium/icons/XCircle";
 import type {
   DestinationOutcome,
   StepEntry,
@@ -12,18 +19,18 @@ import { formatBytes, formatMs } from "@/lib/format";
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
     case "ok":
-      return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" aria-label="ok" />;
+      return <CheckCircleIcon className="h-4 w-4 shrink-0 text-green-600" aria-label="ok" />;
     case "failed":
-      return <XCircle className="h-4 w-4 shrink-0 text-destructive" aria-label="failed" />;
+      return <XCircleIcon className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-label="failed" />;
     case "warning":
-      return <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-label="warning" />;
+      return <AlertTriangleIcon className="h-4 w-4 shrink-0 text-amber-600" aria-label="warning" />;
     case "running":
-      return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-600" aria-label="running" />;
+      return <Loader variant="spinner" size="sm" label="running" />;
     case "skipped":
     case "cancelled":
-      return <MinusCircle className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={status} />;
+      return <MinusIcon className="h-4 w-4 shrink-0 text-app-muted" aria-label={status} />;
     default:
-      return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="pending" />;
+      return <CircleDotIcon className="h-4 w-4 shrink-0 text-app-muted" aria-label="pending" />;
   }
 }
 
@@ -50,17 +57,17 @@ function SubStep({ step }: { step: SubStepEntry }) {
         <p>
           {SUB_STEP_LABELS[step.name] ?? step.name}
           {step.duration_ms !== null && (
-            <span className="ml-2 text-muted-foreground">{formatMs(step.duration_ms)}</span>
+            <span className="ml-2 text-app-muted">{formatMs(step.duration_ms)}</span>
           )}
         </p>
         {step.detail && (
           <p
             className={`break-words ${
               step.status === "failed"
-                ? "text-destructive"
+                ? "text-red-600 dark:text-red-400"
                 : step.status === "warning"
                   ? "text-amber-700 dark:text-amber-400"
-                  : "text-muted-foreground"
+                  : "text-app-muted"
             }`}
           >
             {step.detail}
@@ -79,10 +86,10 @@ function Step({ step }: { step: StepEntry }) {
         <p className="font-medium">
           {STEP_LABELS[step.name] ?? step.name}
           {step.duration_ms !== null && (
-            <span className="ml-2 font-normal text-muted-foreground">{formatMs(step.duration_ms)}</span>
+            <span className="ml-2 font-normal text-app-muted">{formatMs(step.duration_ms)}</span>
           )}
         </p>
-        {step.detail && <p className="break-words text-muted-foreground">{step.detail}</p>}
+        {step.detail && <p className="break-words text-app-muted">{step.detail}</p>}
       </div>
     </li>
   );
@@ -100,15 +107,15 @@ function Destination({ outcome }: { outcome: DestinationOutcome }) {
         <p>
           <span className="font-medium">{outcome.destination_name ?? "Destination"}</span>
           {outcome.status === "skipped" && !outcome.error && (
-            <span className="ml-2 text-muted-foreground">skipped because the dump failed</span>
+            <span className="ml-2 text-app-muted">skipped because the dump failed</span>
           )}
           {timings.length > 0 && (
-            <span className="ml-2 text-muted-foreground">{timings.join(", ")}</span>
+            <span className="ml-2 text-app-muted">{timings.join(", ")}</span>
           )}
-          {outcome.retried_by && <span className="ml-2 text-muted-foreground">(stored by a retry)</span>}
+          {outcome.retried_by && <span className="ml-2 text-app-muted">(stored by a retry)</span>}
         </p>
         {outcome.error && (
-          <p className="break-words text-destructive">
+          <p className="break-words text-red-600 dark:text-red-400">
             {outcome.error_class && <span className="font-medium">{errorClassLabel(outcome.error_class)}: </span>}
             {outcome.error}
           </p>
@@ -121,19 +128,19 @@ function Destination({ outcome }: { outcome: DestinationOutcome }) {
 function Unit({ unit }: { unit: UnitResult }) {
   const dumpStatus = unit.dump.status ?? "running";
   return (
-    <li className="rounded-md border p-3">
+    <li className="border border-app-border p-3">
       <div className="flex items-start gap-2 text-sm">
         <StatusIcon status={dumpStatus} />
         <div className="min-w-0">
           <p className="font-medium">
             {unit.kind === "globals" ? "Roles and globals" : unit.database}
-            <span className="ml-2 font-normal text-muted-foreground">
+            <span className="ml-2 font-normal text-app-muted">
               {unit.dump.size_bytes !== undefined && `dumped ${formatBytes(unit.dump.size_bytes)}`}
               {unit.dump.duration_ms !== undefined && ` in ${formatMs(unit.dump.duration_ms)}`}
               {unit.dump.source && ` (copied from ${unit.dump.source})`}
             </span>
           </p>
-          {unit.dump.error && <p className="break-words text-destructive">{unit.dump.error}</p>}
+          {unit.dump.error && <p className="break-words text-red-600 dark:text-red-400">{unit.dump.error}</p>}
         </div>
       </div>
       {(unit.dump.steps?.length ?? 0) > 0 && (
@@ -157,7 +164,7 @@ export function RunTimeline({ results }: { results: StepResults }) {
   const units = results.units ?? [];
   const warnings = results.warnings ?? [];
   if (steps.length === 0 && units.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing has run yet.</p>;
+    return <HelperText>Nothing has run yet.</HelperText>;
   }
   return (
     <div className="space-y-4">
@@ -177,16 +184,15 @@ export function RunTimeline({ results }: { results: StepResults }) {
         </div>
       )}
       {warnings.length > 0 && (
-        <div className="space-y-1 rounded-md border border-amber-500/50 p-3 text-sm">
-          <p className="font-medium">Warnings</p>
-          <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+        <Alert tone="warning" title="Warnings">
+          <ul className="list-disc space-y-1 pl-5">
             {warnings.map((warning) => (
               <li key={warning} className="break-words">
                 {warning}
               </li>
             ))}
           </ul>
-        </div>
+        </Alert>
       )}
     </div>
   );

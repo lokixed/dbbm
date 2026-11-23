@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { ThemeProvider } from "xedonium/theme";
 import { setUnauthorizedHandler } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { ToastProvider } from "@/components/ui/toast";
+import { ToastProvider } from "@/components/toast";
 import BackupsPage from "@/pages/Backups";
 import DashboardPage from "@/pages/Dashboard";
 import DestinationsPage from "@/pages/Destinations";
@@ -36,28 +36,28 @@ function UnauthorizedRedirect() {
 
 export default function App() {
   return (
-    <ThemeProvider>
+    <ThemeProvider storageKey="dbbackup-theme" allowSystem>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <BrowserRouter>
-          <UnauthorizedRedirect />
-          <Routes>
-            <Route path="/setup" element={<SetupPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="sources" element={<SourcesPage />} />
-                <Route path="destinations" element={<DestinationsPage />} />
-                <Route path="jobs" element={<JobsPage />} />
-                <Route path="runs" element={<RunsPage />} />
-                <Route path="runs/:id" element={<RunDetailPage />} />
-                <Route path="backups" element={<BackupsPage />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+            <UnauthorizedRedirect />
+            <Routes>
+              <Route path="/setup" element={<SetupPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<Layout />}>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="sources" element={<SourcesPage />} />
+                  <Route path="destinations" element={<DestinationsPage />} />
+                  <Route path="jobs" element={<JobsPage />} />
+                  <Route path="runs" element={<RunsPage />} />
+                  <Route path="runs/:id" element={<RunDetailPage />} />
+                  <Route path="backups" element={<BackupsPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
               </Route>
-            </Route>
-          </Routes>
+            </Routes>
           </BrowserRouter>
         </ToastProvider>
       </QueryClientProvider>

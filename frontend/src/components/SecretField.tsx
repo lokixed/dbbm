@@ -1,10 +1,10 @@
-import { Upload } from "lucide-react";
 import { useState } from "react";
+import Badge from "xedonium/Badge";
+import Button from "xedonium/Button";
+import FileUpload from "xedonium/FileUpload";
+import Input from "xedonium/Input";
+import TextArea from "xedonium/TextArea";
 import { FormField } from "@/components/FormField";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/select";
 import type { SecretState } from "@/lib/secrets";
 
 interface SecretFieldProps {
@@ -41,17 +41,12 @@ export function SecretField({
     return (
       <FormField id={id} label={label}>
         <div className="flex items-center gap-2">
-          <Badge variant="success">Saved</Badge>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => onChange({ action: "set", value: "" })}
-          >
+          <Badge badgeContent="Saved" color="success" />
+          <Button type="button" variant="secondary" onClick={() => onChange({ action: "set", value: "" })}>
             Change
           </Button>
           {!required && (
-            <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "clear" })}>
+            <Button type="button" variant="flat" onClick={() => onChange({ action: "clear" })}>
               Clear
             </Button>
           )}
@@ -64,8 +59,8 @@ export function SecretField({
     return (
       <FormField id={id} label={label}>
         <div className="flex items-center gap-2">
-          <Badge variant="danger">Will be cleared when you save</Badge>
-          <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "keep" })}>
+          <Badge badgeContent="Will be cleared when you save" color="danger" />
+          <Button type="button" variant="flat" onClick={() => onChange({ action: "keep" })}>
             Undo
           </Button>
         </div>
@@ -85,10 +80,10 @@ export function SecretField({
   return (
     <FormField id={id} label={label} error={error}>
       {multiline ? (
-        <Textarea
+        <TextArea
           id={id}
           value={value}
-          onChange={(event) => update(event.target.value)}
+          onChange={update}
           placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
@@ -99,7 +94,7 @@ export function SecretField({
           id={id}
           type="password"
           value={value}
-          onChange={(event) => update(event.target.value)}
+          onChange={update}
           placeholder={placeholder}
           autoComplete="new-password"
           autoFocus={autoFocus}
@@ -107,23 +102,16 @@ export function SecretField({
       )}
       <div className="flex flex-wrap items-center gap-2">
         {allowFile && (
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-            <Upload className="h-3.5 w-3.5" />
-            Upload .json file
-            <input
-              type="file"
-              accept=".json,application/json"
-              className="sr-only"
-              onChange={(event) => {
-                void readFile(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
-          </label>
+          <FileUpload
+            label="Upload .json file"
+            accept=".json,application/json"
+            clearOnSelect
+            onChange={(files) => void readFile(files[0])}
+          />
         )}
-        {fileName && <span className="text-xs text-muted-foreground">Loaded {fileName}</span>}
+        {fileName && <span className="text-xs text-app-muted">Loaded {fileName}</span>}
         {isSet && (
-          <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "keep" })}>
+          <Button type="button" variant="flat" onClick={() => onChange({ action: "keep" })}>
             Keep saved value
           </Button>
         )}

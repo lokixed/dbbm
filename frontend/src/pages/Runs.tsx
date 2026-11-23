@@ -1,14 +1,18 @@
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import HelperText from "xedonium/HelperText";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Select from "xedonium/Select";
+import Table, { type TableColumn } from "xedonium/Table";
+import Tooltip from "xedonium/Tooltip";
 import { useJobs } from "@/api/jobs";
 import { useRuns, type RunFilters } from "@/api/runs";
-import type { RunStatus } from "@/api/types";
+import type { RunSummary, RunStatus } from "@/api/types";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
 import { formatBytes, formatDuration, formatTime } from "@/lib/format";
 
 const STATUSES: RunStatus[] = [
@@ -21,6 +25,53 @@ const STATUSES: RunStatus[] = [
   "interrupted",
 ];
 
+const COLUMNS: TableColumn<RunSummary>[] = [
+  {
+    key: "job",
+    header: "Job",
+    render: (run) => (
+      <Link to={`/runs/${run.id}`} className="font-medium hover:underline">
+        {run.job_name}
+      </Link>
+    ),
+  },
+  {
+    key: "trigger",
+    header: "Trigger",
+    render: (run) =>
+      run.parent_run_id ? (
+        <Tooltip text="Open the retried run">
+          <Link to={`/runs/${run.parent_run_id}`} className="capitalize hover:underline">
+            {run.trigger}
+          </Link>
+        </Tooltip>
+      ) : (
+        <span className="capitalize">{run.trigger}</span>
+      ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (run) =>
+      run.status === "partial" ? (
+        <Tooltip text="Some destinations failed; open the run to retry them.">
+          <RunStatusBadge status={run.status} />
+        </Tooltip>
+      ) : (
+        <RunStatusBadge status={run.status} />
+      ),
+  },
+  { key: "started", header: "Started", render: (run) => formatTime(run.started_at ?? run.created_at) },
+  { key: "duration", header: "Duration", render: (run) => formatDuration(run.started_at, run.finished_at) },
+  { key: "artifacts", header: "Artifacts", align: "right", render: (run) => run.artifact_count },
+  {
+    key: "size",
+    header: "Total size",
+    align: "right",
+    render: (run) => (run.artifact_count ? formatBytes(run.total_size) : "-"),
+  },
+];
+
 export default function RunsPage() {
   const [filters, setFilters] = useState<RunFilters>({ jobId: "", status: "" });
   const runs = useRuns(filters);
@@ -28,110 +79,58 @@ export default function RunsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Runs</h1>
-        <p className="text-sm text-muted-foreground">
-          History of every backup run. The list refreshes while a run is in progress.
-        </p>
-      </div>
+      <PageHeader
+        title="Runs"
+        subtitle="History of every backup run. The list refreshes while a run is in progress."
+      />
 
       <div className="flex flex-wrap gap-3">
         <Select
           aria-label="Filter by job"
           className="w-56"
           value={filters.jobId}
-          onChange={(event) => setFilters({ ...filters, jobId: event.target.value })}
-        >
-          <option value="">All jobs</option>
-          {jobs.data?.map((job) => (
-            <option key={job.id} value={job.id}>
-              {job.name}
-            </option>
-          ))}
-        </Select>
+          onChange={(jobId) => setFilters({ ...filters, jobId })}
+          options={[
+            { value: "", label: "All jobs" },
+            ...(jobs.data ?? []).map((job) => ({ value: job.id, label: job.name })),
+          ]}
+        />
         <Select
           aria-label="Filter by status"
           className="w-48"
           value={filters.status}
-          onChange={(event) => setFilters({ ...filters, status: event.target.value as RunStatus | "" })}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </Select>
+          onChange={(status) => setFilters({ ...filters, status: status as RunStatus | "" })}
+          options={[
+            { value: "", label: "All statuses" },
+            ...STATUSES.map((status) => ({ value: status, label: status })),
+          ]}
+        />
       </div>
 
-      <Card>
-        {runs.isPending && (
-          <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading runs...
-          </p>
-        )}
+      <Card padded={false}>
+        {runs.isPending && <Loader variant="inline" label="Loading runs..." className="p-6" />}
         {runs.isError && (
-          <div role="alert" className="flex items-center justify-between gap-4 p-6 text-sm text-destructive">
-            <span>Could not load runs: {runs.error.message}</span>
-            <Button variant="secondary" size="sm" onClick={() => void runs.refetch()}>
-              Retry
-            </Button>
-          </div>
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-4">
+              <span>Could not load runs: {runs.error.message}</span>
+              <Button variant="secondary" onClick={() => void runs.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
         )}
-        {runs.isSuccess && runs.data.items.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">
-            No runs match. Start one with "Run now" on the Jobs page.
-          </p>
-        )}
-        {runs.isSuccess && runs.data.items.length > 0 && (
-          <Table>
-            <THead>
-              <tr>
-                <TH>Job</TH>
-                <TH>Trigger</TH>
-                <TH>Status</TH>
-                <TH>Started</TH>
-                <TH>Duration</TH>
-                <TH className="text-right">Artifacts</TH>
-                <TH className="text-right">Total size</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {runs.data.items.map((run) => (
-                <TR key={run.id} className={run.status === "partial" ? "bg-amber-500/5" : undefined}>
-                  <TD className="font-medium">
-                    <Link to={`/runs/${run.id}`} className="hover:underline">
-                      {run.job_name}
-                    </Link>
-                  </TD>
-                  <TD className="capitalize">
-                    {run.parent_run_id ? (
-                      <Link to={`/runs/${run.parent_run_id}`} className="hover:underline" title="Open the retried run">
-                        {run.trigger}
-                      </Link>
-                    ) : (
-                      run.trigger
-                    )}
-                  </TD>
-                  <TD>
-                    <span title={run.status === "partial" ? "Some destinations failed; open the run to retry them." : undefined}>
-                      <RunStatusBadge status={run.status} />
-                    </span>
-                  </TD>
-                  <TD>{formatTime(run.started_at ?? run.created_at)}</TD>
-                  <TD>{formatDuration(run.started_at, run.finished_at)}</TD>
-                  <TD className="text-right">{run.artifact_count}</TD>
-                  <TD className="text-right">{run.artifact_count ? formatBytes(run.total_size) : "-"}</TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
+        {runs.isSuccess && (
+          <Table
+            columns={COLUMNS}
+            rows={runs.data.items}
+            empty='No runs match. Start one with "Run now" on the Jobs page.'
+          />
         )}
       </Card>
       {runs.isSuccess && runs.data.total > runs.data.items.length && (
-        <p className="text-xs text-muted-foreground">
+        <HelperText>
           Showing the latest {runs.data.items.length} of {runs.data.total} runs.
-        </p>
+        </HelperText>
       )}
     </div>
   );

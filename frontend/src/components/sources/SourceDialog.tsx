@@ -1,19 +1,23 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Checkbox from "xedonium/Checkbox";
+import Field from "xedonium/Field";
+import HelperText from "xedonium/HelperText";
+import Modal from "xedonium/Modal";
+import RadioGroup from "xedonium/RadioGroup";
+import Select from "xedonium/Select";
+import Switch from "xedonium/Switch";
 import { ApiError } from "@/api/client";
 import { useSaveSource, useTestSource } from "@/api/sources";
 import type { SourceRecord, SourceType, TestResult } from "@/api/types";
 import { DatabaseMultiSelect } from "@/components/DatabaseMultiSelect";
-import { FormField } from "@/components/FormField";
 import { SecretField } from "@/components/SecretField";
 import { TestResultPanel } from "@/components/TestResultPanel";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
+import { bindBool, bindText } from "@/lib/formBinding";
 import { initialSecret, type SecretState } from "@/lib/secrets";
 import {
   defaultValues,
@@ -39,18 +43,21 @@ function initialSecrets(record: SourceRecord | null): Record<string, SecretState
 function TypePicker({ onPick }: { onPick: (type: SourceType) => void }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Choose the kind of database to back up.</p>
+      <HelperText>Choose the kind of database to back up.</HelperText>
       <div className="grid gap-3 sm:grid-cols-2">
         {SOURCE_TYPES.map(({ type, label, hint }) => (
-          <button
+          <Button
             key={type}
             type="button"
+            variant="secondary"
             onClick={() => onPick(type)}
-            className="rounded-md border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="!h-auto !items-start !justify-start !p-4 !text-left"
           >
-            <span className="block font-medium">{label}</span>
-            <span className="block text-xs text-muted-foreground">{hint}</span>
-          </button>
+            <span>
+              <span className="block font-medium">{label}</span>
+              <span className="block text-xs font-normal text-app-muted">{hint}</span>
+            </span>
+          </Button>
         ))}
       </div>
     </div>
@@ -86,7 +93,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
     resolver,
     defaultValues: source ? recordToValues(source) : defaultValues(type),
   });
-  const { register, control, setValue, formState } = form;
+  const { control, setValue, formState } = form;
   const errors = formState.errors;
   const mongoMode: MongoMode = useWatch({ control, name: "mongoMode" });
   const allDatabases = useWatch({ control, name: "allDatabases" });
@@ -156,6 +163,11 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   const setSecret = (field: string) => (state: SecretState) =>
     setSecrets((current) => ({ ...current, [field]: state }));
 
+  const text = (name: keyof SourceFormValues) => ({
+    ...bindText(form, name),
+    error: (errors[name] as { message?: string } | undefined)?.message,
+  });
+
   const typeLabel = SOURCE_TYPES.find((t) => t.type === type)?.label ?? type;
   const isSqlLike = type === "mysql" || type === "postgres";
   const showHostFields = type !== "firestore" && !(type === "mongo" && mongoMode === "uri");
@@ -163,160 +175,111 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5" noValidate>
-      <p className="text-sm text-muted-foreground">
+      <p className="flex items-center text-sm text-app-muted">
         {typeLabel}
         {onBack && record === null && (
-          <Button type="button" variant="ghost" size="sm" className="ml-2" onClick={onBack}>
+          <Button type="button" variant="flat" className="ml-2" onClick={onBack}>
             Change type
           </Button>
         )}
       </p>
 
-      {record?.secrets_error && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {record.secrets_error}
-        </div>
-      )}
+      {record?.secrets_error && <Alert tone="danger">{record.secrets_error}</Alert>}
 
-      <FormField id="name" label="Name" error={errors.name?.message}>
-        <Input id="name" {...register("name")} autoComplete="off" />
-      </FormField>
+      <Field label="Name" autoComplete="off" {...text("name")} />
 
       {type === "mongo" && (
-        <fieldset className="flex gap-4 text-sm">
-          <legend className="mb-1 text-sm font-medium">Connection</legend>
-          <label className="flex items-center gap-2">
-            <input type="radio" value="fields" {...register("mongoMode")} /> Host fields
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" value="uri" {...register("mongoMode")} /> Connection URI
-          </label>
-        </fieldset>
+        <RadioGroup
+          label="Connection"
+          name="mongoMode"
+          direction="row"
+          value={mongoMode}
+          onChange={(value) => setValue("mongoMode", value as MongoMode, { shouldDirty: true })}
+          options={[
+            { value: "fields", label: "Host fields" },
+            { value: "uri", label: "Connection URI" },
+          ]}
+        />
       )}
 
       {showHostFields && (
         <>
           <div className="grid grid-cols-[1fr_8rem] gap-3">
-            <FormField id="host" label="Host" error={errors.host?.message}>
-              <Input id="host" {...register("host")} placeholder="db.example.com" autoComplete="off" />
-            </FormField>
-            <FormField id="port" label="Port" error={errors.port?.message}>
-              <Input id="port" inputMode="numeric" {...register("port")} />
-            </FormField>
+            <Field label="Host" placeholder="db.example.com" autoComplete="off" {...text("host")} />
+            <Field label="Port" inputMode="numeric" {...text("port")} />
           </div>
-          <FormField
-            id="username"
+          <Field
             label={type === "mongo" ? "Username (optional)" : "Username"}
-            error={errors.username?.message}
-          >
-            <Input id="username" {...register("username")} autoComplete="off" />
-          </FormField>
+            autoComplete="off"
+            {...text("username")}
+          />
         </>
       )}
 
       {type === "postgres" && (
-        <FormField
-          id="connectionDatabase"
+        <Field
           label="Connection database"
-          hint="Used to log in and list databases."
-          error={errors.connectionDatabase?.message}
-        >
-          <Input id="connectionDatabase" {...register("connectionDatabase")} />
-        </FormField>
+          helperText="Used to log in and list databases."
+          {...text("connectionDatabase")}
+        />
       )}
 
       {type === "postgres" && (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" {...register("includeGlobals")} />
-          <span>
-            Also back up roles and other global objects
-            <span className="block text-xs text-muted-foreground">
-              Needs a superuser. If it fails, the run still succeeds and shows a warning.
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          label="Also back up roles and other global objects"
+          description="Needs a superuser. If it fails, the run still succeeds and shows a warning."
+          {...bindBool(form, "includeGlobals")}
+        />
       )}
 
       {type === "mongo" && mongoMode === "fields" && (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <FormField id="authDatabase" label="Auth database" error={errors.authDatabase?.message}>
-              <Input id="authDatabase" {...register("authDatabase")} />
-            </FormField>
-            <FormField id="replicaSet" label="Replica set (optional)" error={errors.replicaSet?.message}>
-              <Input id="replicaSet" {...register("replicaSet")} />
-            </FormField>
+            <Field label="Auth database" {...text("authDatabase")} />
+            <Field label="Replica set (optional)" {...text("replicaSet")} />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...register("tls")} /> Use TLS
-          </label>
+          <Checkbox label="Use TLS" {...bindBool(form, "tls")} />
         </>
       )}
 
       {isSqlLike && (
         <div className="grid grid-cols-2 gap-3">
-          <FormField id="tlsMode" label="TLS mode">
-            <Select id="tlsMode" {...register("tlsMode")}>
-              {TLS_MODES[type].map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField
-            id="extraOption"
+          <Select
+            label="TLS mode"
+            options={TLS_MODES[type].map((mode) => ({ value: mode, label: mode }))}
+            {...bindText(form, "tlsMode")}
+          />
+          <Field
             label={type === "mysql" ? "Charset (optional)" : "Application name (optional)"}
-            error={errors.extraOption?.message}
-          >
-            <Input id="extraOption" {...register("extraOption")} />
-          </FormField>
+            {...text("extraOption")}
+          />
         </div>
       )}
 
       {type === "firestore" && (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <FormField id="projectId" label="Project ID" error={errors.projectId?.message}>
-              <Input id="projectId" {...register("projectId")} autoComplete="off" />
-            </FormField>
-            <FormField id="databaseId" label="Database ID" error={errors.databaseId?.message}>
-              <Input id="databaseId" {...register("databaseId")} />
-            </FormField>
+            <Field label="Project ID" autoComplete="off" {...text("projectId")} />
+            <Field label="Database ID" {...text("databaseId")} />
           </div>
-          <FormField
-            id="stagingBucket"
+          <Field
             label="Staging bucket"
-            hint="Where exports are written first, e.g. gs://my-backup-staging"
-            error={errors.stagingBucket?.message}
-          >
-            <Input id="stagingBucket" {...register("stagingBucket")} placeholder="gs://" />
-          </FormField>
-          <FormField
-            id="collectionIds"
+            helperText="Where exports are written first, e.g. gs://my-backup-staging"
+            placeholder="gs://"
+            {...text("stagingBucket")}
+          />
+          <Field
             label="Collection IDs (optional)"
-            hint="Comma-separated. Leave empty to export everything."
-            error={errors.collectionIds?.message}
-          >
-            <Input id="collectionIds" {...register("collectionIds")} />
-          </FormField>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              role="switch"
-              className="mt-1"
-              {...register("deleteStagingAfterDownload")}
-            />
-            <span>
-              Delete staging export after download
-              <span className="block text-xs text-muted-foreground">
-                If deleting fails the run still succeeds and shows a warning.
-              </span>
-            </span>
-          </label>
-          <div className="space-y-1 rounded-md border p-3 text-sm">
-            <p className="font-medium">Prerequisites</p>
-            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+            helperText="Comma-separated. Leave empty to export everything."
+            {...text("collectionIds")}
+          />
+          <Switch
+            label="Delete staging export after download"
+            {...bindBool(form, "deleteStagingAfterDownload")}
+          />
+          <HelperText>If deleting fails the run still succeeds and shows a warning.</HelperText>
+          <Alert tone="info" title="Prerequisites">
+            <ul className="list-disc space-y-1 pl-5 text-xs">
               <li>Billing is enabled on the Google Cloud project (exports need it).</li>
               <li>The staging bucket is in the same location as the Firestore database.</li>
               <li>
@@ -328,7 +291,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
                 failed or cancelled exports do not pile up.
               </li>
             </ul>
-          </div>
+          </Alert>
         </>
       )}
 
@@ -349,27 +312,26 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
       ))}
 
       {type === "mongo" && (
-        <FormField
-          id="mongoDumpMode"
+        <Select
           label="Dump mode"
-          hint={
+          helperText={
             fullInstance
               ? "One archive of the whole instance with --oplog, consistent to a point in time. Needs a replica set; the run fails early on a standalone server."
               : "One archive per selected database. On a replica set the databases are not consistent with each other; use full instance for that."
           }
-        >
-          <Select id="mongoDumpMode" {...register("mongoDumpMode")}>
-            <option value="per_database">Per database</option>
-            <option value="full_oplog">Full instance with oplog</option>
-          </Select>
-        </FormField>
+          options={[
+            { value: "per_database", label: "Per database" },
+            { value: "full_oplog", label: "Full instance with oplog" },
+          ]}
+          {...bindText(form, "mongoDumpMode")}
+        />
       )}
 
       {fullInstance && (
-        <p className="rounded-md border p-3 text-sm text-muted-foreground">
+        <Alert tone="info">
           The databases selection is ignored in full instance mode: every database on the server is
           dumped into a single archive.
-        </p>
+        </Alert>
       )}
 
       {hasDatabaseList && !fullInstance && (
@@ -385,11 +347,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
         />
       )}
 
-      {formError && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {formError}
-        </div>
-      )}
+      {formError && <Alert tone="danger">{formError}</Alert>}
 
       <TestResultPanel pending={test.isPending} result={testResult} error={testError} />
 
@@ -398,11 +356,9 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
           {record && testResult ? "Close" : "Cancel"}
         </Button>
         <Button type="button" variant="secondary" onClick={submit(false)} disabled={busy}>
-          {save.isPending && !test.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           Save
         </Button>
         <Button type="button" onClick={submit(true)} disabled={busy}>
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           Save and test
         </Button>
       </div>
@@ -418,14 +374,12 @@ interface SourceDialogProps {
 
 export function SourceDialog({ open, source, onClose }: SourceDialogProps) {
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={source ? "Edit source" : "Add source"}
-      description="Credentials are encrypted at rest and never shown again after saving."
-    >
+    <Modal open={open} onClose={onClose} title={source ? "Edit source" : "Add source"} maxWidth="max-w-2xl">
+      <HelperText className="mb-4">
+        Credentials are encrypted at rest and never shown again after saving.
+      </HelperText>
       <SourceDialogBody source={source} onClose={onClose} />
-    </Dialog>
+    </Modal>
   );
 }
 

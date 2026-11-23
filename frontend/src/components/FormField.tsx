@@ -1,4 +1,5 @@
-import { Label } from "@/components/ui/label";
+import HelperText from "xedonium/HelperText";
+import Label from "xedonium/Label";
 
 interface FormFieldProps {
   id: string;
@@ -13,11 +14,11 @@ export function FormField({ id, label, error, hint, children }: FormFieldProps) 
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       {children}
-      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && !error && <HelperText>{hint}</HelperText>}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <HelperText role="alert" className="!text-red-600 dark:!text-red-400">
           {error}
-        </p>
+        </HelperText>
       )}
     </div>
   );

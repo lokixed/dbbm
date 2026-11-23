@@ -1,18 +1,23 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { Loader2, Plus, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import Alert from "xedonium/Alert";
+import Badge from "xedonium/Badge";
+import Button from "xedonium/Button";
+import Field from "xedonium/Field";
+import Input from "xedonium/Input";
+import Loader from "xedonium/Loader";
+import Modal from "xedonium/Modal";
+import Select from "xedonium/Select";
+import Switch from "xedonium/Switch";
+import HelperText from "xedonium/HelperText";
+import PlusIcon from "xedonium/icons/Plus";
+import SendIcon from "xedonium/icons/Send";
+import Trash2Icon from "xedonium/icons/Trash2";
 import { useSaveChannel, useTestChannel } from "@/api/notifications";
 import type { ChannelRecord, ChannelTestResult } from "@/api/types";
-import { FormField } from "@/components/FormField";
 import { SecretField } from "@/components/SecretField";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 import {
   channelDefaults,
   channelSchema,
@@ -24,6 +29,7 @@ import {
   type ChannelFormValues,
   type HeadersState,
 } from "@/lib/channelForm";
+import { bindText } from "@/lib/formBinding";
 import { initialSecret, secretPayload, type SecretState } from "@/lib/secrets";
 
 const INSECURE_EMAIL =
@@ -48,7 +54,7 @@ function initialHeaders(record: ChannelRecord | null): HeadersState {
 function urlProblem(state: SecretState, isSet: boolean, httpsOnly: boolean): string | null {
   const value = secretPayload(state);
   if (value === undefined || value === null) {
-    return (state.action === "keep" && isSet) ? null : "This URL is required";
+    return state.action === "keep" && isSet ? null : "This URL is required";
   }
   const pattern = httpsOnly ? /^https:\/\/[^\s/]+/ : /^https?:\/\/[^\s/]+/;
   return pattern.test(value.trim()) ? null : `Enter a${httpsOnly ? "n https://" : "n http(s)://"} URL`;
@@ -70,14 +76,16 @@ function HeadersEditor({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Headers:</span>
         {names.map((n) => (
-          <Badge key={n} variant="success">
-            {n}
-          </Badge>
+          <Badge key={n} badgeContent={n} color="success" />
         ))}
-        <Button type="button" size="sm" variant="secondary" onClick={() => onChange({ action: "set", rows: names.map((name) => ({ name, value: "" })) })}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onChange({ action: "set", rows: names.map((name) => ({ name, value: "" })) })}
+        >
           Change
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "clear" })}>
+        <Button type="button" variant="flat" onClick={() => onChange({ action: "clear" })}>
           Clear
         </Button>
       </div>
@@ -86,8 +94,8 @@ function HeadersEditor({
   if (state.action === "clear") {
     return (
       <div className="flex items-center gap-2 text-sm">
-        <Badge variant="danger">Headers will be cleared when you save</Badge>
-        <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "keep" })}>
+        <Badge badgeContent="Headers will be cleared when you save" color="danger" />
+        <Button type="button" variant="flat" onClick={() => onChange({ action: "keep" })}>
           Undo
         </Button>
       </div>
@@ -105,47 +113,41 @@ function HeadersEditor({
             aria-label={`Header ${index + 1} name`}
             value={row.name}
             placeholder="Authorization"
-            onChange={(event) => update(index, "name", event.target.value)}
+            onChange={(value) => update(index, "name", value)}
           />
           <Input
             aria-label={`Header ${index + 1} value`}
             type="password"
             autoComplete="new-password"
             value={row.value}
-            onChange={(event) => update(index, "value", event.target.value)}
+            onChange={(value) => update(index, "value", value)}
           />
           <Button
             type="button"
-            size="sm"
-            variant="ghost"
+            variant="flat"
             aria-label={`Remove header ${index + 1}`}
             onClick={() => onChange({ action: "set", rows: rows.filter((_r, i) => i !== index) })}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2Icon className="h-4 w-4" />
           </Button>
         </div>
       ))}
       <div className="flex gap-2">
         <Button
           type="button"
-          size="sm"
           variant="secondary"
           disabled={rows.length >= 10}
           onClick={() => onChange({ action: "set", rows: [...rows, { name: "", value: "" }] })}
         >
-          <Plus className="h-4 w-4" /> Add header
+          <PlusIcon className="h-4 w-4" /> Add header
         </Button>
         {names.length > 0 && (
-          <Button type="button" size="sm" variant="ghost" onClick={() => onChange({ action: "keep" })}>
+          <Button type="button" variant="flat" onClick={() => onChange({ action: "keep" })}>
             Keep saved headers
           </Button>
         )}
       </div>
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
     </div>
   );
 }
@@ -165,7 +167,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
     resolver: standardSchemaResolver(channelSchema),
     defaultValues: channel ? channelToValues(channel) : channelDefaults,
   });
-  const { register, formState, control, setValue } = form;
+  const { formState, control, setValue } = form;
   const errors = formState.errors;
   const type = useWatch({ control, name: "type" });
   const security = useWatch({ control, name: "security" });
@@ -235,7 +237,10 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
       setFormError(null);
       if (!checkSecrets(values)) return;
       try {
-        const saved = await save.mutateAsync({ id: record?.id ?? null, input: toChannelInput(values, secretsInput(values)) });
+        const saved = await save.mutateAsync({
+          id: record?.id ?? null,
+          input: toChannelInput(values, secretsInput(values)),
+        });
         setRecord(saved);
         form.reset(channelToValues(saved));
         setSecrets(initialSecrets(saved));
@@ -248,19 +253,25 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
       }
     });
 
+  const text = (name: keyof ChannelFormValues) => ({
+    ...bindText(form, name),
+    error: (errors[name] as { message?: string } | undefined)?.message,
+  });
+
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5" noValidate>
       <div className="grid grid-cols-2 gap-3">
-        <FormField id="channel-type" label="Type">
-          <Select id="channel-type" disabled={record !== null} {...register("type")}>
-            <option value="slack">Slack (incoming webhook)</option>
-            <option value="email">Email (SMTP)</option>
-            <option value="webhook">Webhook (JSON POST)</option>
-          </Select>
-        </FormField>
-        <FormField id="channel-name" label="Name" error={errors.name?.message}>
-          <Input id="channel-name" {...register("name")} autoComplete="off" />
-        </FormField>
+        <Select
+          label="Type"
+          disabled={record !== null}
+          options={[
+            { value: "slack", label: "Slack (incoming webhook)" },
+            { value: "email", label: "Email (SMTP)" },
+            { value: "webhook", label: "Webhook (JSON POST)" },
+          ]}
+          {...bindText(form, "type")}
+        />
+        <Field label="Name" autoComplete="off" {...text("name")} />
       </div>
       <Switch
         checked={enabled}
@@ -268,11 +279,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
         label="Enabled"
       />
 
-      {record?.secrets_error && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {record.secrets_error}
-        </div>
-      )}
+      {record?.secrets_error && <Alert tone="danger">{record.secrets_error}</Alert>}
 
       {type === "slack" && (
         <SecretField
@@ -320,36 +327,26 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <FormField id="channel-host" label="SMTP host" error={errors.host?.message}>
-                <Input id="channel-host" {...register("host")} placeholder="smtp.example.com" autoComplete="off" />
-              </FormField>
+              <Field label="SMTP host" placeholder="smtp.example.com" autoComplete="off" {...text("host")} />
             </div>
-            <FormField id="channel-port" label="Port" error={errors.port?.message}>
-              <Input id="channel-port" inputMode="numeric" {...register("port")} />
-            </FormField>
+            <Field label="Port" inputMode="numeric" {...text("port")} />
           </div>
-          <FormField id="channel-security" label="Security">
-            <Select
-              id="channel-security"
-              {...register("security", {
-                onChange: (event: { target: { value: "starttls" | "ssl" | "none" } }) =>
-                  setValue("port", defaultPort(event.target.value)),
-              })}
-            >
-              <option value="starttls">STARTTLS (port 587)</option>
-              <option value="ssl">SSL/TLS (port 465)</option>
-              <option value="none">None (unencrypted)</option>
-            </Select>
-          </FormField>
-          {security === "none" && (
-            <div role="alert" className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
-              {INSECURE_EMAIL}
-            </div>
-          )}
+          <Select
+            label="Security"
+            options={[
+              { value: "starttls", label: "STARTTLS (port 587)" },
+              { value: "ssl", label: "SSL/TLS (port 465)" },
+              { value: "none", label: "None (unencrypted)" },
+            ]}
+            {...bindText(form, "security")}
+            onChange={(value) => {
+              setValue("security", value as ChannelFormValues["security"], { shouldDirty: true });
+              setValue("port", defaultPort(value as ChannelFormValues["security"]));
+            }}
+          />
+          {security === "none" && <Alert tone="warning">{INSECURE_EMAIL}</Alert>}
           <div className="grid grid-cols-2 gap-3">
-            <FormField id="channel-username" label="Username (optional)">
-              <Input id="channel-username" {...register("username")} autoComplete="off" />
-            </FormField>
+            <Field label="Username (optional)" autoComplete="off" {...text("username")} />
             <SecretField
               id="channel-password"
               label="Password"
@@ -359,33 +356,24 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
               error={problems.password}
             />
           </div>
-          <FormField id="channel-from" label="From" error={errors.from?.message}>
-            <Input id="channel-from" {...register("from")} placeholder="dbbackup@example.com" autoComplete="off" />
-          </FormField>
-          <FormField id="channel-to" label="To" hint="One or more addresses, separated by commas." error={errors.to?.message}>
-            <Input id="channel-to" {...register("to")} placeholder="ops@example.com" autoComplete="off" />
-          </FormField>
+          <Field label="From" placeholder="dbbackup@example.com" autoComplete="off" {...text("from")} />
+          <Field
+            label="To"
+            helperText="One or more addresses, separated by commas."
+            placeholder="ops@example.com"
+            autoComplete="off"
+            {...text("to")}
+          />
         </div>
       )}
 
-      {formError && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {formError}
-        </div>
-      )}
-      {test.isPending && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Sending a test message...
-        </p>
-      )}
+      {formError && <Alert tone="danger">{formError}</Alert>}
+      {test.isPending && <Loader variant="inline" label="Sending a test message..." />}
       {testResult && (
-        <div
-          role="status"
-          className={`rounded-md border p-3 text-sm ${testResult.ok ? "border-green-600/40" : "border-destructive/50 text-destructive"}`}
-        >
+        <Alert tone={testResult.ok ? "success" : "danger"}>
           {testResult.ok ? "Delivered: " : "Failed: "}
           {testResult.message}
-        </div>
+        </Alert>
       )}
 
       <div className="flex justify-end gap-2">
@@ -396,7 +384,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
           Save
         </Button>
         <Button type="button" onClick={submit(true)} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <SendIcon className="h-4 w-4" />
           Save and send test
         </Button>
       </div>
@@ -412,13 +400,16 @@ interface ChannelDialogProps {
 
 export function ChannelDialog({ open, channel, onClose }: ChannelDialogProps) {
   return (
-    <Dialog
+    <Modal
       open={open}
       onClose={onClose}
       title={channel ? "Edit notification channel" : "Add notification channel"}
-      description="Secrets (webhook URLs, passwords, headers) are stored encrypted and never shown again."
+      maxWidth="max-w-2xl"
     >
+      <HelperText className="mb-4">
+        Secrets (webhook URLs, passwords, headers) are stored encrypted and never shown again.
+      </HelperText>
       <ChannelForm channel={channel} onClose={onClose} />
-    </Dialog>
+    </Modal>
   );
 }

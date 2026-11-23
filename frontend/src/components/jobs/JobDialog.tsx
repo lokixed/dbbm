@@ -1,8 +1,17 @@
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link } from "react-router-dom";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Checkbox from "xedonium/Checkbox";
+import Field from "xedonium/Field";
+import HelperText from "xedonium/HelperText";
+import Label from "xedonium/Label";
+import Loader from "xedonium/Loader";
+import Modal from "xedonium/Modal";
+import Select from "xedonium/Select";
+import Switch from "xedonium/Switch";
 import { ApiError } from "@/api/client";
 import { useDestinations } from "@/api/destinations";
 import { useSaveJob } from "@/api/jobs";
@@ -10,15 +19,10 @@ import { useChannels } from "@/api/notifications";
 import { useAppSettings } from "@/api/settings";
 import { useSources } from "@/api/sources";
 import type { JobRecord } from "@/api/types";
-import { FormField } from "@/components/FormField";
 import { ScheduleField } from "@/components/jobs/ScheduleField";
 import { SecretField } from "@/components/SecretField";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
+import { bindBool, bindText } from "@/lib/formBinding";
 import {
   jobDefaults,
   jobSchema,
@@ -67,7 +71,7 @@ function JobForm({
     resolver: standardSchemaResolver(jobSchema),
     defaultValues: job ? jobToValues(job) : jobDefaults(defaultTimezone),
   });
-  const { register, formState, setValue, control } = form;
+  const { formState, setValue, control } = form;
   const errors = formState.errors;
   const selectedDestinations = useWatch({ control, name: "destinationIds" });
   const selectedChannels = useWatch({ control, name: "channelIds" });
@@ -116,82 +120,80 @@ function JobForm({
 
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
-      <FormField id="job-name" label="Name" error={errors.name?.message}>
-        <Input id="job-name" {...register("name")} autoComplete="off" />
-      </FormField>
+      <Field label="Name" autoComplete="off" {...bindText(form, "name")} error={errors.name?.message} />
 
-      <FormField
-        id="job-source"
-        label="Source"
-        error={errors.sourceId?.message}
-      >
-        <Select id="job-source" {...register("sourceId")}>
-          <option value="">Choose a source...</option>
-          {sources.data?.map((source) => (
-            <option key={source.id} value={source.id}>
-              {source.name} ({source.type})
-            </option>
-          ))}
-        </Select>
+      <div className="space-y-1.5">
+        <Select
+          label="Source"
+          placeholder="Choose a source..."
+          options={(sources.data ?? []).map((source) => ({
+            value: source.id,
+            label: `${source.name} (${source.type})`,
+          }))}
+          {...bindText(form, "sourceId")}
+          error={errors.sourceId?.message}
+        />
         {noSources && (
-          <p className="text-xs text-muted-foreground">
-            No sources yet. <Link className="underline" to="/sources">Add one first</Link>.
-          </p>
+          <HelperText>
+            No sources yet.{" "}
+            <Link className="underline" to="/sources">
+              Add one first
+            </Link>
+            .
+          </HelperText>
         )}
-      </FormField>
+      </div>
 
       {sourceType === "firestore" && (
-        <p role="note" className="rounded-md border p-3 text-sm text-muted-foreground">
+        <Alert tone="info">
           Firestore exports can take a long time, incur document read charges, and may need a larger
           timeout than the default. The timeout applies to each step (export, download, pack)
           separately.
-        </p>
+        </Alert>
       )}
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Destinations</legend>
-        <div className="space-y-1 rounded-md border p-3">
+      <div className="space-y-2">
+        <Label>Destinations</Label>
+        <div className="space-y-1 border border-app-border p-3">
           {noDestinations && (
-            <p className="text-xs text-muted-foreground">
-              No destinations yet. <Link className="underline" to="/destinations">Add one first</Link>.
-            </p>
+            <HelperText>
+              No destinations yet.{" "}
+              <Link className="underline" to="/destinations">
+                Add one first
+              </Link>
+              .
+            </HelperText>
           )}
           {destinations.data?.map((destination) => (
-            <label key={destination.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selectedDestinations.includes(destination.id)}
-                onChange={() => toggleDestination(destination.id)}
-              />
-              <span>{destination.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {DESTINATION_TYPE_LABEL[destination.type]}
-                {destination.type === "local" ? ` - ${destination.config.path}` : ""}
-              </span>
-            </label>
+            <Checkbox
+              key={destination.id}
+              checked={selectedDestinations.includes(destination.id)}
+              onChange={() => toggleDestination(destination.id)}
+              label={destination.name}
+              description={`${DESTINATION_TYPE_LABEL[destination.type]}${
+                destination.type === "local" ? ` - ${destination.config.path}` : ""
+              }`}
+            />
           ))}
         </div>
         {errors.destinationIds?.message && (
-          <p role="alert" className="text-xs text-destructive">
+          <HelperText role="alert" className="!text-red-600 dark:!text-red-400">
             {errors.destinationIds.message}
-          </p>
+          </HelperText>
         )}
-      </fieldset>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <FormField
-          id="job-timeout"
+        <Field
           label="Timeout per step (seconds)"
+          inputMode="numeric"
+          {...bindText(form, "timeoutSeconds")}
           error={errors.timeoutSeconds?.message}
-        >
-          <Input id="job-timeout" inputMode="numeric" {...register("timeoutSeconds")} />
-        </FormField>
+        />
         <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...register("compress")} /> Compress with gzip
-          </label>
+          <Checkbox label="Compress with gzip" {...bindBool(form, "compress")} />
           {(sourceType === "mongo" || sourceType === "firestore") && (
-            <span className="ml-2 text-xs text-muted-foreground">Always gzip for this source</span>
+            <span className="ml-2 text-xs text-app-muted">Always gzip for this source</span>
           )}
         </div>
       </div>
@@ -205,21 +207,21 @@ function JobForm({
         serverError={fieldError(save.error, "schedule") ?? fieldError(save.error, "timezone")}
       />
       {job?.schedule_error && schedule.trim() === job.schedule && (
-        <p role="alert" className="text-xs text-destructive">
-          The saved schedule is not active: {job.schedule_error}
-        </p>
+        <Alert tone="danger">The saved schedule is not active: {job.schedule_error}</Alert>
       )}
 
-      <fieldset className="space-y-3 rounded-md border p-3">
-        <legend className="px-1 text-sm font-medium">Notifications</legend>
+      <div className="space-y-3 border border-app-border p-3">
+        <Label>Notifications</Label>
         <div className="grid grid-cols-2 items-end gap-3">
-          <FormField id="job-notify-on" label="Notify">
-            <Select id="job-notify-on" {...register("notifyOn")}>
-              <option value="failure">On failure (failed, partial, interrupted)</option>
-              <option value="always">Always</option>
-              <option value="never">Never</option>
-            </Select>
-          </FormField>
+          <Select
+            label="Notify"
+            options={[
+              { value: "failure", label: "On failure (failed, partial, interrupted)" },
+              { value: "always", label: "Always" },
+              { value: "never", label: "Never" },
+            ]}
+            {...bindText(form, "notifyOn")}
+          />
           <div className="pb-2">
             <Switch
               checked={notifyOnRecovery}
@@ -232,26 +234,25 @@ function JobForm({
         <div className="space-y-1">
           <p className="text-sm">Channels</p>
           {channels.isSuccess && channels.data.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              No channels yet. <Link className="underline" to="/notifications">Add one</Link>.
-            </p>
+            <HelperText>
+              No channels yet.{" "}
+              <Link className="underline" to="/notifications">
+                Add one
+              </Link>
+              .
+            </HelperText>
           )}
           {channels.data?.map((channel) => (
-            <label key={channel.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selectedChannels.includes(channel.id)}
-                onChange={() => toggleChannel(channel.id)}
-              />
-              <span>{channel.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {channel.type}
-                {channel.enabled ? "" : " (disabled)"}
-              </span>
-            </label>
+            <Checkbox
+              key={channel.id}
+              checked={selectedChannels.includes(channel.id)}
+              onChange={() => toggleChannel(channel.id)}
+              label={channel.name}
+              description={`${channel.type}${channel.enabled ? "" : " (disabled)"}`}
+            />
           ))}
           {notifyOn !== "never" && selectedChannels.length === 0 && (channels.data?.length ?? 0) > 0 && (
-            <p className="text-xs text-muted-foreground">Select a channel to receive this job's messages.</p>
+            <HelperText>Select a channel to receive this job's messages.</HelperText>
           )}
         </div>
         <SecretField
@@ -266,24 +267,19 @@ function JobForm({
           placeholder="https://hc-ping.com/your-check-uuid"
           error={heartbeatProblem}
         />
-        <p className="text-xs text-muted-foreground">
+        <HelperText>
           Healthchecks-style: /start when a run starts, the URL on success, /fail on failure. The URL is
           stored encrypted and never shown again.
-        </p>
-      </fieldset>
+        </HelperText>
+      </div>
 
-      {formError && (
-        <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-          {formError}
-        </div>
-      )}
+      {formError && <Alert tone="danger">{formError}</Alert>}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={save.isPending}>
-          {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           Save job
         </Button>
       </div>
@@ -301,22 +297,18 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
   const settings = useAppSettings();
   const sources = useSources();
   const destinations = useDestinations();
-  // Native selects keep their default only if the options exist when the form mounts.
+  // The form takes its defaults on mount, so wait until the lookups it depends on have loaded.
   const ready = !settings.isPending && !sources.isPending && !destinations.isPending;
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={job ? "Edit job" : "Add job"}
-      description="A job backs up every database of one source to one or more destinations."
-    >
+    <Modal open={open} onClose={onClose} title={job ? "Edit job" : "Add job"} maxWidth="max-w-2xl">
+      <HelperText className="mb-4">
+        A job backs up every database of one source to one or more destinations.
+      </HelperText>
       {ready ? (
         <JobForm job={job} defaultTimezone={settings.data?.default_timezone ?? "UTC"} onClose={onClose} />
       ) : (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-        </p>
+        <Loader variant="inline" label="Loading..." />
       )}
-    </Dialog>
+    </Modal>
   );
 }

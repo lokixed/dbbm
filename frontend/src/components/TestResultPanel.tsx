@@ -1,6 +1,8 @@
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import Alert from "xedonium/Alert";
+import Badge from "xedonium/Badge";
+import Chip from "xedonium/Chip";
+import Loader from "xedonium/Loader";
 import type { TestResult } from "@/api/types";
-import { Badge } from "@/components/ui/badge";
 import { formatBytes } from "@/lib/format";
 
 interface TestResultPanelProps {
@@ -10,62 +12,42 @@ interface TestResultPanelProps {
 }
 
 export function TestResultPanel({ pending, result, error }: TestResultPanelProps) {
-  if (pending) {
-    return (
-      <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Testing connection...
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div role="alert" className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
-        {error}
-      </div>
-    );
-  }
+  if (pending) return <Loader variant="inline" label="Testing connection..." />;
+  if (error) return <Alert tone="danger">{error}</Alert>;
   if (!result) return null;
 
   return (
-    <div className="space-y-2 rounded-md border p-3 text-sm" aria-live="polite">
-      <div className="flex items-start gap-2">
-        {result.ok ? (
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-        ) : (
-          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+    <Alert tone={result.ok ? "success" : "danger"} title={result.message}>
+      <div className="space-y-2 text-sm" aria-live="polite">
+        {result.server_version && <p>Server version: {result.server_version}</p>}
+        {result.free_bytes !== null && result.total_bytes !== null && (
+          <p>
+            Free space: {formatBytes(result.free_bytes)} of {formatBytes(result.total_bytes)}
+          </p>
         )}
-        <p className="break-words font-medium">{result.message}</p>
-      </div>
-      {result.server_version && (
-        <p className="text-muted-foreground">Server version: {result.server_version}</p>
-      )}
-      {result.free_bytes !== null && result.total_bytes !== null && (
-        <p className="text-muted-foreground">
-          Free space: {formatBytes(result.free_bytes)} of {formatBytes(result.total_bytes)}
-        </p>
-      )}
-      {result.checks.length > 1 && (
-        <ul className="space-y-1">
-          {result.checks.map((check) => (
-            <li key={check.name} className="flex items-start gap-2">
-              <Badge variant={check.ok ? "success" : "danger"}>{check.ok ? "OK" : "Failed"}</Badge>
-              <span className="break-words">{check.message}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {result.databases && (
-        <div>
-          <p className="text-muted-foreground">Databases visible ({result.databases.length}):</p>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {result.databases.map((name) => (
-              <Badge key={name} variant="outline">
-                {name}
-              </Badge>
+        {result.checks.length > 1 && (
+          <ul className="space-y-1">
+            {result.checks.map((check) => (
+              <li key={check.name} className="flex items-start gap-2">
+                <Badge badgeContent={check.ok ? "OK" : "Failed"} color={check.ok ? "success" : "danger"} />
+                <span className="break-words">{check.message}</span>
+              </li>
             ))}
+          </ul>
+        )}
+        {result.databases && (
+          <div>
+            <p>Databases visible ({result.databases.length}):</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {result.databases.map((name) => (
+                <Chip key={name} size="sm">
+                  {name}
+                </Chip>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </Alert>
   );
 }

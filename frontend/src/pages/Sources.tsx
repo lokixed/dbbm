@@ -1,14 +1,20 @@
-import { Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
+import Card from "xedonium/Card";
+import Loader from "xedonium/Loader";
+import PageHeader from "xedonium/PageHeader";
+import Table, { type TableColumn } from "xedonium/Table";
+import PencilIcon from "xedonium/icons/Pencil";
+import PlayIcon from "xedonium/icons/Play";
+import PlusIcon from "xedonium/icons/Plus";
+import Trash2Icon from "xedonium/icons/Trash2";
 import { useDeleteSource, useSources, useTestSource } from "@/api/sources";
 import type { SourceRecord } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SourceDialog } from "@/components/sources/SourceDialog";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/toast";
 import { SOURCE_TYPES } from "@/lib/sourceForm";
 
 const typeLabel = (type: string) => SOURCE_TYPES.find((t) => t.type === type)?.label ?? type;
@@ -52,96 +58,68 @@ export default function SourcesPage() {
     });
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sources</h1>
-          <p className="text-sm text-muted-foreground">Databases to back up.</p>
-        </div>
-        <Button onClick={() => setEditor({ open: true, source: null })}>
-          <Plus className="h-4 w-4" /> Add source
-        </Button>
-      </div>
-
-      <Card>
-        {sources.isPending && (
-          <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading sources...
-          </p>
-        )}
-        {sources.isError && (
-          <div role="alert" className="flex items-center justify-between gap-4 p-6 text-sm text-destructive">
-            <span>Could not load sources: {sources.error.message}</span>
-            <Button variant="secondary" size="sm" onClick={() => void sources.refetch()}>
-              Retry
+  const columns: TableColumn<SourceRecord>[] = [
+    { key: "name", header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
+    { key: "type", header: "Type", render: (source) => typeLabel(source.type) },
+    { key: "status", header: "Status", render: (source) => <StatusBadge lastTest={source.last_test} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (source) => {
+        const testing = test.isPending && test.variables === source.id;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="flat"
+              onClick={() => setEditor({ open: true, source })}
+              aria-label={`Edit ${source.name}`}
+            >
+              <PencilIcon className="h-4 w-4" /> Edit
+            </Button>
+            <Button
+              variant="flat"
+              disabled={testing}
+              onClick={() => runTest(source)}
+              aria-label={`Test ${source.name}`}
+            >
+              <PlayIcon className="h-4 w-4" /> Test
+            </Button>
+            <Button variant="flat" onClick={() => setDeleting(source)} aria-label={`Delete ${source.name}`}>
+              <Trash2Icon className="h-4 w-4" /> Delete
             </Button>
           </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Sources" subtitle="Databases to back up.">
+        <Button onClick={() => setEditor({ open: true, source: null })}>
+          <PlusIcon className="h-4 w-4" /> Add source
+        </Button>
+      </PageHeader>
+
+      <Card padded={false}>
+        {sources.isPending && <Loader variant="inline" label="Loading sources..." className="p-6" />}
+        {sources.isError && (
+          <Alert tone="danger">
+            <div className="flex items-center justify-between gap-4">
+              <span>Could not load sources: {sources.error.message}</span>
+              <Button variant="secondary" onClick={() => void sources.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
         )}
-        {sources.isSuccess && sources.data.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">
-            No sources yet. Add a database to get started.
-          </p>
-        )}
-        {sources.isSuccess && sources.data.length > 0 && (
-          <Table>
-            <THead>
-              <tr>
-                <TH>Name</TH>
-                <TH>Type</TH>
-                <TH>Status</TH>
-                <TH className="text-right">Actions</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {sources.data.map((source) => {
-                const testing = test.isPending && test.variables === source.id;
-                return (
-                  <TR key={source.id}>
-                    <TD className="font-medium">{source.name}</TD>
-                    <TD>{typeLabel(source.type)}</TD>
-                    <TD>
-                      <StatusBadge lastTest={source.last_test} />
-                    </TD>
-                    <TD>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditor({ open: true, source })}
-                          aria-label={`Edit ${source.name}`}
-                        >
-                          <Pencil className="h-4 w-4" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={testing}
-                          onClick={() => runTest(source)}
-                          aria-label={`Test ${source.name}`}
-                        >
-                          {testing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                          Test
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(source)}
-                          aria-label={`Delete ${source.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </Button>
-                      </div>
-                    </TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
+        {sources.isSuccess && (
+          <Table
+            columns={columns}
+            rows={sources.data}
+            empty="No sources yet. Add a database to get started."
+          />
         )}
       </Card>
 

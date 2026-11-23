@@ -1,73 +1,93 @@
 import { Link } from "react-router-dom";
-import type { DestinationOutcome, StepResults } from "@/api/types";
-import { Badge } from "@/components/ui/badge";
-import { TBody, TD, TH, THead, Table, TR } from "@/components/ui/table";
+import Badge, { type BadgeColor } from "xedonium/Badge";
+import Table, { type TableColumn } from "xedonium/Table";
+import type { DestinationOutcome, StepResults, UnitResult } from "@/api/types";
 import { errorClassLabel } from "@/lib/errorClass";
 import { formatBytes, formatMs } from "@/lib/format";
 
-const STATUS_VARIANT = { ok: "success", failed: "danger", skipped: "neutral" } as const;
+const STATUS_COLOR: Record<string, BadgeColor> = { ok: "success", failed: "danger", skipped: "secondary" };
+
+interface Row {
+  id: string;
+  unit: UnitResult;
+  outcome: DestinationOutcome;
+}
 
 function stepMs(outcome: DestinationOutcome, name: "put" | "verify"): string {
   const ms = outcome.steps?.find((s) => s.name === name)?.duration_ms;
   return ms === null || ms === undefined ? "-" : formatMs(ms);
 }
 
+const COLUMNS: TableColumn<Row>[] = [
+  {
+    key: "database",
+    header: "Database",
+    render: ({ unit }) => (
+      <span className="font-medium">{unit.kind === "globals" ? "Roles and globals" : unit.database}</span>
+    ),
+  },
+  {
+    key: "destination",
+    header: "Destination",
+    render: ({ outcome }) => (
+      <>
+        {outcome.destination_name ?? "-"}
+        {outcome.type && (
+          <span className="ml-1 text-xs text-app-muted">
+            ({outcome.type === "gdrive" ? "Google Drive" : "local"})
+          </span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: ({ outcome }) => (
+      <div className="flex flex-wrap items-center gap-1">
+        <Badge badgeContent={outcome.status} color={STATUS_COLOR[outcome.status] ?? "secondary"} />
+        {outcome.retried_by && (
+          <Link className="text-xs underline" to={`/runs/${outcome.retried_by}`}>
+            by retry
+          </Link>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: "bytes",
+    header: "Bytes",
+    align: "right",
+    render: ({ outcome }) => (outcome.bytes === undefined ? "-" : formatBytes(outcome.bytes)),
+  },
+  { key: "upload", header: "Upload", align: "right", render: ({ outcome }) => stepMs(outcome, "put") },
+  { key: "verify", header: "Verify", align: "right", render: ({ outcome }) => stepMs(outcome, "verify") },
+  {
+    key: "error",
+    header: "Error",
+    render: ({ outcome }) => (
+      <span className="break-words text-xs">
+        {outcome.error_class && (
+          <Badge
+            badgeContent={errorClassLabel(outcome.error_class)}
+            color="warning"
+            className="mr-1"
+          />
+        )}
+        {outcome.error ?? (outcome.previous_error ? `Earlier: ${outcome.previous_error}` : "")}
+      </span>
+    ),
+  },
+];
+
 export function DestinationResults({ results }: { results: StepResults }) {
-  const rows = (results.units ?? []).flatMap((unit) =>
-    unit.destinations.map((outcome, index) => ({ unit, outcome, index })),
+  const rows: Row[] = (results.units ?? []).flatMap((unit) =>
+    unit.destinations.map((outcome, index) => ({
+      id: `${unit.database}-${unit.kind}-${outcome.destination_id ?? index}`,
+      unit,
+      outcome,
+    })),
   );
   if (rows.length === 0) return null;
-  return (
-    <Table>
-      <THead>
-        <tr>
-          <TH>Database</TH>
-          <TH>Destination</TH>
-          <TH>Status</TH>
-          <TH className="text-right">Bytes</TH>
-          <TH className="text-right">Upload</TH>
-          <TH className="text-right">Verify</TH>
-          <TH>Error</TH>
-        </tr>
-      </THead>
-      <TBody>
-        {rows.map(({ unit, outcome, index }) => (
-          <TR key={`${unit.database}-${unit.kind}-${outcome.destination_id ?? index}`}>
-            <TD className="font-medium">{unit.kind === "globals" ? "Roles and globals" : unit.database}</TD>
-            <TD>
-              {outcome.destination_name ?? "-"}
-              {outcome.type && (
-                <span className="ml-1 text-xs text-muted-foreground">
-                  ({outcome.type === "gdrive" ? "Google Drive" : "local"})
-                </span>
-              )}
-            </TD>
-            <TD>
-              <div className="flex flex-wrap items-center gap-1">
-                <Badge variant={STATUS_VARIANT[outcome.status]}>{outcome.status}</Badge>
-                {outcome.retried_by && (
-                  <Link className="text-xs underline" to={`/runs/${outcome.retried_by}`}>
-                    by retry
-                  </Link>
-                )}
-              </div>
-            </TD>
-            <TD className="whitespace-nowrap text-right">
-              {outcome.bytes === undefined ? "-" : formatBytes(outcome.bytes)}
-            </TD>
-            <TD className="whitespace-nowrap text-right">{stepMs(outcome, "put")}</TD>
-            <TD className="whitespace-nowrap text-right">{stepMs(outcome, "verify")}</TD>
-            <TD className="max-w-sm break-words text-xs">
-              {outcome.error_class && (
-                <Badge variant="warning" className="mr-1">
-                  {errorClassLabel(outcome.error_class)}
-                </Badge>
-              )}
-              {outcome.error ?? (outcome.previous_error ? `Earlier: ${outcome.previous_error}` : "")}
-            </TD>
-          </TR>
-        ))}
-      </TBody>
-    </Table>
-  );
+  return <Table columns={COLUMNS} rows={rows} />;
 }

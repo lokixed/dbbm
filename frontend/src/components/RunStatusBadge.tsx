@@ -1,18 +1,18 @@
+import Badge, { type BadgeColor } from "xedonium/Badge";
 import type { RunStatus } from "@/api/types";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
 
-const VARIANTS: Record<RunStatus, { label: string; variant: BadgeProps["variant"] }> = {
-  queued: { label: "Queued", variant: "neutral" },
-  running: { label: "Running", variant: "info" },
-  success: { label: "Success", variant: "success" },
-  partial: { label: "Partial", variant: "warning" },
-  failed: { label: "Failed", variant: "danger" },
-  cancelled: { label: "Cancelled", variant: "neutral" },
-  interrupted: { label: "Interrupted", variant: "warning" },
+const VARIANTS: Record<RunStatus, { label: string; color: BadgeColor }> = {
+  queued: { label: "Queued", color: "secondary" },
+  running: { label: "Running", color: "info" },
+  success: { label: "Success", color: "success" },
+  partial: { label: "Partial", color: "warning" },
+  failed: { label: "Failed", color: "danger" },
+  cancelled: { label: "Cancelled", color: "secondary" },
+  interrupted: { label: "Interrupted", color: "warning" },
 };
 
 export function RunStatusBadge({ status }: { status: RunStatus | null }) {
-  if (!status) return <Badge>Never run</Badge>;
-  const { label, variant } = VARIANTS[status];
-  return <Badge variant={variant}>{label}</Badge>;
+  if (!status) return <Badge badgeContent="Never run" color="secondary" />;
+  const { label, color } = VARIANTS[status];
+  return <Badge badgeContent={label} color={color} />;
 }
