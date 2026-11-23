@@ -18,11 +18,14 @@ from app.drivers.base import (
     DumpContext,
     DumpedArtifact,
     DumpError,
+    RestoreContext,
+    RestoreError,
+    RestoreOptions,
 )
-from app.drivers.dumping import capture_output, run_dump, work_file
+from app.drivers.dumping import capture_output, run_dump, summarize_stderr, work_file
 from app.schemas.source import MongoConfig, MongoFieldsConfig, MongoUriConfig
 from app.services.naming import safe_component
-from app.services.proc import clean_env
+from app.services.proc import StderrTail, StepTimeoutError, clean_env, run_process
 
 SYSTEM_DATABASES = frozenset({"local", "config"})
 # Never dumped under "all"; a user can still select `admin` explicitly.
@@ -33,6 +36,10 @@ _CONFIG: TypeAdapter[Any] = TypeAdapter(MongoConfig)
 # mongodump logs progress to stderr; these lines are kept in the run log but not in the run error.
 _PROGRESS_NOISE = re.compile(
     r"writing \S+ to archive|done dumping|dumping up to \d+ collections|\[[#.]*\]|archive prelude"
+)
+_RESTORE_NOISE = re.compile(
+    r"restoring \S+ from archive|finished restoring|reading metadata|preparing collections|"
+    r"\[[#.]*\]|no indexes to restore|restoring indexes|continuing through error"
 )
 
 
@@ -241,3 +248,59 @@ class MongoDriver(BaseDriver):
             compressed=True,
             compression="gzip",
         )
+
+    # ---------- restore ----------
+
+    async def restore_tool_versions(self) -> dict[str, str]:
+        env = clean_env({}, Path(tempfile.gettempdir()))
+        try:
+            output = await capture_output(["mongorestore", "--version"], env)
+        except DumpError as exc:
+            raise RestoreError(str(exc)) from None
+        return {"mongorestore": (output.strip().splitlines() or ["unknown"])[0]}
+
+    @staticmethod
+    def _restore_argv(config_file: Path, artifact: Path, options: RestoreOptions) -> list[str]:
+        argv = ["mongorestore", f"--config={config_file}", f"--archive={artifact}", "--gzip"]
+        if options.drop:
+            argv.append("--drop")
+        if options.full_instance:
+            return [*argv, "--oplogReplay"]
+        argv.append(f"--nsInclude={options.database}.*")
+        if options.target_database != options.database:
+            argv += [f"--nsFrom={options.database}.*", f"--nsTo={options.target_database}.*"]
+        return argv
+
+    async def restore_database(
+        self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
+    ) -> None:
+        uri, _ = strip_uri_database(self._connection_uri())
+        try:
+            directory = Path(tempfile.mkdtemp(prefix=".mongo-", dir=ctx.work_dir))
+        except OSError as exc:
+            raise RestoreError(f"Cannot prepare the restore: {exc.strerror}.") from None
+        secrets = self.sensitive_values()
+        tail = StderrTail()
+        try:
+            argv = self._restore_argv(write_config_file(directory, uri), artifact, options)
+            ctx.log.info("Running: " + " ".join(argv))
+            code = await run_process(
+                argv,
+                env=clean_env({}, ctx.work_dir),
+                timeout=ctx.timeout_seconds,
+                tail=tail,
+                stderr_line=lambda line: ctx.log.info(f"mongorestore: {line}"),
+            )
+        except StepTimeoutError:
+            raise RestoreError(
+                f"mongorestore timed out after {ctx.timeout_seconds} seconds and was stopped."
+            ) from None
+        except FileNotFoundError:
+            raise RestoreError("mongorestore is not installed in this environment.") from None
+        except OSError as exc:
+            raise RestoreError(f"Cannot run the restore: {exc.strerror}.") from None
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+        if code != 0:
+            reason = summarize_stderr(tail.text(), secrets, _RESTORE_NOISE)
+            raise RestoreError(f"mongorestore exited with code {code}: {reason}")

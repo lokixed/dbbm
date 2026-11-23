@@ -1,4 +1,4 @@
-import { Download, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Download, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -14,6 +14,7 @@ import {
 import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
+import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export default function BackupsPage() {
   const [filters, setFilters] = useState<BackupFilters>(EMPTY);
   const [page, setPage] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Backup | null>(null);
+  const [restoring, setRestoring] = useState<Backup | null>(null);
   const backups = useBackups(filters, page);
   const jobs = useJobs();
   const sources = useSources();
@@ -287,6 +289,16 @@ export default function BackupsPage() {
                     <Button
                       variant="secondary"
                       size="sm"
+                      aria-label={`Restore ${backup.source_database}`}
+                      title="Restore"
+                      disabled={backup.missing}
+                      onClick={() => setRestoring(backup)}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       aria-label={`Verify ${backup.source_database}`}
                       title="Verify now"
                       disabled={verify.isPending && verify.variables === backup.id}
@@ -326,6 +338,8 @@ export default function BackupsPage() {
           </div>
         </div>
       )}
+
+      <RestoreWizard backup={restoring} onClose={() => setRestoring(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

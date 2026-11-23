@@ -196,7 +196,8 @@ All primary keys are UUIDs. Timestamps are stored in UTC.
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid | |
-| job_id | fk | |
+| job_id | fk | null for restore runs |
+| kind | text | `backup` (default) or `restore` |
 | trigger | enum | `schedule`, `manual`, `retry` |
 | status | enum | `queued`, `running`, `success`, `partial`, `failed`, `cancelled`, `interrupted` |
 | started_at / finished_at | datetime | |
@@ -439,7 +440,7 @@ GET              /backups/{id}/download  verifies the SHA-256 first; local copy 
 POST             /backups/{id}/verify    re-read the stored copy (local SHA-256, Drive MD5)
 POST             /backups/rescan?destination_id=   mark artifacts whose files are gone
 DELETE           /backups/{id}
-POST             /backups/{id}/restore
+POST             /backups/{id}/restore  body: target_source_id, target_database, drop, confirm_database, confirm_overwrite_original; starts a run of kind `restore`
 
 GET/POST/PUT/DELETE /notifications
 POST             /notifications/{id}/test
@@ -485,6 +486,9 @@ UX rules:
 - Encrypted artifacts prompt for the `age` private key (not stored).
 - All restores are written to the audit log with user, artifact and target.
 - MVP fallback: "download artifact + copy-paste restore command" before the full wizard is built.
+- A restore is a tracked run (`kind = restore`) with live log, cancel and timeout. It uses the copy the user picks (no silent fallback), verifies its SHA-256, then runs the driver's restore. A target source is never restored while a backup or restore runs on it.
+- The server enforces the typed database name and the extra confirmation for restoring over the original; the wizard only mirrors them. Restores are limited to 5 starts per minute per user.
+- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`). MySQL, PostgreSQL and Firestore restores are not implemented yet; the API refuses them.
 - A scheduled **restore test** is a good later feature: restore to a scratch container and run a sanity query.
 
 ---

@@ -137,6 +137,7 @@ export interface RunSummary {
   total_size: number;
   parent_run_id: string | null;
   scheduled_for: string | null;
+  kind: "backup" | "restore";
 }
 
 export type NotifyOn = "failure" | "always" | "never";

@@ -33,6 +33,7 @@ def summarize_runs(db: Session, runs: Sequence[Run]) -> list[RunSummaryOut]:
             total_size=stats.get(r.id, (0, 0))[1],
             parent_run_id=str(r.parent_run_id) if r.parent_run_id else None,
             scheduled_for=r.scheduled_for,
+            kind=r.kind,
         )
         for r in runs
     ]

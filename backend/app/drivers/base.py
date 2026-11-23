@@ -3,16 +3,12 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from logging import Logger
 from pathlib import Path
 from typing import Any, Protocol
 
 from app.services.redact import describe_error
 
 CONNECT_TIMEOUT = 10  # seconds, applied to every connection attempt
-
-# The shape of a restore target is defined together with restore() in a later milestone.
-Target = dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +37,25 @@ class LogSink(Protocol):
 
 class DumpError(Exception):
     """A dump failed. The message is sanitized and safe to store and show."""
+
+
+class RestoreError(DumpError):
+    """A restore failed or is not possible. The message is sanitized and safe to show."""
+
+
+@dataclass(frozen=True)
+class RestoreOptions:
+    database: str  # the database the artifact was dumped from
+    target_database: str  # where its contents are restored to
+    drop: bool = False  # replace existing collections/tables of the target
+    full_instance: bool = False  # the artifact is a whole-server dump
+
+
+@dataclass(frozen=True)
+class RestoreContext:
+    work_dir: Path
+    timeout_seconds: int
+    log: LogSink
 
 
 @dataclass
@@ -101,7 +116,9 @@ class Driver(Protocol):
     def check_compatibility(self, server_version: str | None, tools: dict[str, str]) -> None: ...
     async def dump_database(self, database: str, ctx: DumpContext) -> DumpedArtifact: ...
     async def dump_globals(self, ctx: DumpContext) -> DumpedArtifact | None: ...
-    def restore(self, artifact: Path, target: Target, log: Logger) -> None: ...
+    async def restore_database(
+        self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
+    ) -> None: ...
 
 
 class BaseDriver(ABC):
@@ -155,5 +172,11 @@ class BaseDriver(ABC):
         """Optional extra artifact (roles etc.); None when the driver or setting has none."""
         return None
 
-    def restore(self, artifact: Path, target: Target, log: Logger) -> None:
-        raise NotImplementedError("Restore is implemented in a later milestone.")
+    async def restore_database(
+        self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
+    ) -> None:
+        raise RestoreError(f"Restoring {self.source_type} backups is not supported yet.")
+
+    async def restore_tool_versions(self) -> dict[str, str]:
+        """Versions of the client tools a restore needs; raises RestoreError if one is missing."""
+        return {}

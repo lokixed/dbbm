@@ -62,6 +62,8 @@ class Run(SQLModel, table=True):
         default=None,
         sa_column=Column(Uuid, ForeignKey("runs.id", ondelete="SET NULL"), nullable=True),
     )
+    # "backup" for job runs, "restore" for restores started from the backups browser.
+    kind: str = Field(default="backup", max_length=16)
     trigger: str = Field(max_length=16)
     status: str = Field(max_length=16)
     # The intended fire time of a scheduled run.

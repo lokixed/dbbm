@@ -1,6 +1,7 @@
+import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BackupOut(BaseModel):
@@ -40,3 +41,14 @@ class RescanOut(BaseModel):
     destination_id: str
     checked: int
     missing: int
+
+
+class RestoreIn(BaseModel):
+    target_source_id: uuid.UUID
+    # Safe for every engine and for command-line arguments.
+    target_database: str = Field(pattern=r"^[A-Za-z0-9_-]{1,63}$")
+    drop: bool = False
+    # The user must type the target database name.
+    confirm_database: str
+    # Needed only when the restore would overwrite the original database.
+    confirm_overwrite_original: bool = False

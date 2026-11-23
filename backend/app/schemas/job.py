@@ -104,6 +104,7 @@ class RunSummaryOut(BaseModel):
     total_size: int = 0
     parent_run_id: str | None = None
     scheduled_for: datetime | None = None
+    kind: str = "backup"
 
 
 class JobOut(BaseModel):

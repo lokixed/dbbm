@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import type { RunSummary } from "./types";
 
 export interface Backup {
   id: string;
@@ -102,5 +103,34 @@ export function useRescanDestination() {
         method: "POST",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: backupKeys.all }),
+  });
+}
+
+export interface RestoreInput {
+  target_source_id: string;
+  target_database: string;
+  drop: boolean;
+  confirm_database: string;
+  confirm_overwrite_original: boolean;
+}
+
+/** All stored copies (one per destination) of the same database from the same run. */
+export function useBackupCopies(runId: string, database: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...backupKeys.all, "copies", runId, database],
+    enabled,
+    queryFn: async () => {
+      const page = await api<BackupPage>(`/api/backups?run_id=${encodeURIComponent(runId)}&limit=200`);
+      return page.items.filter((b) => b.source_database === database);
+    },
+  });
+}
+
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RestoreInput }) =>
+      api<RunSummary>(`/api/backups/${id}/restore`, { method: "POST", body: input }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runs"] }),
   });
 }

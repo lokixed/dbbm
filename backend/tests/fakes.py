@@ -114,6 +114,40 @@ case "$mode" in
 esac
 """
 
+_MONGORESTORE = """#!/bin/sh
+dir=$(dirname "$0")
+case "$1" in
+  --version) echo "mongorestore version: 100.9.4"; echo "git version: abc"; exit 0;;
+esac
+echo "$*" > "$dir/mongorestore.args"
+archive=""; config=""
+for a; do
+  case "$a" in
+    --archive=*) archive="${a#--archive=}";;
+    --config=*) config="${a#--config=}";;
+  esac
+done
+cp "$config" "$dir/mongorestore.yml"
+stat -c %a "$config" > "$dir/mongorestore.yml.perm"
+cp "$archive" "$dir/mongorestore.archive"
+mode=$(cat "$dir/mongorestore.mode" 2>/dev/null || echo ok)
+case "$mode" in
+  ok)
+    echo "2024-01-01T00:00:00.000+0000	preparing collections to restore from" >&2
+    echo "2024-01-01T00:00:00.100+0000	finished restoring shop.items (3 documents, 0 failures)" >&2
+    exit 0;;
+  fail)
+    echo "2024-01-01T00:00:00.000+0000	preparing collections to restore from" >&2
+    echo "2024-01-01T00:00:00.100+0000	Failed: shop.items: error restoring from archive: not authorized" >&2
+    exit 1;;
+  hang)
+    echo "$$" > "$dir/restore.pid"
+    sleep 300 &
+    echo "$!" > "$dir/restore.childpid"
+    wait;;
+esac
+"""
+
 _GCLOUD = """#!/bin/sh
 dir=$(dirname "$0")
 mode() { cat "$dir/gcloud_$1.mode" 2>/dev/null || echo ok; }
@@ -200,6 +234,7 @@ def fake_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeBins:
         ("pg_dump", _PG_DUMP),
         ("pg_dumpall", _PG_DUMPALL),
         ("mongodump", _MONGODUMP),
+        ("mongorestore", _MONGORESTORE),
         ("gcloud", _GCLOUD),
     ):
         path = directory / name
@@ -274,3 +309,4 @@ def fake_drivers(monkeypatch: pytest.MonkeyPatch) -> None:
         return cls(config, secrets)
 
     monkeypatch.setattr("app.services.runner.get_driver", factory)
+    monkeypatch.setattr("app.services.restore_run.get_driver", factory)

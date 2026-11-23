@@ -13,12 +13,12 @@ import shutil
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager, suppress
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import func
 from sqlmodel import Session, col, select
@@ -48,6 +48,9 @@ from app.storage import BaseStorage, StorageContext, get_storage
 from app.storage.base import run_blocking
 from app.storage.local import format_bytes
 from app.storage.rclone_utils import NEEDS_REAUTH_MESSAGE, ErrorClass, RcloneError
+
+if TYPE_CHECKING:
+    from app.services.restore_run import RestorePlan
 
 logger = logging.getLogger(__name__)
 
@@ -152,12 +155,21 @@ class RunState:
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     secrets: list[str] = field(default_factory=list)
+    # Non-secret description of a restore run (what was restored where); None for backups.
+    restore: dict[str, Any] | None = None
 
     def outcomes(self) -> list[bool]:
         return database_outcomes({"units": self.units})
 
     def as_json(self) -> dict[str, Any]:
-        return {"steps": self.steps, "units": self.units, "warnings": self.warnings}
+        data: dict[str, Any] = {
+            "steps": self.steps,
+            "units": self.units,
+            "warnings": self.warnings,
+        }
+        if self.restore is not None:
+            data["restore"] = self.restore
+        return data
 
     def summary_error(self) -> str | None:
         if not self.errors:
@@ -389,14 +401,63 @@ class Runner:
         )
         return run_id
 
+    async def submit_restore(self, plan: "RestorePlan") -> uuid.UUID:
+        """Start a restore run. A target source is never restored while it is being backed up
+        or restored, and is not backed up while it is being restored."""
+        from app.services import restore_run
+
+        jobs = await asyncio.to_thread(self._job_ids_of_source, plan.target_source_id)
+        if plan.target_source_id in self._active or any(j in self._active for j in jobs):
+            raise JobBusyError
+        run_id = new_uuid()
+        # No await between the check above and this line, so two requests cannot both pass.
+        self._active[plan.target_source_id] = run_id
+        try:
+            await asyncio.to_thread(restore_run.create_restore_run, self, run_id, plan)
+        except BaseException:
+            self._active.pop(plan.target_source_id, None)
+            raise
+        self._spawn(
+            run_id,
+            plan.target_source_id,
+            partial(restore_run.restore_body, self, run_id, plan),
+            after=partial(asyncio.to_thread, restore_run.audit_restore_finished, plan, run_id),
+            notify=False,
+        )
+        return run_id
+
+    @staticmethod
+    def _job_ids_of_source(source_id: uuid.UUID) -> list[uuid.UUID]:
+        with Session(get_engine()) as db:
+            return list(db.exec(select(Job.id).where(col(Job.source_id) == source_id)).all())
+
+    # Used by restore runs, which share the run machinery.
+    @property
+    def settings(self) -> Settings:
+        return self._settings
+
+    def mark_running(self, run_id: uuid.UUID) -> datetime:
+        return self._mark_running(run_id)
+
+    def step(
+        self, run_id: uuid.UUID, state: RunState, log: RunLogger, name: str
+    ) -> AbstractAsyncContextManager[dict[str, Any]]:
+        return self._step(run_id, state, log, name)
+
+    async def cleanup(
+        self, run_id: uuid.UUID, work_dir: Path, state: RunState, log: RunLogger
+    ) -> None:
+        await self._cleanup(run_id, work_dir, state, log)
+
     def _spawn(
         self,
         run_id: uuid.UUID,
         lock_key: uuid.UUID,
         body: Callable[[RunState, RunLogger], Awaitable[str]],
         after: Callable[[], Awaitable[None]] | None = None,
+        notify: bool = True,
     ) -> None:
-        task = asyncio.create_task(self._execute(run_id, lock_key, body, after))
+        task = asyncio.create_task(self._execute(run_id, lock_key, body, after, notify))
         self._tasks[run_id] = task
         task.add_done_callback(lambda _t: self._tasks.pop(run_id, None))
 
@@ -427,6 +488,8 @@ class Runner:
             job = db.get(Job, job_id)
             if job is None:
                 raise JobNotFoundError
+            if job.source_id in self._active:
+                raise JobBusyError  # the source is being restored
             db.add(
                 Run(
                     id=run_id,
@@ -654,6 +717,7 @@ class Runner:
         lock_key: uuid.UUID,
         body: Callable[[RunState, RunLogger], Awaitable[str]],
         after: Callable[[], Awaitable[None]] | None = None,
+        notify: bool = True,
     ) -> None:
         state = RunState()
         log = RunLogger(log_path_for(self._settings.logs_dir, run_id))
@@ -666,7 +730,7 @@ class Runner:
             await asyncio.to_thread(self._finalize, run_id, status, error, state.as_json())
             if after is not None:
                 await after()
-            if self.hooks is not None:
+            if notify and self.hooks is not None:
                 try:
                     self.hooks.on_finished(run_id)
                 except Exception as exc:

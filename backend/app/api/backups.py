@@ -1,4 +1,6 @@
+import time
 import uuid
+from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -9,12 +11,19 @@ from sqlmodel import Session, col, select
 from starlette.background import BackgroundTask
 
 from app.api.deps import CurrentUser, ServicesDep, client_ip
+from app.api.run_views import summarize_runs
 from app.core.db import SessionDep
+from app.drivers import DRIVERS
+from app.drivers.base import BaseDriver, RestoreOptions
+from app.drivers.mongo import FULL_INSTANCE
 from app.models import Artifact, Destination, Job, Run, Source
 from app.models.base import utcnow
-from app.schemas.backup import BackupOut, BackupPage, RescanOut, VerifyOut
+from app.schemas.backup import BackupOut, BackupPage, RescanOut, RestoreIn, VerifyOut
+from app.schemas.job import RunSummaryOut
 from app.services import backups as svc
 from app.services.audit import write_audit
+from app.services.restore_run import DEFAULT_TIMEOUT, load_restore_plan, source_type_of
+from app.services.runner import JobBusyError, RunFailedError
 
 router = APIRouter(prefix="/api/backups", tags=["backups"])
 
@@ -84,6 +93,7 @@ def _audit(
 def list_backups(
     db: SessionDep,
     _user: CurrentUser,
+    run_id: uuid.UUID | None = None,
     job_id: uuid.UUID | None = None,
     source_id: uuid.UUID | None = None,
     database: Annotated[str | None, Query(max_length=255)] = None,
@@ -95,6 +105,8 @@ def list_backups(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> BackupPage:
     conditions: list[ColumnElement[bool]] = [col(Artifact.deleted_at).is_(None)]
+    if run_id:
+        conditions.append(col(Artifact.run_id) == run_id)
     if job_id:
         conditions.append(col(Run.job_id) == job_id)
     if source_id:
@@ -237,3 +249,110 @@ async def rescan_destination(
 
 
 __all__ = ["router"]
+
+
+RESTORES_PER_MINUTE = 5
+_restore_starts: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _rate_limited(username: str) -> bool:
+    """At most RESTORES_PER_MINUTE restore starts per user in any minute."""
+    now = time.monotonic()
+    recent = _restore_starts[username]
+    while recent and now - recent[0] > 60:
+        recent.popleft()
+    if len(recent) >= RESTORES_PER_MINUTE:
+        return True
+    recent.append(now)
+    return False
+
+
+def _original_source_id(db: Session, artifact: Artifact) -> uuid.UUID | None:
+    run = db.get(Run, artifact.run_id)
+    job = db.get(Job, run.job_id) if run and run.job_id else None
+    return job.source_id if job else None
+
+
+@router.post("/{backup_id}/restore", status_code=201)
+async def restore_backup(
+    backup_id: uuid.UUID,
+    body: RestoreIn,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    services: ServicesDep,
+) -> RunSummaryOut:
+    artifact, copy = _artifact_or_404(db, backup_id)
+    if artifact.missing_at is not None:
+        raise HTTPException(
+            status_code=409, detail="This copy is marked missing; rescan or pick another copy."
+        )
+    kind = source_type_of(artifact.path)
+    target = db.get(Source, body.target_source_id)
+    if kind is None:
+        raise HTTPException(status_code=422, detail="This backup's file type cannot be restored.")
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target source not found")
+    if target.type != kind:
+        raise HTTPException(
+            status_code=422,
+            detail=f"A {kind} backup can only be restored into a {kind} source.",
+        )
+    driver_class: type[BaseDriver] = DRIVERS[kind]
+    if driver_class.restore_database is BaseDriver.restore_database:
+        raise HTTPException(
+            status_code=422, detail=f"Restoring {kind} backups is not supported yet."
+        )
+    full = kind == "mongo" and artifact.source_database == FULL_INSTANCE
+    if full and body.target_database != FULL_INSTANCE:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A full-instance backup restores the whole server; "
+                f"use '{FULL_INSTANCE}' as the target name."
+            ),
+        )
+    if body.confirm_database != body.target_database:
+        raise HTTPException(status_code=422, detail="Type the target database name to confirm.")
+    overwrites_original = _original_source_id(db, artifact) == target.id and (
+        full or body.target_database == artifact.source_database
+    )
+    if overwrites_original and not body.confirm_overwrite_original:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This would overwrite the original database. "
+                "Confirm overwriting the original to continue."
+            ),
+        )
+    if _rate_limited(user.username):
+        raise HTTPException(status_code=429, detail="Too many restores started. Wait a minute.")
+    options = RestoreOptions(artifact.source_database, body.target_database, body.drop, full)
+    try:
+        plan = load_restore_plan(artifact, copy, target, options, DEFAULT_TIMEOUT, user.username)
+        run_id = await services.runner.submit_restore(plan)
+    except RunFailedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except JobBusyError:
+        raise HTTPException(
+            status_code=409,
+            detail="A backup or restore is already running on the target source.",
+        ) from None
+    write_audit(
+        db,
+        "backup.restore_started",
+        user=user,
+        object_type="artifact",
+        object_id=str(artifact.id),
+        details={
+            **plan.summary(),
+            "run_id": str(run_id),
+            "overwrites_original": overwrites_original,
+        },
+        ip=client_ip(request),
+    )
+    db.commit()
+    run = db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=500, detail="The restore run was not created.")
+    return summarize_runs(db, [run])[0]

@@ -18,7 +18,7 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **In progress**: browser and download done, restore TODO |
+| 7 | Backups browser, download, restore | **In progress**: browser, download and MongoDB restore done; MySQL, PostgreSQL, Firestore restore and the Testcontainers tests TODO |
 | 8 | Backup encryption (`age`) | **TODO** |
 | 9 | Hardening and 1.0 release | **TODO** |
 
@@ -69,26 +69,26 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 - [ ] Consider short-lived signed download URLs so large downloads work with browsers and reverse proxies
 
 ### Restore engine (all four drivers implement `restore()`)
-- [ ] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line)
-- [ ] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore
-- [ ] **MongoDB:** `mongorestore --archive --gzip` with options for namespace mapping and `--drop`; full-oplog archives restore with `--oplogReplay`
-- [ ] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy
-- [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched
-- [ ] Restore runs as a tracked run (type `restore`) with live logs, cancel, timeouts, process-group kill and work-dir cleanup, like backups
-- [ ] Target must be a **registered source** (reuses the encrypted credentials). Restoring needs a user with write privileges, so document the least-privilege **restore** user separately from the read-only backup user
+- [ ] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line) (**TODO**: runs through the shared restore run; the driver still reports "not supported yet")
+- [ ] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore (**TODO**)
+- [x] **MongoDB:** `mongorestore --archive --gzip` with options for namespace mapping and `--drop`; full-oplog archives restore with `--oplogReplay` (done and tried against a real MongoDB; the `--oplogReplay` path is only covered by a unit test of the arguments)
+- [ ] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy (**TODO**)
+- [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (done: reachable, tool version logged, checksum verified before the restore, disk space checked before a Drive download; no tool-version compatibility check yet)
+- [x] Restore runs as a tracked run (type `restore`) with live logs, cancel, timeouts, process-group kill and work-dir cleanup, like backups
+- [ ] Target must be a **registered source** (reuses the encrypted credentials). Restoring needs a user with write privileges, so document the least-privilege **restore** user separately from the read-only backup user (done; the least-privilege restore user is not documented yet)
 
 ### Restore wizard (UI)
-- [ ] Step 1: choose the artifact and which destination copy to use
-- [ ] Step 2: choose the target source and database name. **Default to a different target than the original**; restoring over the original needs an extra explicit confirmation
-- [ ] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings
-- [ ] Step 4: summary and confirmation. The user must **type the target database name** to proceed
+- [x] Step 1: choose the artifact and which destination copy to use
+- [x] Step 2: choose the target source and database name. **Default to a different target than the original**; restoring over the original needs an extra explicit confirmation
+- [ ] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings (`drop` is done; per-collection selection is not)
+- [x] Step 4: summary and confirmation. The user must **type the target database name** to proceed
 - [ ] Firestore: show a prominent warning that importing can overwrite existing documents
-- [ ] Live log view, final result, and an audit log entry (who, artifact, target, outcome)
+- [x] Live log view, final result, and an audit log entry (who, artifact, target, outcome)
 
 ### Safety rules
-- [ ] A restore never runs against a target with an active backup or restore
-- [ ] Rate limit and CSRF-protect all restore endpoints
-- [ ] No secrets in logs, audit entries, or process arguments (same redaction rules as before)
+- [x] A restore never runs against a target with an active backup or restore
+- [x] Rate limit and CSRF-protect all restore endpoints
+- [x] No secrets in logs, audit entries, or process arguments (same redaction rules as before)
 
 ### Tests
 - [ ] Integration tests with Testcontainers: back up seeded MySQL, PostgreSQL and MongoDB, restore into fresh instances through the application's own restore engine, and compare row and document counts
@@ -100,8 +100,8 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 - [ ] Back up then restore each of MySQL, PostgreSQL and MongoDB into a scratch target, with counts matching
 - [ ] Restore from a Google Drive copy works after deleting the local file
 - [ ] A corrupted file is refused before any change reaches the target
-- [ ] Restoring over the original source cannot happen by accident
-- [ ] Every download and restore appears in the audit log
+- [x] Restoring over the original source cannot happen by accident
+- [x] Every download and restore appears in the audit log
 
 ---
 
