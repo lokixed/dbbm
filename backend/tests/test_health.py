@@ -86,6 +86,7 @@ def test_spa_fallback_and_api_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     with TestClient(create_app()) as client:
         assert "spa" in client.get("/dashboard").text
         assert "spa" in client.get("/").text
+        assert "spa" in client.get("/about").text  # public landing page, no sign-in
         assert client.get("/assets/app.js").text == "console.log(1)"
         assert client.get("/api/unknown").status_code == 404
         assert "spa" not in client.get("/api/unknown").text

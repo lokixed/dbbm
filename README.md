@@ -76,6 +76,7 @@ Recovery drill, at least once per quarter: take a backup from your storage (not 
 
 ## More documentation
 
+- `/about` on the running app is a public landing page (no sign-in) with the features, install steps, security notes and operations guide.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): upgrades, HTTPS with Caddy or Traefik, backing up the tool itself, the disaster recovery drill, master key rotation, a lost admin password, monitoring and troubleshooting.
 - [docs/SECURITY.md](docs/SECURITY.md): what the tool protects against and what it does not.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).

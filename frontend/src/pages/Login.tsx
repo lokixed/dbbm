@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
@@ -68,6 +68,9 @@ export default function LoginPage() {
           </Button>
         </form>
       </Card>
+      <Link to="/about" className="absolute bottom-4 text-sm text-app-muted hover:underline">
+        About DBBM
+      </Link>
     </div>
   );
 }
