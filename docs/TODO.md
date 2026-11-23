@@ -1,4 +1,4 @@
-# DBBM (Database Backup & Management) — Remaining Work
+# DBBM (Database Backup & Management) - Remaining Work
 
 Last updated: 23 November 2026
 
@@ -47,14 +47,14 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 
 ---
 
-## Milestone 7 — Backups browser, download and restore
+## Milestone 7 - Backups browser, download and restore
 
 - [ ] Manual end-to-end Firestore restore check on the throwaway project (the fake `gcloud` tests are done)
 - [ ] MySQL restore has no tool-version compatibility check (PostgreSQL and MongoDB do)
 
 ---
 
-## Milestone 9 — Hardening and 1.0 release
+## Milestone 9 - Hardening and 1.0 release
 
 The code and docs are done (version 1.0.0-rc.1). What is left:
 

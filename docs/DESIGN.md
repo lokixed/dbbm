@@ -1,4 +1,4 @@
-# DBBM (Database Backup & Management) — Design Document
+# DBBM (Database Backup & Management) - Design Document
 
 A self-hosted, Docker-installed tool with a web UI that schedules and runs backups of **MySQL, PostgreSQL, MongoDB and Firebase Firestore**, and stores every backup in **two places: a local drive and Google Drive**.
 
@@ -360,7 +360,7 @@ class Storage(Protocol):
 - Use a dedicated folder (e.g. `db-backups/`) and restrict rclone's scope to it where possible.
 - Known issue: Google OAuth apps left in **Testing** status issue refresh tokens that expire after 7 days. Publish the OAuth app (it can stay unverified for personal use) or use a Shared Drive with a service account.
 - A service account has no Drive storage quota of its own, so it only works with a Shared Drive.
-- Surface token failure clearly in the UI ("Drive authorization expired — reconnect") and in notifications.
+- Surface token failure clearly in the UI ("Drive authorization expired - reconnect") and in notifications.
 
 ---
 
@@ -377,8 +377,8 @@ class Storage(Protocol):
 ## 11. Retention
 
 Per destination, configurable:
-- `keep_last` — keep the newest N successful artifacts
-- `keep_days` — delete artifacts older than N days
+- `keep_last` - keep the newest N successful artifacts
+- `keep_days` - delete artifacts older than N days
 
 Rules:
 - An artifact is deleted only if **both** policies allow it (it is outside the newest N **and** older than the day limit), when both are set.
@@ -588,7 +588,7 @@ If your databases run in other containers, attach this service to the same Docke
 | API / UI | pytest API tests; Playwright smoke tests for login → add source → run now → see log |
 | Security | Dependency and image scanning, auth/CSRF tests, secret-redaction tests |
 
-A backup tool is only trustworthy if **restores are tested** — treat the restore round-trip test as a release gate.
+A backup tool is only trustworthy if **restores are tested** - treat the restore round-trip test as a release gate.
 
 ---
 

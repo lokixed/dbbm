@@ -24,14 +24,14 @@ const COLUMNS: TableColumn<AuditEntry>[] = [
     header: "Time",
     render: (entry) => <span className="whitespace-nowrap">{formatTime(entry.timestamp)}</span>,
   },
-  { key: "user", header: "User", render: (entry) => entry.username ?? "—" },
+  { key: "user", header: "User", render: (entry) => entry.username ?? "-" },
   { key: "action", header: "Action", render: (entry) => <code className="text-xs">{entry.action}</code> },
   {
     key: "object",
     header: "Object",
-    render: (entry) => (entry.object_type ? `${entry.object_type} ${entry.object_id ?? ""}` : "—"),
+    render: (entry) => (entry.object_type ? `${entry.object_type} ${entry.object_id ?? ""}` : "-"),
   },
-  { key: "ip", header: "IP", render: (entry) => entry.ip ?? "—" },
+  { key: "ip", header: "IP", render: (entry) => entry.ip ?? "-" },
   {
     key: "details",
     header: "Details",
