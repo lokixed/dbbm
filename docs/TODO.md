@@ -18,9 +18,8 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **Done**, except the manual Firestore check on a real project |
-| 8 | Backup encryption (`age`) | **Done** |
-| 9 | Hardening and 1.0 release | **Code and docs done** (1.0.0-rc.1); the drills, the failure-injection suite, the load test and the first CI release run are still open (unticked below) |
+| 7 | Backups browser, download, restore | Open: manual Firestore check |
+| 9 | Hardening and 1.0 release | Code and docs done (1.0.0-rc.1); drills, failure-injection suite, load test and first release run are open |
 
 Tick off milestones 1 to 6 here as you finish and commit them:
 
@@ -50,63 +49,32 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 
 ## Milestone 7 — Backups browser, download and restore
 
-**Goal:** a full round trip works. Back up a database, restore the artifact into a scratch database, and the data matches.
-
-**Depends on:** milestones 3 to 6 (artifacts, local and Drive storage `get`, checksums).
-
-### Download
-- [x] Short-lived signed download URLs (`POST /api/backups/{id}/download-link`, one use, 60 seconds)
-
-### Restore engine (all four drivers implement `restore()`)
-- [x] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (reachable, tool versions logged and checked against the server: PostgreSQL refuses an older `pg_restore`, MongoDB warns; MySQL has no check; checksum verified before the restore; disk space checked before a Drive download)
-
-### Restore wizard (UI)
-- [x] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings (`drop` for MongoDB, MySQL and PostgreSQL, hidden for Firestore; per-collection (MongoDB) and per-table (PostgreSQL) selection for per-database backups; not available for MySQL, Firestore or full-instance MongoDB)
-
-### Tests
-- [ ] Firestore restore tests with the fake `gcloud` executable, plus a manual end-to-end check on the throwaway project (the fake `gcloud` tests are done in `tests/test_restore_firestore.py`; the manual end-to-end check on the throwaway project is still TODO)
+- [ ] Manual end-to-end Firestore restore check on the throwaway project (the fake `gcloud` tests are done)
+- [ ] MySQL restore has no tool-version compatibility check (PostgreSQL and MongoDB do)
 
 ---
 
 ## Milestone 9 — Hardening and 1.0 release
 
-**Goal:** safe to rely on in production, with documentation and an automated release process.
+The code and docs are done (version 1.0.0-rc.1). What is left:
 
 ### Security review
-- [x] Audit log page in the UI (read-only, filterable) and retention for audit entries
-- [x] **Master key rotation command** (`python -m app.cli rotate-key`; dry run, rollback copy). Not yet performed end to end on a real install
-- [x] Security headers added (CSP, `X-Frame-Options`, referrer policy, nosniff, HSTS behind HTTPS). Rate limiting, cookie flags and CSRF were already in place and have tests. The CSP has not been checked in a real browser against the production build
-- [x] `/api/docs` is disabled by default (tested)
-- [x] Password change flow (Settings) and a documented recovery path (`reset-password`)
-- [x] Dependency and image scanning in CI (not yet run on GitHub). `pip-audit` has no severity filter, so it fails on any known vulnerability; the rest: `pip-audit`, `yarn npm audit`, and an image scanner such as Trivy; fail the build on high severity findings
-- [x] Secret scanning (gitleaks) in CI (not yet run on GitHub)
+- [ ] Check the Content-Security-Policy in a real browser against the production build
 - [ ] Re-test that no secret appears in logs, API responses, audit entries, manifests, notification payloads, process arguments or image layers
-- [x] Container hardening in `docker-compose.yml`; review: non-root, read-only root filesystem, dropped capabilities (`cap_drop: ALL`), `no-new-privileges`, and resource limits
+- [ ] Run the CI scans on GitHub. `pip-audit` has no severity filter, so it fails on any known vulnerability
 
 ### Reliability
 - [ ] Failure-injection test suite: kill the container mid-backup and mid-restore, fill the disk, break the Drive token, drop the database connection, corrupt a stored file, clock changes, and a very large database
 - [ ] Load and endurance test: many jobs on schedules over several days, watching memory, open files, and leftover work directories
-- [x] Graceful shutdown (already built in milestone 6; verified by the existing tests): running jobs are marked `interrupted`, child processes are killed, and temp files are removed
-- [x] SQLite reviewed: busy timeout 5 s, WAL checkpoint on clean shutdown, `backup-db` uses the online backup API
-
-### Protecting the tool itself
-- [x] Documented and tested (`backup-db`) how to back up and restore the tool's own data (`/data`: SQLite database and settings) and the **master key**, since losing either means re-entering every credential
-- [x] Documented the disaster recovery drill (not yet performed): new server, restore `/data` and the master key, confirm schedules and destinations work
-- [x] Built-in export of the configuration without secrets (`export-config`), for rebuilding after a loss
 
 ### Upgrades and releases
-- [x] Versioning, changelog and a downgrade note. Migrations are covered by the existing migration tests
-- [x] CI release workflow (`.github/workflows/release.yml`, not yet run; arm64 build of the full image is untested): build a multi-architecture image (amd64 and arm64), tag by version, publish to a registry, attach an SBOM, and sign the image if desired
-- [x] Healthcheck and startup behavior documented for orchestrators (compose, Portainer)
-- [x] Version shown in the UI (no "update available" hint)
+- [ ] Run the release workflow on a tag; the arm64 build of the full image is untested
+- [ ] Optional "update available" hint in the UI
 
 ### Documentation
-- [x] README (no screenshots) and upgrade procedure (docs/OPERATIONS.md)
-- [x] Setup guides (README and docs/OPERATIONS.md; Firestore lifecycle rule and cost notes are brief): each database engine (least-privilege backup and restore users), Firestore (bucket, roles, lifecycle rule, costs), Google Drive (OAuth client, publishing the consent screen, scope choice), reverse proxy with HTTPS (Caddy and Traefik examples)
-- [x] Operations guide: monitoring, alerts, retention planning, disk sizing, restore drills
-- [x] Troubleshooting guide (table in docs/OPERATIONS.md): the most common errors and their fixes
-- [x] Security notes (docs/SECURITY.md): threat model, what the tool protects against, and what it does not
-- [ ] CONTRIBUTING is written; **LICENSE is missing: the licence is your decision**
+- [ ] Screenshots in the README
+- [ ] Firestore lifecycle rule and cost notes (currently brief)
+- [ ] LICENSE (the licence is your decision)
 
 ### Acceptance criteria
 - [ ] A fresh install on a clean server works from the README alone
