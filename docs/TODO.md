@@ -18,8 +18,8 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **Nearly done**: all four engines restore; left are signed download URLs, per-collection restore, a general tool-version check and the manual Firestore check on a real project |
-| 8 | Backup encryption (`age`) | **Done**: keys, encrypted backups, restore with a private key (not yet committed) |
+| 7 | Backups browser, download, restore | **Nearly done**; left are signed download URLs, per-collection restore, a general tool-version check and the manual Firestore check on a real project |
+| 8 | Backup encryption (`age`) | **Done** (not yet committed) |
 | 9 | Hardening and 1.0 release | **TODO** |
 
 Tick off milestones 1 to 6 here as you finish and commit them:
@@ -54,97 +54,17 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 
 **Depends on:** milestones 3 to 6 (artifacts, local and Drive storage `get`, checksums).
 
-### Backups browser
-- [x] `GET /api/backups` with filters: job, source, database, destination, date range, status, pagination
-- [x] UI: browse artifacts grouped by job and date, showing size, SHA-256, destination(s) holding a copy, and whether each copy is verified
-- [x] "Verify now" action: re-read the stored file and compare size and checksum (local and Drive MD5)
-- [x] Delete an artifact from the UI (with confirmation; audit-logged; removes the manifest too)
-- [x] Mark artifacts whose files are missing on disk or in Drive (drift detection), with a "rescan destination" action
-
 ### Download
-- [x] `GET /api/backups/{id}/download` streams the file (never loads it into memory), with a safe `Content-Disposition` filename
-- [x] Download from the local copy if present, otherwise stream from Google Drive
-- [x] Verify the checksum while streaming, or before serving, and fail clearly on mismatch
-- [x] Requires authentication; audit-log every download
 - [ ] Consider short-lived signed download URLs so large downloads work with browsers and reverse proxies
 
 ### Restore engine (all four drivers implement `restore()`)
-- [x] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line) (done and tried against MySQL 8; "replace existing" drops and recreates the target database)
-- [x] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore (custom-format restore done and tried against PostgreSQL 16; the globals file is refused with a pointer to `psql`, so the optional globals restore is still TODO)
-- [x] **MongoDB:** `mongorestore --archive --gzip` with options for namespace mapping and `--drop`; full-oplog archives restore with `--oplogReplay` (done and tried against a real MongoDB; the `--oplogReplay` path is only covered by a unit test of the arguments)
-- [x] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy (done and covered with the fake `gcloud`; not yet tried against a real Google Cloud project)
 - [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (done: reachable, tool versions logged, checksum verified before the restore, disk space checked before a Drive download; a general tool-version compatibility check is not built, only the PostgreSQL client/server case is handled)
-- [x] Restore runs as a tracked run (type `restore`) with live logs, cancel, timeouts, process-group kill and work-dir cleanup, like backups
-- [x] Target must be a **registered source** (reuses the encrypted credentials). Restoring needs a user with write privileges, so document the least-privilege **restore** user separately from the read-only backup user (done; the restore users are documented in the README and DESIGN section 8)
 
 ### Restore wizard (UI)
-- [x] Step 1: choose the artifact and which destination copy to use
-- [x] Step 2: choose the target source and database name. **Default to a different target than the original**; restoring over the original needs an extra explicit confirmation
 - [ ] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings (`drop` is done; per-collection selection is not) (`drop` is done for MongoDB, MySQL and PostgreSQL and hidden for Firestore; per-collection or per-table selection is not built)
-- [x] Step 4: summary and confirmation. The user must **type the target database name** to proceed
-- [x] Firestore: show a prominent warning that importing can overwrite existing documents
-- [x] Live log view, final result, and an audit log entry (who, artifact, target, outcome)
-
-### Safety rules
-- [x] A restore never runs against a target with an active backup or restore
-- [x] Rate limit and CSRF-protect all restore endpoints
-- [x] No secrets in logs, audit entries, or process arguments (same redaction rules as before)
 
 ### Tests
-- [x] Integration tests with Testcontainers: back up seeded MySQL, PostgreSQL and MongoDB, restore into fresh instances through the application's own restore engine, and compare row and document counts (`tests/integration/test_restore_roundtrip.py`; run with the client tools, see `make test-integration-docker`)
 - [ ] Firestore restore tests with the fake `gcloud` executable, plus a manual end-to-end check on the throwaway project (the fake `gcloud` tests are done in `tests/test_restore_firestore.py`; the manual end-to-end check on the throwaway project is still TODO)
-- [x] Failure tests: corrupt artifact (checksum mismatch), wrong target credentials, cancel mid-restore, full disk, Drive download failure with a fallback message
-- [x] Download tests: large file streaming memory profile, range handling if supported, missing local copy falls back to Drive
-
-### Acceptance criteria
-- [x] Back up then restore each of MySQL, PostgreSQL and MongoDB into a scratch target, with counts matching
-- [x] Restore from a Google Drive copy works after deleting the local file
-- [x] A corrupted file is refused before any change reaches the target
-- [x] Restoring over the original source cannot happen by accident
-- [x] Every download and restore appears in the audit log
-
----
-
-## Milestone 8 — Backup encryption (`age`)
-
-**Goal:** artifacts can be encrypted before they leave the server, so a leaked Drive account or disk does not expose database contents. The private key never lives on the server.
-
-**Depends on:** milestone 7 (restore must be able to decrypt).
-
-### Key management
-- [x] Install `age` in the Docker image (pinned release, checksum verified) (`scripts/install-age.sh`, age v1.3.2, tarball checked against the SHA-256 GitHub publishes for the release; built and run in the image)
-- [x] Settings page: add one or more **age public keys (recipients)**. The server stores only public keys
-- [x] Provide a key generation helper for convenience in the UI or docs (generate the key pair **in the browser or on the admin's machine**, and make clear that the private key must be saved by the user because the server can never recover it) (done as instructions in Settings and the README: `age-keygen` on the admin's machine; generating keys in the browser would need a new frontend dependency, so it is not built)
-- [x] Support multiple recipients so a backup can be decrypted by more than one key (for example a personal key and a recovery key)
-
-### Backup flow
-- [x] Job option `encrypt` (the column already exists in the design) selects recipients to encrypt to
-- [x] Pipeline order: dump, compress, **encrypt**, checksum, store. Checksums, sizes and Drive MD5 are computed on the encrypted file
-- [x] Artifact extension `.age` appended to the normal one; the manifest records `encrypted: true` and recipient fingerprints (never private material)
-- [x] Encryption is streaming (no whole-file buffering) and part of the existing temp-file-then-rename flow
-- [x] Retry from a stored artifact keeps working (it copies the already-encrypted file)
-- [x] A job set to encrypt **fails closed**: if no recipient is configured or encryption fails, no unencrypted artifact is stored
-
-### Restore and download flow
-- [x] Restore of an encrypted artifact asks for the **private key** (paste or file upload), used only in memory for that request and never written to disk, logs, or the database
-- [x] Download offers "as stored (encrypted)" and shows instructions for decrypting locally with the `age` CLI
-- [x] Clear error messages for wrong key, truncated file, and tampered file (tested against real age; age cannot tell a truncated payload from a tampered one, so those share one message, while a cut header, a wrong key and a non-age file each have their own)
-
-### UI and docs
-- [x] Backups browser shows an "encrypted" badge and the recipient fingerprints
-- [x] Prominent warning when enabling encryption: **losing the private key means the backups are unrecoverable**
-- [x] Documentation: how to generate, store and rotate keys, how to decrypt with the CLI, and a recovery drill
-
-### Tests
-- [x] Round trip: encrypt on backup, decrypt on restore, data matches (unit tests with a fake `age`, and `tests/integration/test_restore_roundtrip.py` with real age and real MySQL, PostgreSQL and MongoDB)
-- [x] Wrong key, multiple recipients, tampered ciphertext, fail-closed behavior
-- [x] The private key never appears in logs, API responses, audit entries, process arguments, or on disk
-- [x] Drive upload and verification work on encrypted artifacts
-
-### Acceptance criteria
-- [x] An encrypted backup is unreadable without the key, and the file in Google Drive is ciphertext
-- [x] Restore with the correct key works for all four database types; with a wrong key it fails cleanly and changes nothing (MySQL, PostgreSQL and MongoDB with real age and real servers; Firestore with the fake `gcloud`)
-- [x] The server holds no private key anywhere
 
 ---
 
