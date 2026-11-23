@@ -1,6 +1,9 @@
 """Restore runs: mongorestore through the whole lifecycle (fake tools, no servers)."""
 
+import asyncio
 import json
+import logging
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -10,6 +13,13 @@ from sqlmodel import Session, select
 from app.api import backups as backups_api
 from app.core.config import get_settings
 from app.core.db import get_engine
+from app.drivers.base import (
+    BaseDriver,
+    ConnectionTestResult,
+    RestoreContext,
+    RestoreError,
+    RestoreOptions,
+)
 from app.models import AuditLog
 from tests.conftest import api_post
 from tests.fakes import FakeBins, FakeMySQL, FakePostgres
@@ -24,7 +34,7 @@ from tests.runs_helpers import (
     wait_until,
     work_entries,
 )
-from tests.test_runs_m4 import make_firestore, make_mongo
+from tests.test_runs_m4 import make_mongo
 
 pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers")
 
@@ -141,13 +151,18 @@ def test_target_must_match_the_backup_type(authed: TestClient) -> None:
     assert missing.status_code == 404
 
 
-def test_unsupported_engine_is_refused_up_front(authed: TestClient) -> None:
-    firestore = make_firestore(authed)
-    run = run_now(authed, make_job(authed, firestore, [make_destination(authed)]))
-    assert run["status"] == "success", run["error"]
-    backup = authed.get("/api/backups").json()["items"][0]
-    response = restore(authed, backup, restore_body(firestore, "fs_copy"))
-    assert response.status_code == 422 and "not supported yet" in response.json()["detail"]
+def test_a_driver_without_restore_support_refuses_clearly(tmp_path: Path) -> None:
+    class NewEngine(BaseDriver):
+        source_type = "newengine"
+
+        def _probe(self) -> ConnectionTestResult:
+            return ConnectionTestResult(ok=True, message="ok")
+
+    ctx = RestoreContext(tmp_path, 10, logging.getLogger("test"))  # type: ignore[arg-type]
+    with pytest.raises(RestoreError, match="newengine backups is not supported yet"):
+        asyncio.run(
+            NewEngine({}, {}).restore_database(tmp_path / "x", RestoreOptions("a", "b"), ctx)
+        )
 
 
 def test_corrupt_backup_is_refused_before_the_target_is_touched(

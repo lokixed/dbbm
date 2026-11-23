@@ -43,6 +43,10 @@ No databases to try? `make dev-dbs-up` starts sample MySQL, PostgreSQL and Mongo
 
 Backup user privileges: MySQL needs `SELECT`, `SHOW VIEW`, `TRIGGER`, `EVENT` on the databases and the global `SHOW_ROUTINE` privilege (8.0.20+) if they contain stored routines; a dump that cannot read a routine fails instead of silently leaving it out. PostgreSQL needs `CONNECT` and `SELECT` on everything (for example membership in `pg_read_all_data`).
 
+Restoring: open **Backups**, click the restore button on a copy and follow the wizard: choose the copy, the target source and database name, the options, then type the database name to confirm. The target is a registered source and its credentials are used. The default is a new database name; restoring into the original database needs an extra confirmation. A restore is a run like a backup (live log, **Cancel run**), and it checks the file's SHA-256 before it changes anything. MongoDB, MySQL, PostgreSQL and Firestore are supported. Firestore imports go into the target source's own database, overwrite documents with the same ID and never delete documents. The PostgreSQL roles file is not restored: download it and apply it with `psql`.
+
+Restore user privileges: restoring needs write access, so create a separate restore user and use it for the target source instead of the read-only backup user. MySQL needs `ALL` on the target databases plus `CREATE` and `DROP` on `*.*` (the restore creates the database, and drops it with "replace existing"). PostgreSQL needs `CREATEDB` (or an existing, owned target database); objects are created with the restore user as owner. MongoDB needs the `restore` role on the target databases. Firestore needs `roles/datastore.importExportAdmin` and permission to create and delete objects in the staging bucket.
+
 A run is `success` when every database reached every destination and was verified, `partial` when some did, and `failed` when none did. A second run of the same job cannot start while one is active.
 
 ## Supported databases

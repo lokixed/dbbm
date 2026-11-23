@@ -285,6 +285,7 @@ class Driver(Protocol):
 - `--single-transaction` gives a consistent snapshot for InnoDB without locking. MyISAM tables are not covered by it.
 - Credentials go in a temporary options file with `0600` permissions, not on the command line.
 - Backup user needs: `SELECT`, `SHOW VIEW`, `TRIGGER`, `EVENT`, `LOCK TABLES` (and `PROCESS` if dumping tablespaces).
+- Restore user needs: `ALL` on the target databases, plus `CREATE` and `DROP` on `*.*` (the restore creates the target database and drops it with "replace existing"). Keep it separate from the backup user.
 - Restore: `gunzip -c file | mysql ...` into a target chosen by the user.
 
 ### 8.2 PostgreSQL
@@ -297,6 +298,7 @@ class Driver(Protocol):
 - Credentials via `PGPASSWORD` in the subprocess environment only, or a temporary `.pgpass` file.
 - `pg_dump` must be at least as new as the server. Bundle the latest client, or several major versions if you back up mixed server versions.
 - Backup user: `CONNECT` plus `SELECT` on everything (e.g. membership in `pg_read_all_data` on PostgreSQL 14+).
+- Restore user: `CREATEDB` (or an existing database it owns). Restores use `--no-owner --no-privileges`, so objects belong to the restore user.
 - Restore: `pg_restore --clean --if-exists -d TARGET out.dump`.
 
 ### 8.3 MongoDB
@@ -307,6 +309,7 @@ class Driver(Protocol):
   ```
 - For a full replica-set backup add `--oplog` for a point-in-time consistent dump. `--oplog` cannot be combined with a single `--db` selection.
 - Backup user role: `backup` (or `readAnyDatabase` for simple cases).
+- Restore user role: `restore` on the target databases (a full-instance restore with `--oplogReplay` needs more, usually `root`).
 - Restore: `mongorestore --archive=out.archive --gzip`.
 - Pass the URI via a config file or environment, not process arguments, so it doesn't appear in `ps`.
 
@@ -488,7 +491,7 @@ UX rules:
 - MVP fallback: "download artifact + copy-paste restore command" before the full wizard is built.
 - A restore is a tracked run (`kind = restore`) with live log, cancel and timeout. It uses the copy the user picks (no silent fallback), verifies its SHA-256, then runs the driver's restore. A target source is never restored while a backup or restore runs on it.
 - The server enforces the typed database name and the extra confirmation for restoring over the original; the wizard only mirrors them. Restores are limited to 5 starts per minute per user.
-- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`), MySQL (the target database is created, or dropped and recreated with "replace existing"; the gunzipped dump is streamed into the `mysql` client with an options file) and PostgreSQL (`pg_restore --no-owner --no-privileges`, in one transaction where possible; "replace existing" adds `--clean --if-exists`). A `pg_restore` 17+ against a server before 17 cannot run in one transaction because it sets `transaction_timeout`, so that case runs without it and ignores only that error. The PostgreSQL roles file is refused. Firestore restore is not implemented yet; the API refuses it.
+- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`), MySQL (the target database is created, or dropped and recreated with "replace existing"; the gunzipped dump is streamed into the `mysql` client with an options file) and PostgreSQL (`pg_restore --no-owner --no-privileges`, in one transaction where possible; "replace existing" adds `--clean --if-exists`). A `pg_restore` 17+ against a server before 17 cannot run in one transaction because it sets `transaction_timeout`, so that case runs without it and ignores only that error. The PostgreSQL roles file is refused. Firestore (the export is unpacked, copied to the staging bucket, imported with `gcloud firestore import` and the staging copy is deleted, also after a failure or cancel; the import goes into the target source's own database, overwrites documents with the same ID and never deletes, so "replace existing" is refused).
 - Target database names must match `^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$`, so they are safe as command-line arguments.
 - A scheduled **restore test** is a good later feature: restore to a scratch container and run a sanity query.
 

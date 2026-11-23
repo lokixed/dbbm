@@ -238,8 +238,21 @@ case "$1 $2" in
         exit 0;;
       cancel) echo "$*" > "$dir/cancel.called"; [ "$(mode cancel)" = fail ] && fail; exit 0;;
     esac;;
+  "firestore import")
+    echo "$*" > "$dir/gcloud.import.args"
+    [ "$(mode import)" = fail ] && fail
+    echo '{"name": "projects/p1/databases/(default)/operations/IMP456"}'
+    exit 0;;
   "storage cp")
     echo "$*" > "$dir/gcloud.cp.args"
+    case "$last" in
+      gs://*)
+        # An upload to the staging bucket: record what would be copied.
+        echo "$*" > "$dir/gcloud.upload.args"
+        [ "$(mode upload)" = fail ] && fail
+        find "$4" -type f | sed "s#^$4/##" | sort > "$dir/gcloud.upload.files"
+        exit 0;;
+    esac
     [ "$(mode cp)" = fail ] && fail
     mkdir -p "$last/ts/all_namespaces/kind_items"
     echo "data" > "$last/ts/all_namespaces/kind_items/output-0"

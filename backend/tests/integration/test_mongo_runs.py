@@ -1,8 +1,8 @@
 """End-to-end MongoDB backups against real servers (Testcontainers) and the real mongodump.
 
 They need mongodump and mongorestore on PATH and are skipped without them; run them in the
-application image with `make test-integration-docker`. mongorestore is used by these tests only:
-the application has no restore feature yet.
+application image with `make test-integration-docker`. mongorestore is called directly here; the
+application's own restore is covered by `test_restore_roundtrip.py`.
 """
 
 import json

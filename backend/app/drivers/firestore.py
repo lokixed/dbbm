@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import shutil
+import tarfile
 import tempfile
 import threading
 import uuid
@@ -27,6 +28,9 @@ from app.drivers.base import (
     DumpContext,
     DumpedArtifact,
     DumpError,
+    RestoreContext,
+    RestoreError,
+    RestoreOptions,
     StepHandle,
 )
 from app.drivers.dumping import capture_output, summarize_stderr, work_file, write_tar_gz
@@ -50,6 +54,8 @@ _OPERATION_RE = re.compile(
     r"^projects/[A-Za-z0-9._:-]+/databases/(?:\(default\)|[a-z0-9-]+)/operations/[A-Za-z0-9_=.-]+$"
 )
 _FINAL_STATES = frozenset({"SUCCESSFUL", "FAILED", "CANCELLED"})
+# Dumps and restores share the gcloud helpers; both contexts carry a work dir, log and timeout.
+Ctx = DumpContext | RestoreContext
 
 
 @dataclass(frozen=True)
@@ -68,7 +74,7 @@ def parse_operation_name(raw: str) -> str:
         data = None
     name = data.get("name") if isinstance(data, dict) else None
     if not isinstance(name, str) or not _OPERATION_RE.match(name):
-        raise DumpError("gcloud did not return a valid Firestore operation name for the export.")
+        raise DumpError("gcloud did not return a valid Firestore operation name.")
     return name
 
 
@@ -294,7 +300,7 @@ class FirestoreDriver(BaseDriver):
             shutil.rmtree(root, ignore_errors=True)
         return {"gcloud": (output.strip().splitlines() or ["unknown"])[0]}
 
-    def _new_session(self, ctx: DumpContext) -> _Session:
+    def _new_session(self, ctx: Ctx) -> _Session:
         root = ctx.work_dir / f"firestore-{uuid.uuid4().hex[:8]}"
         try:
             root.mkdir(mode=0o700)
@@ -311,7 +317,7 @@ class FirestoreDriver(BaseDriver):
     async def _gcloud(
         self,
         args: list[str],
-        ctx: DumpContext,
+        ctx: Ctx,
         *,
         capture: bool = False,
         timeout: int | None = None,
@@ -347,7 +353,7 @@ class FirestoreDriver(BaseDriver):
         reason = summarize_stderr(stderr, self.sensitive_values())
         return DumpError(f"{what} failed (gcloud exit code {code}): {reason}")
 
-    async def _activate(self, ctx: DumpContext) -> None:
+    async def _activate(self, ctx: Ctx) -> None:
         assert self._session is not None  # noqa: S101
         key_path = self._session.root / "sa-key.json"
         try:
@@ -465,7 +471,7 @@ class FirestoreDriver(BaseDriver):
         ]
 
     async def _cancel_operation(
-        self, operation: str, config: FirestoreConfig, ctx: DumpContext
+        self, operation: str, config: FirestoreConfig, ctx: Ctx, label: str = "export"
     ) -> None:
         """Best effort; the outcome is only logged."""
         try:
@@ -475,18 +481,23 @@ class FirestoreDriver(BaseDriver):
                 timeout=CANCEL_OPERATION_SECONDS,
             )
         except DumpError as exc:
-            ctx.log.warning(f"Could not cancel the Firestore export operation: {exc}")
+            ctx.log.warning(f"Could not cancel the Firestore {label} operation: {exc}")
             return
         if code == 0:
-            ctx.log.info("Requested cancellation of the Firestore export operation.")
+            ctx.log.info(f"Requested cancellation of the Firestore {label} operation.")
         else:
             ctx.log.warning(
-                "Could not cancel the Firestore export operation: "
+                f"Could not cancel the Firestore {label} operation: "
                 + summarize_stderr(stderr, self.sensitive_values())
             )
 
     async def _poll(
-        self, operation: str, config: FirestoreConfig, ctx: DumpContext, step: StepHandle
+        self,
+        operation: str,
+        config: FirestoreConfig,
+        ctx: Ctx,
+        step: StepHandle,
+        label: str = "export",
     ) -> None:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + ctx.timeout_seconds
@@ -510,32 +521,32 @@ class FirestoreDriver(BaseDriver):
                     raise
                 if code != 0:
                     failures += 1
-                    ctx.log.warning(f"Checking the export failed (attempt {failures}): {stderr}")
+                    ctx.log.warning(f"Checking the {label} failed (attempt {failures}): {stderr}")
                     if failures >= MAX_DESCRIBE_FAILURES:
-                        raise self._failure("Checking the export operation", code, stderr)
+                        raise self._failure(f"Checking the {label} operation", code, stderr)
                 else:
                     failures = 0
                     status = parse_operation_status(out)
                     if (status.state, status.progress) != last:
                         last = (status.state, status.progress)
                         extra = f" ({status.progress})" if status.progress else ""
-                        ctx.log.info(f"Export state: {status.state}{extra}")
+                        ctx.log.info(f"{label.capitalize()} state: {status.state}{extra}")
                     if status.done:
                         if status.error:
                             message = sanitize(status.error, self.sensitive_values())
-                            raise DumpError(f"The Firestore export failed: {message}")
-                        step.detail = f"Export finished ({status.state})."
+                            raise DumpError(f"The Firestore {label} failed: {message}")
+                        step.detail = f"{label.capitalize()} finished ({status.state})."
                         return
                 await asyncio.sleep(POLL_SECONDS)
         except asyncio.CancelledError:
-            ctx.log.warning("Run cancelled while the export was running.")
-            await self._cancel_operation(operation, config, ctx)
+            ctx.log.warning(f"Run cancelled while the {label} was running.")
+            await self._cancel_operation(operation, config, ctx, label)
             raise
         except TimeoutError:
-            ctx.log.warning("Timed out waiting for the export; cancelling it.")
-            await self._cancel_operation(operation, config, ctx)
+            ctx.log.warning(f"Timed out waiting for the {label}; cancelling it.")
+            await self._cancel_operation(operation, config, ctx, label)
             raise DumpError(
-                f"The Firestore export did not finish within {ctx.timeout_seconds} seconds. "
+                f"The Firestore {label} did not finish within {ctx.timeout_seconds} seconds. "
                 "Increase the job's timeout for large databases."
             ) from None
 
@@ -601,3 +612,115 @@ class FirestoreDriver(BaseDriver):
             )
             step.warn(message)
             ctx.warn(message)
+
+    # ---------- restore ----------
+
+    async def restore_tool_versions(self) -> dict[str, str]:
+        try:
+            return await self.tool_versions()
+        except DumpError as exc:
+            raise RestoreError(str(exc)) from None
+
+    async def restore_database(
+        self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
+    ) -> None:
+        """Unpack the export, copy it to the staging bucket, import it, delete the staging copy.
+
+        The import goes into the source's own project and database, adding to and overwriting
+        documents that have the same ID; it never deletes documents.
+        """
+        config = self._config_model()
+        label = database_label(config.database_id)
+        if options.target_database != label:
+            raise RestoreError(
+                f"A Firestore import goes into the target source's database '{label}'; "
+                f"it cannot be renamed to '{options.target_database}'."
+            )
+        bucket, base = split_staging_bucket(config.staging_bucket)
+        parts = ["restore", uuid.uuid4().hex[:12], format_timestamp(datetime.now(UTC))]
+        staging_url = f"gs://{bucket}/" + "/".join(([base] if base else []) + parts)
+        self._session = self._new_session(ctx)
+        session = self._session
+        uploading = False
+        try:
+            await self._activate(ctx)
+            code, _out, stderr = await self._gcloud(
+                ["storage", "ls", f"gs://{bucket}", f"--project={config.project_id}"], ctx
+            )
+            if code != 0:
+                ctx.log.info(f"gcloud stderr:\n{stderr}")
+                raise self._failure(f"Reaching the staging bucket gs://{bucket}", code, stderr)
+            metadata = await self._unpack(artifact, session.root / "export", ctx)
+            uploading = True
+            await self._upload(metadata.parent, staging_url, ctx)
+            uri = f"{staging_url}/{metadata.parent.name}/{metadata.name}"
+            operation = await self._start_import(config, uri, ctx)
+            await self._poll(operation, config, ctx, StepHandle("import"), "import")
+        finally:
+            try:
+                if uploading:
+                    await self._remove_staging(staging_url, ctx)
+            finally:
+                self._drop_session()
+
+    async def _unpack(self, artifact: Path, export_dir: Path, ctx: RestoreContext) -> Path:
+        """Extract the .tar.gz export; returns its .overall_export_metadata file."""
+
+        def extract() -> Path:
+            export_dir.mkdir(mode=0o700)
+            with tarfile.open(artifact, "r:gz") as archive:
+                archive.extractall(export_dir, filter="data")  # refuses links and ../ paths
+            found = next(export_dir.rglob(METADATA_GLOB), None)
+            if found is None:
+                raise RestoreError(
+                    f"The backup has no {METADATA_GLOB} file, so it is not a complete export."
+                )
+            return found
+
+        try:
+            return await asyncio.to_thread(extract)
+        except (tarfile.TarError, OSError) as exc:
+            detail = exc.strerror if isinstance(exc, OSError) else type(exc).__name__
+            raise RestoreError(f"Cannot unpack the backup: {detail}.") from None
+
+    async def _upload(self, export_root: Path, staging_url: str, ctx: RestoreContext) -> None:
+        code, _out, stderr = await self._gcloud(
+            ["storage", "cp", "-r", str(export_root), staging_url + "/"], ctx
+        )
+        if code != 0:
+            ctx.log.info(f"gcloud stderr:\n{stderr}")
+            raise self._failure("Uploading the backup to the staging bucket", code, stderr)
+        ctx.log.info(f"Uploaded the export to {staging_url}.")
+
+    async def _start_import(self, config: FirestoreConfig, uri: str, ctx: RestoreContext) -> str:
+        args = [
+            "firestore",
+            "import",
+            uri,
+            f"--project={config.project_id}",
+            f"--database={config.database_id}",
+            "--async",
+            "--format=json",
+        ]
+        code, out, stderr = await self._gcloud(args, ctx, capture=True)
+        if code != 0:
+            ctx.log.info(f"gcloud stderr:\n{stderr}")
+            raise self._failure("Starting the Firestore import", code, stderr)
+        operation = parse_operation_name(out)
+        ctx.log.info(f"Import operation: {operation}")
+        return operation
+
+    async def _remove_staging(self, staging_url: str, ctx: RestoreContext) -> None:
+        """Delete the uploaded copy; failures are only logged (the restore itself has finished)."""
+        try:
+            code, _out, stderr = await self._gcloud(["storage", "rm", "-r", staging_url], ctx)
+            problem = None if code == 0 else summarize_stderr(stderr, self.sensitive_values())
+        except DumpError as exc:
+            problem = str(exc)
+        if problem is None:
+            ctx.log.info("Deleted the staging copy of the export.")
+            return
+        ctx.log.warning(
+            f"Could not delete the staging copy {staging_url}: {problem} Delete it by hand or "
+            "add a lifecycle rule to the bucket (for example delete after 1 day)."
+        )

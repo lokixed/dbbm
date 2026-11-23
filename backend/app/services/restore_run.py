@@ -24,6 +24,7 @@ from app.services.destination_tokens import DestinationTokenStore
 from app.services.hashing import sha256_file
 from app.services.logstream import RunLogger
 from app.services.paths import PathNotAllowed, check_lexical
+from app.services.redact import describe_error
 from app.services.runner import (
     FREE_SPACE_FACTOR,
     DestinationInfo,
@@ -216,8 +217,14 @@ async def _fetch(runner: "Runner", plan: RestorePlan, work_dir: Path, log: RunLo
         log.info(f"Downloading the backup from '{plan.copy.name}'.")
         try:
             await storage.get(plan.key, path)
-        except OSError as exc:
-            raise RunFailedError(f"Cannot download the backup: {exc.strerror}.") from None
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            reason = exc.strerror if isinstance(exc, OSError) else describe_error(exc, [])
+            raise RunFailedError(
+                f"Cannot download the backup from '{plan.copy.name}': {reason} "
+                "If another copy of this backup exists, restore from that one."
+            ) from None
     digest, size = await asyncio.to_thread(sha256_file, path)
     if size != plan.size or digest != plan.sha256:
         raise RunFailedError(

@@ -1,6 +1,10 @@
 """Backups browser: list, download, verify, delete and drift detection."""
 
+import asyncio
 import hashlib
+import os
+import tracemalloc
+import uuid
 from typing import Any
 
 import pytest
@@ -9,7 +13,9 @@ from sqlmodel import Session, col, select
 
 from app.core.config import get_settings
 from app.core.db import get_engine
-from app.models import AuditLog
+from app.models import Artifact, AuditLog, Destination
+from app.services import backups as svc
+from app.services.hashing import sha256_file
 from tests.conftest import api_delete, api_post
 from tests.fake_rclone import FakeRclone
 from tests.runs_helpers import make_destination, make_job, make_source, run_now
@@ -192,3 +198,46 @@ def test_drive_verify_uses_md5_and_detects_corruption(
 
     fake_rclone.set("md5_override", "0" * 32)
     assert api_post(authed, f"/api/backups/{drive['id']}/verify").json()["status"] == "corrupt"
+
+
+# ---------- large files and ranges ----------
+
+
+def test_download_supports_range_requests(authed: TestClient) -> None:
+    backed_up(authed)
+    item = listing(authed)["items"][0]
+    full = authed.get(f"/api/backups/{item['id']}/download").content
+
+    part = authed.get(f"/api/backups/{item['id']}/download", headers={"Range": "bytes=2-9"})
+    assert part.status_code == 206 and part.content == full[2:10]
+    assert part.headers["content-range"] == f"bytes 2-9/{len(full)}"
+    assert part.headers["accept-ranges"] == "bytes"
+
+
+def test_verifying_a_large_file_uses_constant_memory(authed: TestClient) -> None:
+    backed_up(authed)
+    item = listing(authed)["items"][0]
+    path = local_file(item["path"])
+    chunk = os.urandom(1024 * 1024)
+    with path.open("wb") as handle:
+        for _ in range(96):  # 96 MiB
+            handle.write(chunk)
+    digest, size = sha256_file(path)
+    with Session(get_engine()) as db:
+        artifact = db.get(Artifact, uuid.UUID(item["id"]))
+        assert artifact is not None
+        artifact.sha256, artifact.size_bytes = digest, size
+        row = db.get(Destination, artifact.destination_id)
+        assert row is not None
+        db.add(artifact)
+        db.commit()
+        db.refresh(artifact)
+
+        tracemalloc.start()
+        try:
+            download = asyncio.run(svc.prepare_download(db, artifact, row))
+            _current, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+    assert download.path == path and download.cleanup_dir is None
+    assert peak < 16 * 1024 * 1024, f"peak {peak} bytes for a {size}-byte file"

@@ -2,7 +2,8 @@
 
 They need the client tools (mysqldump, mysql, pg_dump, pg_restore) on PATH and are skipped
 without them; `make test-integration-docker` runs them inside the application image.
-The restore helpers below exist for these tests only: the application has no restore feature.
+The restore helpers below check the dumps with the tools directly; `test_restore_roundtrip.py`
+restores through the application's own restore engine.
 """
 
 import gzip

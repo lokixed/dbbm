@@ -18,7 +18,7 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **In progress**: browser, download, and MongoDB, MySQL and PostgreSQL restore done; Firestore restore and the Testcontainers tests TODO |
+| 7 | Backups browser, download, restore | **Nearly done**: all four engines restore; left are signed download URLs, per-collection restore, a general tool-version check and the manual Firestore check on a real project |
 | 8 | Backup encryption (`age`) | **TODO** |
 | 9 | Hardening and 1.0 release | **TODO** |
 
@@ -72,17 +72,17 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 - [x] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line) (done and tried against MySQL 8; "replace existing" drops and recreates the target database)
 - [x] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore (custom-format restore done and tried against PostgreSQL 16; the globals file is refused with a pointer to `psql`, so the optional globals restore is still TODO)
 - [x] **MongoDB:** `mongorestore --archive --gzip` with options for namespace mapping and `--drop`; full-oplog archives restore with `--oplogReplay` (done and tried against a real MongoDB; the `--oplogReplay` path is only covered by a unit test of the arguments)
-- [ ] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy (**TODO**)
-- [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (done: reachable, tool version logged, checksum verified before the restore, disk space checked before a Drive download; no tool-version compatibility check yet)
+- [x] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy (done and covered with the fake `gcloud`; not yet tried against a real Google Cloud project)
+- [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (done: reachable, tool versions logged, checksum verified before the restore, disk space checked before a Drive download; a general tool-version compatibility check is not built, only the PostgreSQL client/server case is handled)
 - [x] Restore runs as a tracked run (type `restore`) with live logs, cancel, timeouts, process-group kill and work-dir cleanup, like backups
-- [ ] Target must be a **registered source** (reuses the encrypted credentials). Restoring needs a user with write privileges, so document the least-privilege **restore** user separately from the read-only backup user (done; the least-privilege restore user is not documented yet)
+- [x] Target must be a **registered source** (reuses the encrypted credentials). Restoring needs a user with write privileges, so document the least-privilege **restore** user separately from the read-only backup user (done; the restore users are documented in the README and DESIGN section 8)
 
 ### Restore wizard (UI)
 - [x] Step 1: choose the artifact and which destination copy to use
 - [x] Step 2: choose the target source and database name. **Default to a different target than the original**; restoring over the original needs an extra explicit confirmation
-- [ ] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings (`drop` is done; per-collection selection is not)
+- [ ] Step 3: options (drop and recreate, specific collections or tables where supported) with plain-language warnings (`drop` is done; per-collection selection is not) (`drop` is done for MongoDB, MySQL and PostgreSQL and hidden for Firestore; per-collection or per-table selection is not built)
 - [x] Step 4: summary and confirmation. The user must **type the target database name** to proceed
-- [ ] Firestore: show a prominent warning that importing can overwrite existing documents
+- [x] Firestore: show a prominent warning that importing can overwrite existing documents
 - [x] Live log view, final result, and an audit log entry (who, artifact, target, outcome)
 
 ### Safety rules
@@ -91,15 +91,15 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 - [x] No secrets in logs, audit entries, or process arguments (same redaction rules as before)
 
 ### Tests
-- [ ] Integration tests with Testcontainers: back up seeded MySQL, PostgreSQL and MongoDB, restore into fresh instances through the application's own restore engine, and compare row and document counts
-- [ ] Firestore restore tests with the fake `gcloud` executable, plus a manual end-to-end check on the throwaway project
-- [ ] Failure tests: corrupt artifact (checksum mismatch), wrong target credentials, cancel mid-restore, full disk, Drive download failure with a fallback message
-- [ ] Download tests: large file streaming memory profile, range handling if supported, missing local copy falls back to Drive
+- [x] Integration tests with Testcontainers: back up seeded MySQL, PostgreSQL and MongoDB, restore into fresh instances through the application's own restore engine, and compare row and document counts (`tests/integration/test_restore_roundtrip.py`; run with the client tools, see `make test-integration-docker`)
+- [ ] Firestore restore tests with the fake `gcloud` executable, plus a manual end-to-end check on the throwaway project (the fake `gcloud` tests are done in `tests/test_restore_firestore.py`; the manual end-to-end check on the throwaway project is still TODO)
+- [x] Failure tests: corrupt artifact (checksum mismatch), wrong target credentials, cancel mid-restore, full disk, Drive download failure with a fallback message
+- [x] Download tests: large file streaming memory profile, range handling if supported, missing local copy falls back to Drive
 
 ### Acceptance criteria
-- [ ] Back up then restore each of MySQL, PostgreSQL and MongoDB into a scratch target, with counts matching
-- [ ] Restore from a Google Drive copy works after deleting the local file
-- [ ] A corrupted file is refused before any change reaches the target
+- [x] Back up then restore each of MySQL, PostgreSQL and MongoDB into a scratch target, with counts matching
+- [x] Restore from a Google Drive copy works after deleting the local file
+- [x] A corrupted file is refused before any change reaches the target
 - [x] Restoring over the original source cannot happen by accident
 - [x] Every download and restore appears in the audit log
 

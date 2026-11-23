@@ -20,8 +20,10 @@ from app.models import Artifact, Destination, Job, Run, Source
 from app.models.base import utcnow
 from app.schemas.backup import BackupOut, BackupPage, RescanOut, RestoreIn, VerifyOut
 from app.schemas.job import RunSummaryOut
+from app.schemas.source import FirestoreConfig
 from app.services import backups as svc
 from app.services.audit import write_audit
+from app.services.naming import database_label
 from app.services.restore_run import DEFAULT_TIMEOUT, load_restore_plan, source_type_of
 from app.services.runner import JobBusyError, RunFailedError
 
@@ -252,6 +254,22 @@ async def rescan_destination(
 __all__ = ["router"]
 
 
+def _check_firestore_target(target: Source, body: RestoreIn) -> None:
+    """A Firestore import goes into the target source's own database and never deletes."""
+    label = database_label(FirestoreConfig.model_validate(target.config).database_id)
+    if body.target_database != label:
+        raise HTTPException(
+            status_code=422,
+            detail=f"A Firestore import goes into the target source's database '{label}'.",
+        )
+    if body.drop:
+        raise HTTPException(
+            status_code=422,
+            detail="Replace existing is not available for Firestore: an import adds to and "
+            "overwrites documents, and never deletes them.",
+        )
+
+
 RESTORES_PER_MINUTE = 5
 _restore_starts: dict[str, deque[float]] = defaultdict(deque)
 
@@ -310,6 +328,8 @@ async def restore_backup(
             status_code=422,
             detail="The roles file cannot be restored here; download it and apply it with psql.",
         )
+    if kind == "firestore":
+        _check_firestore_target(target, body)
     full = kind == "mongo" and artifact.source_database == FULL_INSTANCE
     if full and body.target_database != FULL_INSTANCE:
         raise HTTPException(
