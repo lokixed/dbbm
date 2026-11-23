@@ -42,13 +42,18 @@ if TYPE_CHECKING:
 EXTENSION_TYPES = {
     ".archive.gz": "mongo",
     ".sql.gz": "mysql",
+    ".sql": "mysql",
     ".dump": "postgres",
     ".tar.gz": "firestore",
 }
 DEFAULT_TIMEOUT = 3600
 
 
-def source_type_of(path: str) -> str | None:
+def source_type_of(path: str, source_type: str | None = None) -> str | None:
+    """The engine of a backup: its original source's type when known, else a guess from
+    the file extension (which is ambiguous: PostgreSQL role files are .sql.gz too)."""
+    if source_type:
+        return source_type
     name = PurePosixPath(path).name
     return next((t for ext, t in EXTENSION_TYPES.items() if name.endswith(ext)), None)
 

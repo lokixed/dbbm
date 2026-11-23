@@ -12,7 +12,7 @@ from app.core.config import get_settings
 from app.core.db import get_engine
 from app.models import AuditLog
 from tests.conftest import api_post
-from tests.fakes import FakeBins
+from tests.fakes import FakeBins, FakeMySQL, FakePostgres
 from tests.runs_helpers import (
     PW,
     get_run,
@@ -24,14 +24,16 @@ from tests.runs_helpers import (
     wait_until,
     work_entries,
 )
-from tests.test_runs_m4 import make_mongo
+from tests.test_runs_m4 import make_firestore, make_mongo
 
 pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers")
 
 
 @pytest.fixture(autouse=True)
-def reset_rate_limit() -> None:
+def reset_state() -> None:
     backups_api._restore_starts.clear()
+    FakeMySQL.prepared.clear()
+    FakePostgres.prepared.clear()
 
 
 def backed_up_mongo(client: TestClient) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -140,11 +142,11 @@ def test_target_must_match_the_backup_type(authed: TestClient) -> None:
 
 
 def test_unsupported_engine_is_refused_up_front(authed: TestClient) -> None:
-    mysql = make_source(authed)
-    run = run_now(authed, make_job(authed, mysql, [make_destination(authed)]))
-    assert run["status"] == "success"
+    firestore = make_firestore(authed)
+    run = run_now(authed, make_job(authed, firestore, [make_destination(authed)]))
+    assert run["status"] == "success", run["error"]
     backup = authed.get("/api/backups").json()["items"][0]
-    response = restore(authed, backup, restore_body(make_source(authed, "mysql-2")))
+    response = restore(authed, backup, restore_body(firestore, "fs_copy"))
     assert response.status_code == 422 and "not supported yet" in response.json()["detail"]
 
 
@@ -205,3 +207,143 @@ def test_restores_are_rate_limited(authed: TestClient) -> None:
         assert not backups_api._rate_limited("alice")
     assert backups_api._rate_limited("alice")
     assert not backups_api._rate_limited("bob")
+
+
+# ---------- MySQL ----------
+
+
+def backed_up_sql(
+    client: TestClient, kind: str, name: str, **job: Any
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    source = make_source(client, name, kind, databases=["shop"])
+    job_row = make_job(client, source, [make_destination(client)], **job)
+    assert run_now(client, job_row)["status"] == "success"
+    items = client.get("/api/backups").json()["items"]
+    return source, next(i for i in items if i["source_database"] == "shop")
+
+
+def test_mysql_restore_streams_the_gunzipped_dump(authed: TestClient, fake_bins: FakeBins) -> None:
+    _, backup = backed_up_sql(authed, "mysql", "mysql-main")
+    assert backup["source_type"] == "mysql" and backup["path"].endswith(".sql.gz")
+    target = make_source(authed, "mysql-scratch")
+    run = wait_final(authed, restore(authed, backup, restore_body(target, drop=True)).json()["id"])
+
+    assert run["status"] == "success", run["error"]
+    assert FakeMySQL.prepared == [("shop_copy", True)]
+    args = fake_bins.read("mysql.args").split()
+    assert args[0].startswith("--defaults-extra-file=") and args[-1] == "shop_copy"
+    assert PW not in " ".join(args)
+    assert fake_bins.read("mysql.stdin") == "-- fake dump of shop\nCREATE TABLE t (id int);\n"
+    assert fake_bins.read("mysql.cnf.mode").strip() == "600" and PW in fake_bins.read("mysql.cnf")
+    log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
+    assert PW not in log and PW not in json.dumps(run) and work_entries() == []
+
+
+def test_mysql_restore_of_an_uncompressed_dump(authed: TestClient, fake_bins: FakeBins) -> None:
+    _, backup = backed_up_sql(authed, "mysql", "mysql-main", compress=False)
+    assert backup["path"].endswith(".sql") and not backup["path"].endswith(".gz")
+    target = make_source(authed, "mysql-scratch")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+    assert run["status"] == "success", run["error"]
+    assert FakeMySQL.prepared == [("shop_copy", False)]
+    assert fake_bins.read("mysql.stdin").startswith("-- fake dump of shop")
+
+
+def test_mysql_failure_is_reported_without_secrets(authed: TestClient, fake_bins: FakeBins) -> None:
+    _, backup = backed_up_sql(authed, "mysql", "mysql-main")
+    target = make_source(authed, "mysql-scratch")
+    fake_bins.set_mode("mysql", "fail")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+    assert run["status"] == "failed"
+    assert "mysql exited with code 1" in run["error"] and "Access denied" in run["error"]
+    assert PW not in json.dumps(run) and work_entries() == []
+
+
+def test_mysql_backup_cannot_go_into_a_mongo_source(authed: TestClient) -> None:
+    _, backup = backed_up_sql(authed, "mysql", "mysql-main")
+    response = restore(authed, backup, restore_body(make_mongo(authed, "mongo-x")))
+    assert response.status_code == 422 and "mysql source" in response.json()["detail"]
+
+
+# ---------- PostgreSQL ----------
+
+
+def test_postgres_restore_runs_one_transaction(authed: TestClient, fake_bins: FakeBins) -> None:
+    _, backup = backed_up_sql(authed, "postgres", "pg-main")
+    assert backup["source_type"] == "postgres" and backup["path"].endswith(".dump")
+    target = make_source(authed, "pg-scratch", "postgres")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+
+    assert run["status"] == "success", run["error"]
+    assert FakePostgres.prepared == ["shop_copy"]
+    args = fake_bins.read("pg_restore.args").split()
+    assert args[args.index("-d") : args.index("-d") + 2] == ["-d", "shop_copy"]
+    assert {"--single-transaction", "--no-owner", "--no-privileges"} <= set(args)
+    assert "--clean" not in args and args[-1].endswith(".dump")
+    assert PW not in " ".join(args) and fake_bins.read("pg_restore.pgpassword").strip() == PW
+    assert fake_bins.read("pg_restore.input") == "PGDMP-fake-custom-format"
+    assert work_entries() == []
+
+
+def test_postgres_drop_cleans_existing_objects(authed: TestClient, fake_bins: FakeBins) -> None:
+    _, backup = backed_up_sql(authed, "postgres", "pg-main")
+    target = make_source(authed, "pg-scratch", "postgres")
+    run = wait_final(authed, restore(authed, backup, restore_body(target, drop=True)).json()["id"])
+    assert run["status"] == "success"
+    args = fake_bins.read("pg_restore.args").split()
+    assert "--clean" in args and "--if-exists" in args
+
+
+def test_postgres_failure_is_reported_without_secrets(
+    authed: TestClient, fake_bins: FakeBins
+) -> None:
+    _, backup = backed_up_sql(authed, "postgres", "pg-main")
+    target = make_source(authed, "pg-scratch", "postgres")
+    fake_bins.set_mode("pg_restore", "fail")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+    assert run["status"] == "failed" and "pg_restore exited with code 1" in run["error"]
+    assert "permission denied" in run["error"] and PW not in json.dumps(run)
+
+
+def test_postgres_roles_file_is_refused(authed: TestClient) -> None:
+    source = make_source(authed, "pg-main", "postgres", include_globals=True, databases=["shop"])
+    job = make_job(authed, source, [make_destination(authed)])
+    assert run_now(authed, job)["status"] == "success"
+    items = authed.get("/api/backups").json()["items"]
+    globals_backup = next(i for i in items if i["source_database"] == "globals")
+    assert globals_backup["source_type"] == "postgres"  # not mistaken for MySQL by its .sql.gz
+    response = restore(authed, globals_backup, restore_body(source, "roles_copy"))
+    assert response.status_code == 422 and "roles file" in response.json()["detail"]
+
+
+def test_database_names_cannot_start_with_a_dash(authed: TestClient) -> None:
+    _, backup = backed_up_sql(authed, "mysql", "mysql-main")
+    target = make_source(authed, "mysql-scratch")
+    response = restore(authed, backup, restore_body(target, "-evil"))
+    assert response.status_code == 422
+
+
+def test_newer_pg_restore_than_server_skips_the_single_transaction(
+    authed: TestClient, fake_bins: FakeBins
+) -> None:
+    _, backup = backed_up_sql(authed, "postgres", "pg-main")
+    target = make_source(authed, "pg-scratch", "postgres")
+    fake_bins.set_text("pg_restore_version", "18.1")  # the fake server is version 16
+    fake_bins.set_mode("pg_restore", "harmless")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+
+    assert run["status"] == "success", run["error"]
+    assert "--single-transaction" not in fake_bins.read("pg_restore.args").split()
+    log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
+    assert "newer than the server" in log and "known to be harmless" in log
+
+
+def test_newer_pg_restore_still_fails_on_real_errors(
+    authed: TestClient, fake_bins: FakeBins
+) -> None:
+    _, backup = backed_up_sql(authed, "postgres", "pg-main")
+    target = make_source(authed, "pg-scratch", "postgres")
+    fake_bins.set_text("pg_restore_version", "18.1")
+    fake_bins.set_mode("pg_restore", "fail")
+    run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
+    assert run["status"] == "failed" and "permission denied" in run["error"]

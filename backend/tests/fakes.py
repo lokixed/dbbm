@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from app.drivers.base import ConnectionTestResult
+from app.drivers.base import ConnectionTestResult, RestoreOptions
 from app.drivers.firestore import FirestoreDriver
 from app.drivers.mongo import MongoDriver
 from app.drivers.mysql import MySQLDriver
@@ -148,6 +148,53 @@ case "$mode" in
 esac
 """
 
+_MYSQL_CLIENT = """#!/bin/sh
+dir=$(dirname "$0")
+case "$1" in
+  --version) echo "mysql  Ver 8.4.0 for Linux on x86_64"; exit 0;;
+esac
+echo "$*" > "$dir/mysql.args"
+cnf="${1#--defaults-extra-file=}"
+cp "$cnf" "$dir/mysql.cnf"
+stat -c %a "$cnf" > "$dir/mysql.cnf.mode"
+mode=$(cat "$dir/mysql.mode" 2>/dev/null || echo ok)
+case "$mode" in
+  ok) cat > "$dir/mysql.stdin"; exit 0;;
+  fail)
+    cat > /dev/null
+    echo "ERROR 1044 (42000) at line 12: Access denied for user to database" >&2
+    exit 1;;
+  hang)
+    echo "$$" > "$dir/restore.pid"
+    sleep 300 &
+    echo "$!" > "$dir/restore.childpid"
+    wait;;
+esac
+"""
+
+_PG_RESTORE = """#!/bin/sh
+dir=$(dirname "$0")
+case "$1" in
+  --version) echo "pg_restore (PostgreSQL) $(cat "$dir/pg_restore_version" 2>/dev/null || echo 16.4)"; exit 0;;
+esac
+echo "$*" > "$dir/pg_restore.args"
+echo "$PGPASSWORD" > "$dir/pg_restore.pgpassword"
+for last; do :; done
+cp "$last" "$dir/pg_restore.input"
+mode=$(cat "$dir/pg_restore.mode" 2>/dev/null || echo ok)
+case "$mode" in
+  ok) exit 0;;
+  harmless)
+    echo 'pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter "transaction_timeout"' >&2
+    echo 'Command was: SET transaction_timeout = 0;' >&2
+    echo 'pg_restore: warning: errors ignored on restore: 1' >&2
+    exit 1;;
+  fail)
+    echo 'pg_restore: error: could not execute query: ERROR:  permission denied for schema public' >&2
+    exit 1;;
+esac
+"""
+
 _GCLOUD = """#!/bin/sh
 dir=$(dirname "$0")
 mode() { cat "$dir/gcloud_$1.mode" 2>/dev/null || echo ok; }
@@ -235,6 +282,8 @@ def fake_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeBins:
         ("pg_dumpall", _PG_DUMPALL),
         ("mongodump", _MONGODUMP),
         ("mongorestore", _MONGORESTORE),
+        ("mysql", _MYSQL_CLIENT),
+        ("pg_restore", _PG_RESTORE),
         ("gcloud", _GCLOUD),
     ):
         path = directory / name
@@ -245,6 +294,11 @@ def fake_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeBins:
 
 
 class FakeMySQL(MySQLDriver):
+    prepared: list[tuple[str, bool]] = []
+
+    def _prepare_target_sync(self, options: RestoreOptions, timeout: int) -> None:
+        FakeMySQL.prepared.append((options.target_database, options.drop))
+
     listed = ["blog", "mysql", "shop"]
     ok = True
 
@@ -260,8 +314,13 @@ class FakeMySQL(MySQLDriver):
 class FakePostgres(PostgresDriver):
     listed = ["blog", "postgres", "shop"]
     server_version = "16.4"
+    prepared: list[str] = []
+
+    def _prepare_target_sync(self, options: RestoreOptions) -> None:
+        FakePostgres.prepared.append(options.target_database)
 
     def _probe(self) -> ConnectionTestResult:
+        self._server_version = self.server_version
         return ConnectionTestResult(
             ok=True,
             message=f"Connected to PostgreSQL {self.server_version}.",

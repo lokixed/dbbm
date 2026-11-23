@@ -55,6 +55,7 @@ def _out(row: Row) -> BackupOut:
         job_name=run.job_name,
         source_id=str(source.id) if source else None,
         source_name=source.name if source else None,
+        source_type=source_type_of(artifact.path, source.type if source else None),
         source_database=artifact.source_database,
         destination_id=str(dest.id),
         destination_name=dest.name,
@@ -267,10 +268,10 @@ def _rate_limited(username: str) -> bool:
     return False
 
 
-def _original_source_id(db: Session, artifact: Artifact) -> uuid.UUID | None:
+def _original_source(db: Session, artifact: Artifact) -> Source | None:
     run = db.get(Run, artifact.run_id)
     job = db.get(Job, run.job_id) if run and run.job_id else None
-    return job.source_id if job else None
+    return db.get(Source, job.source_id) if job else None
 
 
 @router.post("/{backup_id}/restore", status_code=201)
@@ -287,7 +288,8 @@ async def restore_backup(
         raise HTTPException(
             status_code=409, detail="This copy is marked missing; rescan or pick another copy."
         )
-    kind = source_type_of(artifact.path)
+    original = _original_source(db, artifact)
+    kind = source_type_of(artifact.path, original.type if original else None)
     target = db.get(Source, body.target_source_id)
     if kind is None:
         raise HTTPException(status_code=422, detail="This backup's file type cannot be restored.")
@@ -303,6 +305,11 @@ async def restore_backup(
         raise HTTPException(
             status_code=422, detail=f"Restoring {kind} backups is not supported yet."
         )
+    if kind == "postgres" and artifact.source_database == "globals":
+        raise HTTPException(
+            status_code=422,
+            detail="The roles file cannot be restored here; download it and apply it with psql.",
+        )
     full = kind == "mongo" and artifact.source_database == FULL_INSTANCE
     if full and body.target_database != FULL_INSTANCE:
         raise HTTPException(
@@ -314,7 +321,7 @@ async def restore_backup(
         )
     if body.confirm_database != body.target_database:
         raise HTTPException(status_code=422, detail="Type the target database name to confirm.")
-    overwrites_original = _original_source_id(db, artifact) == target.id and (
+    overwrites_original = (original.id if original else None) == target.id and (
         full or body.target_database == artifact.source_database
     )
     if overwrites_original and not body.confirm_overwrite_original:

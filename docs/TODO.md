@@ -18,7 +18,7 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 4 | MongoDB and Firestore drivers | Prompt written |
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
-| 7 | Backups browser, download, restore | **In progress**: browser, download and MongoDB restore done; MySQL, PostgreSQL, Firestore restore and the Testcontainers tests TODO |
+| 7 | Backups browser, download, restore | **In progress**: browser, download, and MongoDB, MySQL and PostgreSQL restore done; Firestore restore and the Testcontainers tests TODO |
 | 8 | Backup encryption (`age`) | **TODO** |
 | 9 | Hardening and 1.0 release | **TODO** |
 
@@ -69,8 +69,8 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 - [ ] Consider short-lived signed download URLs so large downloads work with browsers and reverse proxies
 
 ### Restore engine (all four drivers implement `restore()`)
-- [ ] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line) (**TODO**: runs through the shared restore run; the driver still reports "not supported yet")
-- [ ] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore (**TODO**)
+- [x] **MySQL:** stream `.sql.gz` into the `mysql` client using a temporary options file (credentials never on the command line) (done and tried against MySQL 8; "replace existing" drops and recreates the target database)
+- [x] **PostgreSQL:** `pg_restore` from the custom-format dump (`--clean --if-exists` only when the user opts in); optional globals restore (custom-format restore done and tried against PostgreSQL 16; the globals file is refused with a pointer to `psql`, so the optional globals restore is still TODO)
 - [x] **MongoDB:** `mongorestore --archive --gzip` with options for namespace mapping and `--drop`; full-oplog archives restore with `--oplogReplay` (done and tried against a real MongoDB; the `--oplogReplay` path is only covered by a unit test of the arguments)
 - [ ] **Firestore:** upload the export to the staging bucket, run `gcloud firestore import`, poll the operation, then clean up the staging copy (**TODO**)
 - [ ] Preflight: the target is reachable, the tool version is compatible, there is enough disk space for temporary files, and the checksum verifies before anything is touched (done: reachable, tool version logged, checksum verified before the restore, disk space checked before a Drive download; no tool-version compatibility check yet)

@@ -11,6 +11,7 @@ class BackupOut(BaseModel):
     job_name: str
     source_id: str | None
     source_name: str | None
+    source_type: str | None = None
     source_database: str
     destination_id: str
     destination_name: str | None
@@ -46,7 +47,7 @@ class RescanOut(BaseModel):
 class RestoreIn(BaseModel):
     target_source_id: uuid.UUID
     # Safe for every engine and for command-line arguments.
-    target_database: str = Field(pattern=r"^[A-Za-z0-9_-]{1,63}$")
+    target_database: str = Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$")
     drop: bool = False
     # The user must type the target database name.
     confirm_database: str

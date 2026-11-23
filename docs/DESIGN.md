@@ -488,7 +488,8 @@ UX rules:
 - MVP fallback: "download artifact + copy-paste restore command" before the full wizard is built.
 - A restore is a tracked run (`kind = restore`) with live log, cancel and timeout. It uses the copy the user picks (no silent fallback), verifies its SHA-256, then runs the driver's restore. A target source is never restored while a backup or restore runs on it.
 - The server enforces the typed database name and the extra confirmation for restoring over the original; the wizard only mirrors them. Restores are limited to 5 starts per minute per user.
-- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`). MySQL, PostgreSQL and Firestore restores are not implemented yet; the API refuses them.
+- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`), MySQL (the target database is created, or dropped and recreated with "replace existing"; the gunzipped dump is streamed into the `mysql` client with an options file) and PostgreSQL (`pg_restore --no-owner --no-privileges`, in one transaction where possible; "replace existing" adds `--clean --if-exists`). A `pg_restore` 17+ against a server before 17 cannot run in one transaction because it sets `transaction_timeout`, so that case runs without it and ignores only that error. The PostgreSQL roles file is refused. Firestore restore is not implemented yet; the API refuses it.
+- Target database names must match `^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$`, so they are safe as command-line arguments.
 - A scheduled **restore test** is a good later feature: restore to a scratch container and run a sanity query.
 
 ---

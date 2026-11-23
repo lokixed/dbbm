@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import ssl
@@ -14,11 +15,16 @@ from app.drivers.base import (
     DumpContext,
     DumpedArtifact,
     DumpError,
+    RestoreContext,
+    RestoreError,
+    RestoreOptions,
 )
 from app.drivers.dumping import capture_output, run_dump, work_file
+from app.drivers.restoring import run_restore, tool_version
 from app.schemas.source import MySQLConfig
 from app.services.naming import safe_component
 from app.services.proc import clean_env
+from app.services.redact import describe_error
 
 SYSTEM_DATABASES = frozenset({"information_schema", "performance_schema", "sys"})
 # Never dumped under "all"; a user can still select `mysql` explicitly.
@@ -53,23 +59,28 @@ def _ssl_context(mode: str) -> ssl.SSLContext | None:
 class MySQLDriver(BaseDriver):
     source_type = "mysql"
 
-    def _connect(self, config: MySQLConfig, ssl_context: ssl.SSLContext | None) -> Any:
+    def _connect(
+        self,
+        config: MySQLConfig,
+        ssl_context: ssl.SSLContext | None,
+        io_timeout: int = CONNECT_TIMEOUT,
+    ) -> Any:
         return pymysql.connect(
             host=config.host,
             port=config.port,
             user=config.username,
             password=self._secrets.get("password", ""),
             connect_timeout=CONNECT_TIMEOUT,
-            read_timeout=CONNECT_TIMEOUT,
-            write_timeout=CONNECT_TIMEOUT,
+            read_timeout=io_timeout,
+            write_timeout=io_timeout,
             ssl=ssl_context,
             charset=config.extra_options.get("charset", "utf8mb4"),
         )
 
-    def _open(self, config: MySQLConfig) -> Any:
+    def _open(self, config: MySQLConfig, io_timeout: int = CONNECT_TIMEOUT) -> Any:
         context = _ssl_context(config.tls_mode)
         try:
-            return self._connect(config, context)
+            return self._connect(config, context, io_timeout)
         except pymysql.err.OperationalError as exc:
             # "preferred" means: use TLS when the server offers it, otherwise plain.
             if (
@@ -77,7 +88,7 @@ class MySQLDriver(BaseDriver):
                 and exc.args
                 and exc.args[0] == _CR_SSL_CONNECTION_ERROR
             ):
-                return self._connect(config, None)
+                return self._connect(config, None, io_timeout)
             raise
 
     def _probe(self) -> ConnectionTestResult:
@@ -186,3 +197,52 @@ class MySQLDriver(BaseDriver):
             compressed=ctx.compress,
             compression="gzip" if ctx.compress else "none",
         )
+
+    # ---------- restore ----------
+
+    async def restore_tool_versions(self) -> dict[str, str]:
+        return {"mysql": await tool_version("mysql", Path(tempfile.gettempdir()))}
+
+    def _prepare_target_sync(self, options: RestoreOptions, timeout: int) -> None:
+        """Create the target database (dropping it first when asked)."""
+        config = MySQLConfig.model_validate(self._config)
+        quoted = "`" + options.target_database.replace("`", "``") + "`"
+        connection = self._open(config, timeout)
+        try:
+            with connection.cursor() as cursor:
+                if options.drop:
+                    cursor.execute(f"DROP DATABASE IF EXISTS {quoted}")
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {quoted}")
+            connection.commit()
+        finally:
+            connection.close()
+
+    async def restore_database(
+        self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
+    ) -> None:
+        config = MySQLConfig.model_validate(self._config)
+        secrets = self.sensitive_values()
+        try:
+            await asyncio.to_thread(self._prepare_target_sync, options, ctx.timeout_seconds)
+        except pymysql.err.Error as exc:
+            raise RestoreError(
+                f"Cannot prepare the target database: {describe_error(exc, secrets)}"
+            ) from None
+        try:
+            defaults = self._write_options_file(config, ctx.work_dir)
+        except OSError as exc:
+            raise RestoreError(f"Cannot prepare the restore: {exc.strerror}.") from None
+        try:
+            # The options file must be the first argument; it carries the credentials.
+            argv = ["mysql", f"--defaults-extra-file={defaults}", options.target_database]
+            await run_restore(
+                tool="mysql",
+                argv=argv,
+                env=clean_env({}, ctx.work_dir),
+                ctx=ctx,
+                secrets=secrets,
+                stdin_path=artifact,
+                gunzip=artifact.name.endswith(".gz"),
+            )
+        finally:
+            shutil.rmtree(defaults.parent, ignore_errors=True)

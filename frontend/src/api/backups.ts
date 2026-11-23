@@ -9,6 +9,7 @@ export interface Backup {
   job_name: string;
   source_id: string | null;
   source_name: string | null;
+  source_type: string | null;
   source_database: string;
   destination_id: string;
   destination_name: string | null;

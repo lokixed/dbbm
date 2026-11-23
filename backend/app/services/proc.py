@@ -54,11 +54,14 @@ async def run_process(
     tail: StderrTail,
     stdout_sink: Callable[[bytes], Awaitable[None]] | None = None,
     stderr_line: Callable[[str], None] | None = None,
+    stdin_source: Callable[[asyncio.StreamWriter], Awaitable[None]] | None = None,
 ) -> int:
-    """Run a command in its own process group; kill the whole group on timeout or cancel."""
+    """Run a command in its own process group; kill the whole group on timeout or cancel.
+
+    `stdin_source` writes the command's standard input; stdin is closed when it returns."""
     proc = await asyncio.create_subprocess_exec(
         *argv,
-        stdin=asyncio.subprocess.DEVNULL,
+        stdin=asyncio.subprocess.PIPE if stdin_source else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE if stdout_sink else asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
         env=dict(env),
@@ -84,9 +87,25 @@ async def run_process(
         while chunk := await stream.read(READ_CHUNK):
             await sink(chunk)
 
+    async def pump_stdin(
+        writer: asyncio.StreamWriter, source: Callable[[asyncio.StreamWriter], Awaitable[None]]
+    ) -> None:
+        try:
+            await source(writer)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the command stopped reading; its exit code and stderr tell why
+        finally:
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError, OSError):
+                writer.close()
+                await writer.wait_closed()
+
     if proc.stderr is None:
         raise RuntimeError("stderr pipe missing")
     pumps = [asyncio.create_task(pump_stderr(proc.stderr))]
+    if stdin_source:
+        if proc.stdin is None:
+            raise RuntimeError("stdin pipe missing")
+        pumps.append(asyncio.create_task(pump_stdin(proc.stdin, stdin_source)))
     if stdout_sink:
         if proc.stdout is None:
             raise RuntimeError("stdout pipe missing")
