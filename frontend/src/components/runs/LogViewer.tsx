@@ -103,6 +103,7 @@ export function LogViewer({ runId, onDone }: LogViewerProps) {
   const entries = useMemo(() => lines.map(toEntry), [lines]);
 
   return (
+    <div className="log-compact">
     <XLogViewer
       logs={entries}
       label="Run log"
@@ -110,7 +111,13 @@ export function LogViewer({ runId, onDone }: LogViewerProps) {
       autoScroll={following}
       onAutoScrollChange={setFollowing}
       emptyText="Waiting for log output..."
-      toolbarStart={<Badge badgeContent={CONNECTION_LABEL[connection]} color={CONNECTION_COLOR[connection]} />}
+      toolbarStart={
+        // The toolbar's other controls are 38px tall; stretch the status badge to match.
+        <div className="inline-flex h-[38px] [&_span]:inline-flex [&_span]:h-full [&_span]:items-center [&_span]:text-xs [&_span_span]:px-3">
+          <Badge badgeContent={CONNECTION_LABEL[connection]} color={CONNECTION_COLOR[connection]} />
+        </div>
+      }
     />
+    </div>
   );
 }

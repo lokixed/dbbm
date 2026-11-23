@@ -5,7 +5,7 @@ import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
 import PlayIcon from "xedonium/icons/Play";
 import PlusIcon from "xedonium/icons/Plus";
@@ -91,12 +91,12 @@ export default function DestinationsPage() {
     });
   };
 
-  const columns: TableColumn<DestinationRecord>[] = [
-    { key: "name", header: "Name", render: (d) => <span className="font-medium">{d.name}</span> },
-    { key: "type", header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
-    { key: "location", header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
+  const columns: DataGridColumn<DestinationRecord>[] = [
+    { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <span className="font-medium">{d.name}</span> },
+    { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
+    { key: "location", sortable: true, accessor: (d) => location(d), header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
     {
-      key: "status",
+      key: "status", sortable: true, accessor: (d) => (d.last_test ? (d.last_test.ok ? "OK" : "Failed") : "Never tested"),
       header: "Status",
       render: (d) => (
         <div className="flex flex-wrap items-center gap-2">
@@ -148,8 +148,11 @@ export default function DestinationsPage() {
           </Alert>
         )}
         {destinations.isSuccess && (
-          <Table
+          <DataGrid
             columns={columns}
+            density="compact"
+            pageSize={25}
+            hideFooterWhenSinglePage
             rows={destinations.data}
             empty="No destinations yet. Add a local folder or a Google Drive folder to store backups."
           />

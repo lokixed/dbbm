@@ -33,6 +33,7 @@ import { useSources } from "@/api/sources";
 import { RowMenu } from "@/components/RowMenu";
 import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CopyHash } from "@/components/CopyHash";
 import { useToast } from "@/components/toast";
 import { formatBytes, formatTime } from "@/lib/format";
 
@@ -182,11 +183,7 @@ export default function BackupsPage() {
     {
       key: "sha",
       header: "SHA-256",
-      render: (backup) => (
-        <Tooltip text={backup.sha256}>
-          <code className="text-xs">{backup.sha256.slice(0, 12)}…</code>
-        </Tooltip>
-      ),
+      render: (backup) => <CopyHash value={backup.sha256} />,
     },
     { key: "destination", header: "Destination", render: (backup) => backup.destination_name ?? "(deleted)" },
     { key: "copy", header: "Copy", render: (backup) => <CopyStatus backup={backup} /> },
@@ -218,7 +215,7 @@ export default function BackupsPage() {
         subtitle="Every stored backup file, by job and month. Download, re-check or delete a copy."
       />
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="filter-bar flex flex-wrap items-end gap-3">
         <div className="w-48">
           <Select
           aria-label="Filter by job"
@@ -316,6 +313,7 @@ export default function BackupsPage() {
       {groups.map(([title, items]) => (
         <Card key={title} title={title} headingLevel={2} padded={false}>
           <Table
+            compact
             columns={columns}
             rows={items}
             rowProps={(backup) => ({ className: backup.missing ? "bg-red-500/5" : undefined })}

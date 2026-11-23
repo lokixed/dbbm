@@ -6,7 +6,7 @@ import CodeDisplay from "xedonium/CodeDisplay";
 import Field from "xedonium/Field";
 import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import { useAddRecipient, useDeleteRecipient, useRecipients, type Recipient } from "@/api/recipients";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -44,15 +44,15 @@ export function EncryptionKeys() {
     );
   };
 
-  const columns: TableColumn<Recipient>[] = [
-    { key: "name", header: "Name", render: (r) => <span className="font-medium">{r.name}</span> },
-    { key: "fingerprint", header: "Fingerprint", render: (r) => <code className="text-xs">{r.fingerprint}</code> },
+  const columns: DataGridColumn<Recipient>[] = [
+    { key: "name", sortable: true, accessor: (r) => r.name, header: "Name", render: (r) => <span className="font-medium">{r.name}</span> },
+    { key: "fingerprint", sortable: true, accessor: (r) => r.fingerprint, header: "Fingerprint", render: (r) => <code className="text-xs">{r.fingerprint}</code> },
     {
       key: "key",
       header: "Public key",
       render: (r) => <code className="text-xs">{r.public_key.slice(0, 16)}…{r.public_key.slice(-6)}</code>,
     },
-    { key: "used", header: "Used by", render: (r) => (r.used_by.length ? r.used_by.join(", ") : "No job") },
+    { key: "used", sortable: true, accessor: (r) => r.used_by.length, header: "Used by", render: (r) => (r.used_by.length ? r.used_by.join(", ") : "No job") },
     {
       key: "actions",
       header: "",
@@ -81,10 +81,12 @@ export function EncryptionKeys() {
         {recipients.isPending && <Loader variant="inline" label="Loading keys..." />}
         {recipients.isError && <Alert tone="danger">Could not load keys: {recipients.error.message}</Alert>}
         {recipients.isSuccess && (
-          <Table
+          <DataGrid
+            hideFooterWhenSinglePage
             caption="Encryption keys"
             columns={columns}
             rows={recipients.data}
+            density="compact"
             empty="No keys yet. Add a public key to be able to encrypt backups."
           />
         )}

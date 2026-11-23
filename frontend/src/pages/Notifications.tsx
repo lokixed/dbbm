@@ -8,6 +8,7 @@ import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
 import HistoryIcon from "xedonium/icons/History";
@@ -83,6 +84,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
         {events.isSuccess && (
           <>
             <Table
+              compact
               columns={EVENT_COLUMNS}
               rows={events.data.items}
               empty="No messages sent through this channel yet."
@@ -160,9 +162,9 @@ export default function NotificationsPage() {
       : `"${deleting.name}" and its delivery history will be deleted.`
     : "";
 
-  const columns: TableColumn<ChannelRecord>[] = [
+  const columns: DataGridColumn<ChannelRecord>[] = [
     {
-      key: "name",
+      key: "name", sortable: true, accessor: (c) => c.name,
       header: "Name",
       render: (channel) => (
         <div className="font-medium">
@@ -180,9 +182,9 @@ export default function NotificationsPage() {
         </div>
       ),
     },
-    { key: "type", header: "Type", render: (channel) => TYPE_LABEL[channel.type] },
+    { key: "type", sortable: true, accessor: (c) => TYPE_LABEL[c.type], header: "Type", render: (channel) => TYPE_LABEL[channel.type] },
     {
-      key: "enabled",
+      key: "enabled", sortable: true, accessor: (c) => (c.enabled ? 1 : 0),
       header: "Enabled",
       render: (channel) => (
         <Switch
@@ -194,7 +196,7 @@ export default function NotificationsPage() {
       ),
     },
     {
-      key: "test",
+      key: "test", sortable: true, accessor: (c) => c.last_test?.at ?? "",
       header: "Last test",
       render: (channel) => {
         const inline = results[channel.id];
@@ -221,7 +223,7 @@ export default function NotificationsPage() {
       },
     },
     {
-      key: "jobs",
+      key: "jobs", sortable: true, accessor: (c) => c.jobs.map((j) => j.name).join(", "),
       header: "Jobs",
       render: (channel) => <span className="text-xs">{channel.jobs.map((j) => j.name).join(", ") || "-"}</span>,
     },
@@ -270,7 +272,10 @@ export default function NotificationsPage() {
           </Alert>
         )}
         {channels.isSuccess && (
-          <Table
+          <DataGrid
+            density="compact"
+            pageSize={25}
+            hideFooterWhenSinglePage
             columns={columns}
             rows={channels.data}
             empty="No channels yet. Add Slack, email or a webhook to be told when a backup fails."

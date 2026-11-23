@@ -60,7 +60,7 @@ export default function AuditPage() {
         subtitle="Sign-ins, changes, downloads and restores. Entries are kept for the period set in Settings."
       />
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="filter-bar flex flex-wrap items-end gap-3">
         <div className="w-56">
           <Select
             aria-label="Filter by action"

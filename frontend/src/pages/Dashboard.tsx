@@ -8,7 +8,7 @@ import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Progress from "xedonium/Progress";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import PlayIcon from "xedonium/icons/Play";
 import RelativeTime from "xedonium/RelativeTime";
@@ -21,16 +21,16 @@ import { useToast } from "@/components/toast";
 import { errorClassLabel } from "@/lib/errorClass";
 import { formatBytes, formatTime } from "@/lib/format";
 
-const HEALTH_COLUMNS: TableColumn<DestinationHealth>[] = [
-  { key: "name", header: "Destination", render: (d) => <span className="font-medium">{d.name}</span> },
-  { key: "type", header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
+const HEALTH_COLUMNS: DataGridColumn<DestinationHealth>[] = [
+  { key: "name", sortable: true, accessor: (d) => d.name, header: "Destination", render: (d) => <span className="font-medium">{d.name}</span> },
+  { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
   {
-    key: "last",
+    key: "last", sortable: true, accessor: (d) => d.last_success_at ?? "",
     header: "Last stored backup",
     render: (d) => (d.last_success_at ? <RelativeTime date={d.last_success_at} /> : "Never"),
   },
   {
-    key: "status",
+    key: "status", sortable: true, accessor: (d) => d.auth_status,
     header: "Status",
     render: (d) => (
       <div className="flex flex-wrap gap-2">
@@ -47,7 +47,7 @@ function DestinationHealthCard({ destinations }: { destinations: DestinationHeal
   if (destinations.length === 0) return null;
   return (
     <Card title="Destination health" padded={false}>
-      <Table columns={HEALTH_COLUMNS} rows={destinations} />
+      <DataGrid density="compact"columns={HEALTH_COLUMNS} rows={destinations} hideFooterWhenSinglePage />
     </Card>
   );
 }

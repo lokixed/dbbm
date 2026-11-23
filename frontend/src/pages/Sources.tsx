@@ -4,7 +4,7 @@ import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
 import PlayIcon from "xedonium/icons/Play";
 import PlusIcon from "xedonium/icons/Plus";
@@ -59,10 +59,10 @@ export default function SourcesPage() {
     });
   };
 
-  const columns: TableColumn<SourceRecord>[] = [
-    { key: "name", header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
-    { key: "type", header: "Type", render: (source) => typeLabel(source.type) },
-    { key: "status", header: "Status", render: (source) => <StatusBadge lastTest={source.last_test} /> },
+  const columns: DataGridColumn<SourceRecord>[] = [
+    { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
+    { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => typeLabel(source.type) },
+    { key: "status", sortable: true, accessor: (s) => (s.last_test ? (s.last_test.ok ? "OK" : "Failed") : "Never tested"), header: "Status", render: (source) => <StatusBadge lastTest={source.last_test} /> },
     {
       key: "actions",
       header: "Actions",
@@ -104,8 +104,11 @@ export default function SourcesPage() {
           </Alert>
         )}
         {sources.isSuccess && (
-          <Table
+          <DataGrid
             columns={columns}
+            density="compact"
+            pageSize={25}
+            hideFooterWhenSinglePage
             rows={sources.data}
             empty="No sources yet. Add a database to get started."
           />

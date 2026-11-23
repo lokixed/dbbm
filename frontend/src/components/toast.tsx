@@ -22,10 +22,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     () => ({
       toast: ({ title, description, variant }) =>
         showToast(
-          <div className="min-w-0">
-            <p className="font-medium">{title}</p>
-            {description && <p className="break-words">{description}</p>}
-          </div>,
+          <p className="min-w-0 break-words">
+            <span className="font-medium">{title}</span>
+            {description && <span>: {description}</span>}
+          </p>,
           variant === "success" ? "success" : "danger",
         ),
     }),

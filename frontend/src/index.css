@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Flat blue theme, after Material UI's default palette. The component library reads these
+   variables (space-separated RGB), so they recolour buttons, focus rings, cards and borders. */
+:root {
+  --color-app-bg: 250 250 250;
+  --color-app-card: 255 255 255;
+  --color-app-border: 224 224 224;
+  --color-app-text: 33 33 33;
+  --color-app-muted: 117 117 117;
+  --color-app-soft: 66 66 66;
+  --color-app-strong: 25 118 210;
+  --color-app-primary: 25 118 210;
+  --color-app-primary-hover: 21 101 192;
+  --color-app-primary-text: 255 255 255;
+}
+
+html[data-theme="dark"] {
+  --color-app-bg: 18 18 18;
+  --color-app-card: 30 30 30;
+  --color-app-border: 66 66 66;
+  --color-app-text: 255 255 255;
+  --color-app-muted: 176 176 176;
+  --color-app-soft: 224 224 224;
+  --color-app-strong: 33 150 243;
+  --color-app-primary: 25 118 210;
+  --color-app-primary-hover: 21 101 192;
+  --color-app-primary-text: 255 255 255;
+}
+
 /* A table inside a card would draw a second border next to the card's own, so drop it. */
 .bg-app-card.border .overflow-x-auto.border {
   border-width: 0;
@@ -13,4 +41,29 @@
 .uppercase:not(th) {
   text-transform: none;
   letter-spacing: normal;
+}
+
+/* Filter rows mix selects, text inputs, date inputs and buttons; make them all the same height
+   (date inputs are otherwise taller than the rest). */
+.filter-bar input,
+.filter-bar button {
+  box-sizing: border-box;
+  height: 38px;
+}
+
+/* Compact log toolbar: the library sizes its controls at 38px; use 30px. */
+.log-compact [class*="h-[38px]"] {
+  height: 30px;
+}
+.log-compact [class*="w-[38px]"] {
+  width: 30px;
+}
+.log-compact input {
+  height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.8125rem;
+}
+.log-compact .flex.flex-wrap.items-center.justify-between {
+  padding: 0.5rem 0.75rem;
 }

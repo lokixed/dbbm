@@ -7,7 +7,7 @@ import Card from "xedonium/Card";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import PencilIcon from "xedonium/icons/Pencil";
 import PlayIcon from "xedonium/icons/Play";
@@ -91,15 +91,15 @@ export default function JobsPage() {
     });
   };
 
-  const columns: TableColumn<JobRecord>[] = [
+  const columns: DataGridColumn<JobRecord>[] = [
     {
-      key: "name",
+      key: "name", sortable: true, accessor: (job) => job.name,
       header: "Name",
       render: (job) => <span className="font-medium">{job.name}</span>,
     },
-    { key: "schedule", header: "Schedule", render: (job) => <ScheduleBadge job={job} /> },
+    { key: "schedule", sortable: true, accessor: (job) => job.schedule ?? "", header: "Schedule", render: (job) => <ScheduleBadge job={job} /> },
     {
-      key: "source",
+      key: "source", sortable: true, accessor: (job) => job.source.name,
       header: "Source",
       render: (job) => (
         <>
@@ -107,9 +107,9 @@ export default function JobsPage() {
         </>
       ),
     },
-    { key: "destinations", header: "Destinations", render: (job) => job.destinations.map((d) => d.name).join(", ") },
+    { key: "destinations", sortable: true, accessor: (job) => job.destinations.map((d) => d.name).join(", "), header: "Destinations", render: (job) => job.destinations.map((d) => d.name).join(", ") },
     {
-      key: "enabled",
+      key: "enabled", sortable: true, accessor: (job) => (job.enabled ? 1 : 0),
       header: "Enabled",
       render: (job) => (
         <Switch
@@ -122,13 +122,13 @@ export default function JobsPage() {
       ),
     },
     {
-      key: "next",
+      key: "next", sortable: true, accessor: (job) => job.next_run_at ?? "",
       header: "Next run",
       render: (job) =>
         job.next_run_at ? <RelativeTime date={job.next_run_at} /> : <span className="text-app-muted">-</span>,
     },
     {
-      key: "last",
+      key: "last", sortable: true, accessor: (job) => job.last_run?.created_at ?? "",
       header: "Last run",
       render: (job) =>
         job.last_run ? (
@@ -182,7 +182,10 @@ export default function JobsPage() {
           </Alert>
         )}
         {jobs.isSuccess && (
-          <Table
+          <DataGrid
+            density="compact"
+            pageSize={25}
+            hideFooterWhenSinglePage
             columns={columns}
             rows={jobs.data}
             empty="No jobs yet. Add a source and a destination, then create a job to back them up."

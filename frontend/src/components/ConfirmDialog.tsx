@@ -34,7 +34,7 @@ export function ConfirmDialog({
       confirmLabel={confirmLabel}
       busyLabel={pendingLabel}
     >
-      {description}
+      <span className="[overflow-wrap:anywhere]">{description}</span>
     </XConfirmDialog>
   );
 }

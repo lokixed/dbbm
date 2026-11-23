@@ -7,7 +7,7 @@ import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import RelativeTime from "xedonium/RelativeTime";
 import { useJobs } from "@/api/jobs";
@@ -26,9 +26,9 @@ const STATUSES: RunStatus[] = [
   "interrupted",
 ];
 
-const COLUMNS: TableColumn<RunSummary>[] = [
+const COLUMNS: DataGridColumn<RunSummary>[] = [
   {
-    key: "job",
+    key: "job", sortable: true, accessor: (run) => run.job_name,
     header: "Job",
     render: (run) => (
       <Link to={`/runs/${run.id}`} className="font-medium hover:underline">
@@ -37,7 +37,7 @@ const COLUMNS: TableColumn<RunSummary>[] = [
     ),
   },
   {
-    key: "trigger",
+    key: "trigger", sortable: true, accessor: (run) => run.trigger,
     header: "Trigger",
     render: (run) =>
       run.parent_run_id ? (
@@ -51,7 +51,7 @@ const COLUMNS: TableColumn<RunSummary>[] = [
       ),
   },
   {
-    key: "status",
+    key: "status", sortable: true, accessor: (run) => run.status,
     header: "Status",
     render: (run) =>
       run.status === "partial" ? (
@@ -62,11 +62,11 @@ const COLUMNS: TableColumn<RunSummary>[] = [
         <RunStatusBadge status={run.status} />
       ),
   },
-  { key: "started", header: "Started", render: (run) => <RelativeTime date={run.started_at ?? run.created_at} /> },
-  { key: "duration", header: "Duration", render: (run) => formatDuration(run.started_at, run.finished_at) },
-  { key: "artifacts", header: "Artifacts", align: "right", render: (run) => run.artifact_count },
+  { key: "started", sortable: true, accessor: (run) => run.started_at ?? run.created_at, header: "Started", render: (run) => <RelativeTime date={run.started_at ?? run.created_at} /> },
+  { key: "duration", sortable: true, accessor: (run) => (run.started_at && run.finished_at ? Date.parse(run.finished_at) - Date.parse(run.started_at) : -1), header: "Duration", render: (run) => formatDuration(run.started_at, run.finished_at) },
+  { key: "artifacts", sortable: true, accessor: (run) => run.artifact_count, header: "Artifacts", align: "right", render: (run) => run.artifact_count },
   {
-    key: "size",
+    key: "size", sortable: true, accessor: (run) => run.total_size,
     header: "Total size",
     align: "right",
     render: (run) => (run.artifact_count ? formatBytes(run.total_size) : "-"),
@@ -132,7 +132,10 @@ export default function RunsPage() {
           </Alert>
         )}
         {runs.isSuccess && (
-          <Table
+          <DataGrid
+            density="compact"
+            pageSize={25}
+            hideFooterWhenSinglePage
             columns={COLUMNS}
             rows={runs.data.items}
             empty='No runs match. Start one with "Run now" on the Jobs page.'
