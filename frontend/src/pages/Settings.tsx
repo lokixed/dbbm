@@ -118,7 +118,7 @@ function SettingsForm({ settings }: { settings: AppSettingsRecord }) {
 
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-6" noValidate>
-      <Card title="General">
+      <Card title="General" headingLevel={2}>
         <div className="space-y-4">
           <Field
             label="Public base URL"
@@ -135,7 +135,7 @@ function SettingsForm({ settings }: { settings: AppSettingsRecord }) {
         </div>
       </Card>
 
-      <Card title="Scheduling and housekeeping">
+      <Card title="Scheduling and housekeeping" headingLevel={2}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Housekeeping time (HH:MM)"

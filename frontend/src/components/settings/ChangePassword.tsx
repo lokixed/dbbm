@@ -38,7 +38,7 @@ export function ChangePassword() {
   };
 
   return (
-    <Card title="Change password">
+    <Card title="Change password" headingLevel={2}>
       <form
         className="space-y-4"
         onSubmit={(event) => {

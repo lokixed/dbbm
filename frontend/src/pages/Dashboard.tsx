@@ -46,7 +46,7 @@ const HEALTH_COLUMNS: DataGridColumn<DestinationHealth>[] = [
 function DestinationHealthCard({ destinations }: { destinations: DestinationHealth[] }) {
   if (destinations.length === 0) return null;
   return (
-    <Card title="Destination health" padded={false}>
+    <Card title="Destination health" headingLevel={2} padded={false}>
       <DataGrid density="compact"columns={HEALTH_COLUMNS} rows={destinations} hideFooterWhenSinglePage />
     </Card>
   );
@@ -81,7 +81,7 @@ function OverviewCards({ data }: { data: Dashboard }) {
   const hiddenFailures = data.failures_24h.length - FAILURES_PREVIEW;
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <Card title="Next scheduled runs">
+      <Card title="Next scheduled runs" headingLevel={2}>
         <div className="space-y-1 text-sm">
           {data.next_runs.length === 0 && <HelperText>No scheduled jobs.</HelperText>}
           {data.next_runs.map((n) => (
@@ -94,7 +94,7 @@ function OverviewCards({ data }: { data: Dashboard }) {
           ))}
         </div>
       </Card>
-      <Card title="Failures in the last 24 h">
+      <Card title="Failures in the last 24 h" headingLevel={2}>
         {data.failures_24h.length === 0 ? (
           <HelperText>None.</HelperText>
         ) : (
@@ -124,7 +124,7 @@ function OverviewCards({ data }: { data: Dashboard }) {
           </ButtonLink>
         )}
       </Card>
-      <Card title="Disk usage">
+      <Card title="Disk usage" headingLevel={2}>
         <div className="space-y-3">
           {data.disks.length === 0 && <HelperText>No local volumes found.</HelperText>}
           {data.disks.map((d) => (
@@ -194,6 +194,7 @@ export default function DashboardPage() {
               <Card
                 key={entry.job_id}
                 title={entry.job_name}
+                headingLevel={2}
                 actions={
                   entry.latest_run_id ? (
                     <Link to={`/runs/${entry.latest_run_id}`} aria-label={`Latest run of ${entry.job_name}`}>

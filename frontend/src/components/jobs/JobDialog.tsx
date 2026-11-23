@@ -228,8 +228,10 @@ function JobForm({
               Losing the private key means these backups cannot be recovered. This server never has it.
               Keep it, and a recovery key, somewhere safe.
             </Alert>
-            <div className="space-y-1">
-              <p className="text-sm">Encrypt to these keys</p>
+            <div className="space-y-1" role="group" aria-labelledby="job-encrypt-keys-label">
+              <p id="job-encrypt-keys-label" className="text-sm text-app-text">
+                Encrypt to these keys
+              </p>
               {recipients.isSuccess && recipients.data.length === 0 && (
                 <HelperText>
                   No keys yet.{" "}
@@ -289,8 +291,10 @@ function JobForm({
             />
           </div>
         </div>
-        <div className="space-y-1">
-          <p className="text-sm">Channels</p>
+        <div className="space-y-1" role="group" aria-labelledby="job-channels-label">
+          <p id="job-channels-label" className="text-sm text-app-text">
+            Channels
+          </p>
           {channels.isSuccess && channels.data.length === 0 && (
             <HelperText>
               No channels yet.{" "}

@@ -160,15 +160,15 @@ export default function RunDetailPage() {
       {data.error && <Alert tone="danger">{data.error}</Alert>}
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="Progress">
+        <Card title="Progress" headingLevel={2}>
           <RunTimeline results={data.step_results} />
         </Card>
-        <Card title="Live log">
+        <Card title="Live log" headingLevel={2}>
           <LogViewer key={id} runId={id} onDone={() => void run.refetch()} />
         </Card>
       </div>
 
-      <Card title="Destinations" padded={false}>
+      <Card title="Destinations" headingLevel={2} padded={false}>
         {hasDestinations ? (
           <DestinationResults results={data.step_results} />
         ) : (
@@ -176,7 +176,7 @@ export default function RunDetailPage() {
         )}
       </Card>
 
-      <Card title="Artifacts" padded={false}>
+      <Card title="Artifacts" headingLevel={2} padded={false}>
         <Table
           columns={ARTIFACT_COLUMNS}
           rows={data.artifacts}
@@ -184,7 +184,7 @@ export default function RunDetailPage() {
         />
       </Card>
 
-      <Card title="Notifications" padded={false}>
+      <Card title="Notifications" headingLevel={2} padded={false}>
         <Table
           columns={NOTIFICATION_COLUMNS}
           rows={data.notifications}

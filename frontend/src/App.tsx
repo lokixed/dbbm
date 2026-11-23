@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "xedonium/theme";
 import { setUnauthorizedHandler } from "@/api/client";
 import { Layout } from "@/components/Layout";
@@ -24,6 +24,31 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
+const PAGE_TITLES: [string, string][] = [
+  ["/runs/", "Run"],
+  ["/runs", "Runs"],
+  ["/sources", "Sources"],
+  ["/destinations", "Destinations"],
+  ["/jobs", "Jobs"],
+  ["/backups", "Backups"],
+  ["/notifications", "Notifications"],
+  ["/audit", "Audit log"],
+  ["/settings", "Settings"],
+  ["/about", "About"],
+  ["/login", "Sign in"],
+  ["/setup", "Setup"],
+];
+
+// Screen readers announce the document title on navigation, so each page gets its own.
+function RouteTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const page = PAGE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "Dashboard";
+    document.title = `${page} - DBBM`;
+  }, [pathname]);
+  return null;
+}
+
 function UnauthorizedRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -43,6 +68,7 @@ export default function App() {
         <ToastProvider>
           <BrowserRouter>
             <UnauthorizedRedirect />
+            <RouteTitle />
             <Routes>
               <Route path="/about" element={<AboutPage />} />
               <Route path="/setup" element={<SetupPage />} />

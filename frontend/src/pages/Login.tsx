@@ -38,7 +38,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-app-bg p-4">
+    <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-app-bg p-4">
       <AuthBackdrop />
       <div className="absolute right-4 top-4">
         <ThemeToggle />
@@ -69,9 +69,9 @@ export default function LoginPage() {
           </Button>
         </form>
       </Card>
-      <Link to="/about" className="absolute bottom-4 text-sm text-app-muted hover:underline">
+      <Link to="/about" className="absolute bottom-4 border border-app-border bg-app-card px-3 py-1.5 text-sm text-app-text hover:underline">
         About DBBM
       </Link>
-    </div>
+    </main>
   );
 }

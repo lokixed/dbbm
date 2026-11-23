@@ -7,7 +7,7 @@ import Input from "xedonium/Input";
 import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
-import Table, { type TableColumn } from "xedonium/Table";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import { AUDIT_PAGE_SIZE, useAuditLog, type AuditEntry, type AuditFilters } from "@/api/audit";
 import { formatTime } from "@/lib/format";
 
@@ -18,20 +18,22 @@ function summarize(details: Record<string, unknown>): string {
   return text === "{}" ? "" : text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }
 
-const COLUMNS: TableColumn<AuditEntry>[] = [
+const COLUMNS: DataGridColumn<AuditEntry>[] = [
   {
     key: "time",
     header: "Time",
+    sortable: true,
+    accessor: (entry) => entry.timestamp,
     render: (entry) => <span className="whitespace-nowrap">{formatTime(entry.timestamp)}</span>,
   },
-  { key: "user", header: "User", render: (entry) => entry.username ?? "-" },
-  { key: "action", header: "Action", render: (entry) => <code className="text-xs">{entry.action}</code> },
+  { key: "user", header: "User", sortable: true, accessor: (entry) => entry.username ?? "", render: (entry) => entry.username ?? "-" },
+  { key: "action", header: "Action", sortable: true, accessor: (entry) => entry.action, render: (entry) => <code className="text-xs">{entry.action}</code> },
   {
     key: "object",
     header: "Object",
     render: (entry) => (entry.object_type ? `${entry.object_type} ${entry.object_id ?? ""}` : "-"),
   },
-  { key: "ip", header: "IP", render: (entry) => entry.ip ?? "-" },
+  { key: "ip", header: "IP", sortable: true, accessor: (entry) => entry.ip ?? "", render: (entry) => entry.ip ?? "-" },
   {
     key: "details",
     header: "Details",
@@ -117,7 +119,13 @@ export default function AuditPage() {
       )}
       {log.isSuccess && total > 0 && (
         <Card padded={false}>
-          <Table columns={COLUMNS} rows={log.data.items} />
+          <DataGrid
+            caption="Audit log"
+            columns={COLUMNS}
+            rows={log.data.items}
+            pageSize={AUDIT_PAGE_SIZE}
+            hideFooterWhenSinglePage
+          />
         </Card>
       )}
 

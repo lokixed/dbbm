@@ -55,7 +55,7 @@ export function EncryptionKeys() {
     { key: "used", sortable: true, accessor: (r) => r.used_by.length, header: "Used by", render: (r) => (r.used_by.length ? r.used_by.join(", ") : "No job") },
     {
       key: "actions",
-      header: "",
+      header: <span className="sr-only">Actions</span>,
       align: "right",
       render: (r) => (
         <RowMenu
@@ -69,6 +69,7 @@ export function EncryptionKeys() {
   return (
     <Card
       title="Backup encryption keys"
+      headingLevel={2}
       subtitle="Jobs can encrypt every backup with age before it is stored or uploaded."
     >
       <div className="space-y-4">

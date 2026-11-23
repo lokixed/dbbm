@@ -15,7 +15,7 @@ export function AuthHeader({ title, subtitle }: AuthHeaderProps) {
     <Flex align="center" gap={4} className="mb-5">
       <Logo size={48} />
       <Flex direction="column" gap={0}>
-        <PageTitle as="h2" className="!text-lg sm:!text-lg">
+        <PageTitle as="h1" className="!text-lg sm:!text-lg">
           {title}
         </PageTitle>
         <BodyText className="!text-app-muted">{subtitle}</BodyText>

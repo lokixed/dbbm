@@ -53,7 +53,7 @@ export default function SetupPage() {
   const error = localError ?? setup.error?.message;
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-app-bg p-4">
+    <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-app-bg p-4">
       <AuthBackdrop />
       <div className="absolute right-4 top-4">
         <ThemeToggle />
@@ -93,6 +93,6 @@ export default function SetupPage() {
           </Button>
         </form>
       </Card>
-    </div>
+    </main>
   );
 }

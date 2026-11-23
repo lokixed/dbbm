@@ -57,7 +57,6 @@ export function Layout() {
 
   const items: SidebarItem[] = [
     ...NAV_ITEMS,
-    { key: "divider-account", divider: true },
     { key: "account", label: user?.username ?? "Account", section: true },
     {
       key: "theme",
@@ -87,8 +86,14 @@ export function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-app-bg text-app-text">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:border focus:border-app-border focus:bg-app-card focus:px-3 focus:py-2 focus:text-sm focus:text-app-text"
+      >
+        Skip to main content
+      </a>
       <aside className="hidden shrink-0 md:block">{sidebar}</aside>
-      <main className="relative min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <main id="main-content" tabIndex={-1} className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-none sm:p-6">
         <div className="mb-4 md:hidden">
           <Button variant="secondary" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
             <MenuIcon className="h-4 w-4" />

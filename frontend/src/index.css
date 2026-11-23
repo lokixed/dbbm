@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+
 /* Flat blue theme, after Material UI's default palette. The component library reads these
    variables (space-separated RGB), so they recolour buttons, focus rings, cards and borders. */
 :root {
@@ -9,7 +10,7 @@
   --color-app-card: 255 255 255;
   --color-app-border: 224 224 224;
   --color-app-text: 33 33 33;
-  --color-app-muted: 117 117 117;
+  --color-app-muted: 100 100 100;
   --color-app-soft: 66 66 66;
   --color-app-strong: 37 99 235;
   --color-app-primary: 29 63 184;
