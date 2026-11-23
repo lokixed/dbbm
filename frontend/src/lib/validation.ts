@@ -117,7 +117,7 @@ export function checkServiceAccount(text: string, projectId: string): string | n
     return "Service account JSON must be an object";
   }
   const account = data as Record<string, unknown>;
-  if (account.type !== "service_account") return 'Must contain "type": "service_account"';
+  if (account.type !== "service_account") return "Must be a Google service account key";
   if (typeof account.client_email !== "string" || !account.client_email.includes("@")) {
     return "Missing a valid client_email";
   }

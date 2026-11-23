@@ -10,7 +10,12 @@ RUN yarn install --immutable
 COPY frontend/ ./
 RUN yarn build
 
-# ---- Stage 2: runtime ----
+# ---- Stage 2: age, built with a current Go toolchain ----
+FROM golang:1.27.3-trixie AS age
+ARG AGE_VERSION=v1.3.2
+RUN GOBIN=/out CGO_ENABLED=0 go install -trimpath     filippo.io/age/cmd/age@${AGE_VERSION} filippo.io/age/cmd/age-keygen@${AGE_VERSION}
+
+# ---- Stage 3: runtime ----
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -24,6 +29,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # curl is used by the compose healthcheck and to download the repository signing keys below.
 # tzdata provides the IANA zones that job schedules use (Python's zoneinfo reads them).
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl tzdata \
     && rm -rf /var/lib/apt/lists/*
 
@@ -104,13 +110,18 @@ COPY scripts/install-rclone.sh /tmp/install-rclone.sh
 RUN sh /tmp/install-rclone.sh /usr/local/bin && rm -f /tmp/install-rclone.sh
 
 # ---- age (milestone 8) ----
-# Pinned release; the script checks the tarball against a SHA-256 pinned in it.
-COPY scripts/install-age.sh /tmp/install-age.sh
-RUN sh /tmp/install-age.sh /usr/local/bin && rm -f /tmp/install-age.sh
+# Built from the pinned source release with a patched Go toolchain: the prebuilt release binaries
+# embed an older Go standard library with known vulnerabilities. The Go module checksum database
+# verifies the source.
+COPY --from=age /out/ /usr/local/bin/
+RUN age --version && age-keygen --version
 
 RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin dbbm \
     && mkdir -p /data /backups \
     && chown dbbm:dbbm /data /backups
+
+# Current pip and setuptools (the base image's copies bundle libraries with known vulnerabilities).
+RUN pip install --root-user-action=ignore --upgrade pip setuptools
 
 WORKDIR /app
 COPY backend/ ./

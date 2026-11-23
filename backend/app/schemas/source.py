@@ -155,7 +155,7 @@ def parse_service_account(raw: str) -> dict[str, Any]:
     except (ValueError, RecursionError):
         raise ValueError("Service account must be valid JSON.") from None
     if not isinstance(data, dict) or data.get("type") != "service_account":
-        raise ValueError('Service account JSON must have "type": "service_account".')
+        raise ValueError("Service account JSON must be a Google service account key.")
     email = data.get("client_email")
     key = data.get("private_key")
     if not isinstance(email, str) or "@" not in email:
