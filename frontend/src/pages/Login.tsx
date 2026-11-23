@@ -8,6 +8,7 @@ import PasswordInput from "xedonium/PasswordInput";
 import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useLogin, useMe } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
+import { AuthBackdrop } from "@/components/AuthBackdrop";
 
 interface LocationState {
   from?: string;
@@ -36,7 +37,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4">
+    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-app-bg p-4">
+      <AuthBackdrop />
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>

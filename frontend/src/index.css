@@ -30,6 +30,36 @@ html[data-theme="dark"] {
   --color-app-primary-text: 255 255 255;
 }
 
+/* Sign-in backdrop: the tiles slide slowly along the diagonal, each on its own period. */
+.auth-tile {
+  animation: auth-tile-a 18s ease-in-out infinite;
+}
+.auth-tile-b {
+  animation-name: auth-tile-b;
+  animation-duration: 24s;
+}
+.auth-tile-c {
+  animation-name: auth-tile-c;
+  animation-duration: 14s;
+}
+@keyframes auth-tile-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(26px, 18px); }
+}
+@keyframes auth-tile-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-22px, 24px); }
+}
+@keyframes auth-tile-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(20px, -20px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-tile {
+    animation: none;
+  }
+}
+
 /* A table inside a card would draw a second border next to the card's own, so drop it. */
 .bg-app-card.border .overflow-x-auto.border {
   border-width: 0;
