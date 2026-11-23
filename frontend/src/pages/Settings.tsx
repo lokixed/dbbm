@@ -188,7 +188,7 @@ export default function SettingsPage() {
         title="Settings"
         subtitle="Application-wide behaviour for schedules, notifications and cleanup."
       />
-      {settings.isPending && <Loader variant="inline" label="Loading settings..." />}
+      {settings.isPending && <Loader variant="dots" label="Loading settings..." />}
       {settings.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

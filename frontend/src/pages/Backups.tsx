@@ -293,7 +293,7 @@ export default function BackupsPage() {
         </Button>
       </div>
 
-      {backups.isPending && <Loader variant="inline" label="Loading backups..." />}
+      {backups.isPending && <Loader variant="dots" label="Loading backups..." />}
       {backups.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

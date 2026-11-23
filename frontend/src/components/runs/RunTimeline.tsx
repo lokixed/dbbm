@@ -1,6 +1,5 @@
 import Alert from "xedonium/Alert";
 import HelperText from "xedonium/HelperText";
-import Loader from "xedonium/Loader";
 import AlertTriangleIcon from "xedonium/icons/AlertTriangle";
 import CheckCircleIcon from "xedonium/icons/CheckCircle";
 import CircleDotIcon from "xedonium/icons/CircleDot";
@@ -25,7 +24,7 @@ function StatusIcon({ status }: { status: string }) {
     case "warning":
       return <AlertTriangleIcon className="h-4 w-4 shrink-0 text-amber-600" aria-label="warning" />;
     case "running":
-      return <Loader variant="spinner" size="sm" label="running" />;
+      return <CircleDotIcon className="h-4 w-4 shrink-0 animate-pulse text-blue-500" aria-label="running" />;
     case "skipped":
     case "cancelled":
       return <MinusIcon className="h-4 w-4 shrink-0 text-app-muted" aria-label={status} />;

@@ -368,7 +368,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
       )}
 
       {formError && <Alert tone="danger">{formError}</Alert>}
-      {test.isPending && <Loader variant="inline" label="Sending a test message..." />}
+      {test.isPending && <Loader variant="dots" label="Sending a test message..." />}
       {testResult && (
         <Alert tone={testResult.ok ? "success" : "danger"}>
           {testResult.ok ? "Delivered: " : "Failed: "}

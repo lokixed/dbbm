@@ -170,7 +170,7 @@ export default function JobsPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {jobs.isPending && <Loader variant="inline" label="Loading jobs..." className="p-6" />}
+        {jobs.isPending && <Loader variant="dots" label="Loading jobs..." className="p-6" />}
         {jobs.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

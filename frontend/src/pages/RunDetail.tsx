@@ -94,7 +94,7 @@ export default function RunDetailPage() {
       },
     });
 
-  if (run.isPending) return <Loader variant="inline" label="Loading run..." />;
+  if (run.isPending) return <Loader variant="dots" label="Loading run..." />;
   if (run.isError) {
     const missing = run.error instanceof ApiError && run.error.status === 404;
     return (

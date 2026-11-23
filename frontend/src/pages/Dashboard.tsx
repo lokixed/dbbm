@@ -153,7 +153,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader title="Dashboard" subtitle="The latest state of every backup job." />
 
-      {dashboard.isPending && <Loader variant="inline" label="Loading..." />}
+      {dashboard.isPending && <Loader variant="dots" label="Loading..." />}
       {dashboard.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

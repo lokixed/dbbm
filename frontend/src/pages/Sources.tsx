@@ -92,7 +92,7 @@ export default function SourcesPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {sources.isPending && <Loader variant="inline" label="Loading sources..." className="p-6" />}
+        {sources.isPending && <Loader variant="dots" label="Loading sources..." className="p-6" />}
         {sources.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

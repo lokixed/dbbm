@@ -26,13 +26,17 @@ export function ConfirmDialog({
   return (
     <XConfirmDialog
       open={open}
-      onClose={onCancel}
-      onConfirm={onConfirm}
+      // Not the library's `busy`: it puts a spinner on the confirm button. Text only here.
+      onClose={() => {
+        if (!pending) onCancel();
+      }}
+      onConfirm={() => {
+        if (!pending) onConfirm();
+      }}
       title={title}
       tone={tone}
-      busy={pending}
-      confirmLabel={confirmLabel}
-      busyLabel={pendingLabel}
+      confirmLabel={pending ? pendingLabel : confirmLabel}
+      confirmDisabled={pending}
     >
       <span className="[overflow-wrap:anywhere]">{description}</span>
     </XConfirmDialog>

@@ -370,7 +370,7 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
       {ready ? (
         <JobForm job={job} defaultTimezone={settings.data?.default_timezone ?? "UTC"} onClose={onClose} />
       ) : (
-        <Loader variant="inline" label="Loading..." />
+        <Loader variant="dots" label="Loading..." />
       )}
       </div>
     </DialogFrame>

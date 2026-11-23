@@ -136,7 +136,7 @@ export default function DestinationsPage() {
       <ReauthBanner destinations={needsReauth} onReconnect={reconnect} />
 
       <Card padded={false}>
-        {destinations.isPending && <Loader variant="inline" label="Loading destinations..." className="p-6" />}
+        {destinations.isPending && <Loader variant="dots" label="Loading destinations..." className="p-6" />}
         {destinations.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

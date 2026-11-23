@@ -101,7 +101,7 @@ export default function AuditPage() {
         </Button>
       </div>
 
-      {log.isPending && <Loader variant="inline" label="Loading audit log..." />}
+      {log.isPending && <Loader variant="dots" label="Loading audit log..." />}
       {log.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

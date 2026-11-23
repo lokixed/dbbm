@@ -79,7 +79,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
       }
     >
       <div className="space-y-3 pb-4">
-        {events.isPending && <Loader variant="inline" label="Loading events..." className="px-6" />}
+        {events.isPending && <Loader variant="dots" label="Loading events..." className="px-6" />}
         {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
         {events.isSuccess && (
           <>
@@ -260,7 +260,7 @@ export default function NotificationsPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {channels.isPending && <Loader variant="inline" label="Loading channels..." className="p-6" />}
+        {channels.isPending && <Loader variant="dots" label="Loading channels..." className="p-6" />}
         {channels.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

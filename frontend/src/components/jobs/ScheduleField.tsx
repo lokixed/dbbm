@@ -81,7 +81,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
         <div className="text-sm" aria-live="polite">
           <p className="mb-1 font-medium">Next 5 runs</p>
           {(preview.isFetching || debouncedCron !== cron.trim()) && !preview.isError && (
-            <Loader variant="inline" size="sm" label="Calculating..." />
+            <Loader variant="dots" size="sm" label="Calculating..." />
           )}
           {preview.isError && !preview.isFetching && <Alert tone="danger">{previewError(preview.error)}</Alert>}
           {preview.isSuccess && !preview.isFetching && (

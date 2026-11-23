@@ -120,7 +120,7 @@ export default function RunsPage() {
       </div>
 
       <Card padded={false}>
-        {runs.isPending && <Loader variant="inline" label="Loading runs..." className="p-6" />}
+        {runs.isPending && <Loader variant="dots" label="Loading runs..." className="p-6" />}
         {runs.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">
