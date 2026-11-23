@@ -1,0 +1,625 @@
+# DBBackup — Design Document
+
+A self-hosted, Docker-installed tool with a web UI that schedules and runs backups of **MySQL, PostgreSQL, MongoDB and Firebase Firestore**, and stores every backup in **two places: a local drive and Google Drive**.
+
+- **Stack:** Python + FastAPI (backend), React + Vite + TypeScript (frontend), SQLite (metadata)
+- **Packaging:** one Docker image, one `docker compose up`
+- **Status:** design / pre-implementation
+- **Date:** 17 November 2026
+
+---
+
+## 1. Goals and non-goals
+
+### Goals
+1. Back up MySQL, PostgreSQL, MongoDB and Firestore from one place.
+2. Every job writes to a **local volume** and **Google Drive**, with per-destination status. (Local comes first; Google Drive is added in milestone 5.)
+3. Web UI to manage sources, destinations, jobs, runs, backups and restores.
+4. Runs unattended: scheduling, retention, notifications, recovery after restart.
+5. Safe by default: encrypted credentials at rest, optional encrypted backups, least-privilege guidance.
+6. Install and upgrade with Docker only.
+
+### Non-goals (for the MVP)
+- Physical or incremental backups (XtraBackup, `pg_basebackup`, WAL archiving, point-in-time recovery).
+- Multi-user roles and SSO (single admin account in the MVP).
+- Storage targets other than local and Google Drive (the design keeps the interface open for S3, SFTP, etc.).
+- Running as a multi-node / HA service.
+- Backing up databases the container cannot reach over the network.
+
+---
+
+## 2. Key decisions
+
+| Topic | Decision | Reason |
+|---|---|---|
+| Process model | One container, one server worker process | Simple install. Several workers would each start a scheduler and fire jobs multiple times |
+| Dump logic | Wrap the official CLI tools, don't reimplement | Vendor tools are the most reliable and best understood |
+| Metadata store | SQLite (WAL mode) on a volume | The backup tool should not depend on a database server |
+| Offsite transfer | `rclone` | Mature Google Drive support, checksums, retries |
+| Live logs | Server-Sent Events | One-way streaming, simpler than WebSockets |
+| Firestore | `gcloud firestore export` to a GCS staging bucket, then download | Firestore has no dump-over-connection; export goes to Cloud Storage |
+| Google Drive auth (MVP) | Paste an rclone token | Avoids OAuth redirect setup; in-app OAuth comes later |
+| Backup type | Logical dumps | Portable, simple, adequate for small and medium databases |
+
+---
+
+## 3. Architecture
+
+```
+ Browser
+    │  HTTPS (via reverse proxy)
+    ▼
+┌──────────────────────── Docker container ────────────────────────┐
+│                                                                  │
+│  Web UI (static React build)                                     │
+│       │                                                          │
+│  API server (FastAPI) ───────────► Metadata DB (SQLite, /data)   │
+│       │                                                          │
+│  Scheduler (APScheduler) ──► Job runner ──► Notifier             │
+│                                  │                               │
+│                                  ▼                               │
+│        Bundled CLI tools: mysqldump · pg_dump · mongodump ·      │
+│                           gcloud · rclone · age                  │
+└───────┬───────────────────────────┬───────────────────┬──────────┘
+        ▼                           ▼                   ▼
+  Your databases              Local volume          Google Drive
+  (sources)                   (/backups)            (offsite, rclone)
+```
+
+### Components
+
+| Component | Responsibility |
+|---|---|
+| Web UI | Dashboard, CRUD for sources/destinations/jobs, live run logs, backup browser, restore |
+| API server | REST API, authentication, validation, serves the built frontend as static files |
+| Metadata DB | Users, sources, destinations, jobs, runs, artifacts, audit log |
+| Scheduler | Turns each job's cron expression into triggers that enqueue runs |
+| Job runner | Executes the run lifecycle, enforces locks and concurrency, streams logs |
+| Drivers | Per-database logic: test connection, dump, restore |
+| Storage adapters | Local and Google Drive: put, list, delete, verify |
+| Notifier | Sends success/failure messages (Slack, email, webhook) |
+| Retention manager | Deletes expired artifacts per destination |
+
+### Single-process rule
+Run uvicorn with **one worker**. The scheduler, run queue and lock table live in that process. If scaling is ever needed, move the scheduler and runner into a separate worker container with a shared database.
+
+---
+
+## 4. Technology stack
+
+| Layer | Choice |
+|---|---|
+| Language / framework | Python 3.12+, FastAPI, Uvicorn |
+| ORM / migrations | SQLModel (SQLAlchemy) + Alembic |
+| Scheduler | APScheduler (in-process, cron triggers) |
+| Subprocesses | `asyncio.create_subprocess_exec` with process groups for clean cancellation |
+| Password hashing | `argon2-cffi` |
+| Secrets encryption | `cryptography` (Fernet, or AES-GCM) |
+| Backup encryption (optional) | `age` |
+| Frontend | React, Vite, TypeScript, TanStack Query, React Router, Tailwind CSS, shadcn/ui |
+| Node package manager | Yarn 4 (Berry) via Corepack, `nodeLinker: node-modules`, committed `yarn.lock` and pinned `packageManager` field |
+| API client | Generated from FastAPI's OpenAPI schema (`openapi-typescript`) |
+| Tests | pytest, Testcontainers (MySQL, Postgres, Mongo), Playwright for UI smoke tests |
+| Lint / format | Ruff, mypy, ESLint, Prettier |
+| CI | GitHub Actions: lint, test, build and push image |
+
+---
+
+## 5. Repository layout
+
+```
+dbbackup/
+├── Dockerfile                  # multi-stage: node build → python runtime
+├── docker-compose.yml
+├── README.md
+├── backend/
+│   ├── pyproject.toml
+│   ├── alembic/                # migrations
+│   └── app/
+│       ├── main.py             # FastAPI app; mounts built frontend
+│       ├── core/               # config, security, crypto, db session, logging
+│       ├── models/             # SQLModel tables
+│       ├── schemas/            # Pydantic request/response models
+│       ├── api/                # auth, sources, destinations, jobs, runs,
+│       │                       # backups, notifications, settings
+│       ├── services/
+│       │   ├── scheduler.py    # APScheduler wiring, job sync
+│       │   ├── runner.py       # run lifecycle, locks, concurrency
+│       │   ├── retention.py
+│       │   ├── notifier.py
+│       │   └── logstream.py    # per-run log buffer + SSE
+│       ├── drivers/            # base.py mysql.py postgres.py mongo.py firestore.py
+│       └── storage/            # base.py local.py gdrive.py
+├── frontend/
+│   ├── package.json
+│   └── src/
+│       ├── pages/              # Dashboard, Sources, Destinations, Jobs,
+│       │                       # Runs, Backups, Settings, Login, Setup
+│       ├── components/
+│       └── api/                # typed client
+└── tests/
+    ├── unit/
+    ├── integration/            # real DB containers
+    └── e2e/
+```
+
+---
+
+## 6. Data model
+
+All primary keys are UUIDs. Timestamps are stored in UTC.
+
+### `users`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| username | text | unique |
+| password_hash | text | argon2 |
+| created_at | datetime | |
+
+### `sources`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| name | text | unique, display name |
+| type | enum | `mysql`, `postgres`, `mongo`, `firestore` |
+| config | json | non-secret fields: host, port, database list, project ID, options |
+| secrets_enc | blob | encrypted: passwords, connection URIs, service-account JSON |
+| last_test_at / last_test_ok | datetime / bool | result of the last "Test connection" |
+
+### `destinations`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| name | text | |
+| type | enum | `local`, `gdrive` |
+| config | json | local path, or Drive remote name and folder path |
+| secrets_enc | blob | encrypted rclone token for Drive |
+| retention | json | `keep_last`, `keep_days` |
+
+### `jobs`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| name | text | |
+| source_id | fk | |
+| destination_ids | fk[] | at least one; default local + Drive |
+| schedule | text | cron expression |
+| timezone | text | default UTC |
+| enabled | bool | |
+| compress | bool | default true |
+| encrypt | bool | optional `age` encryption |
+| timeout_seconds | int | per-step timeout |
+| notify_on | enum | `failure`, `always`, `never` |
+
+### `runs`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| job_id | fk | |
+| trigger | enum | `schedule`, `manual`, `retry` |
+| status | enum | `queued`, `running`, `success`, `partial`, `failed`, `cancelled`, `interrupted` |
+| started_at / finished_at | datetime | |
+| error | text | summarized failure reason |
+| log_path | text | full log stored as a file under `/data/logs` |
+| step_results | json | per-step and per-destination outcomes |
+
+### `artifacts`
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | |
+| run_id | fk | |
+| destination_id | fk | |
+| path | text | key within the destination |
+| size_bytes | bigint | |
+| sha256 | text | |
+| encrypted | bool | |
+| created_at / expires_at | datetime | |
+| deleted_at | datetime | soft delete for audit |
+
+### `notification_channels`, `audit_log`
+- `notification_channels`: type (`slack`, `email`, `webhook`), config, encrypted secrets, enabled.
+- `audit_log`: timestamp, user, action, object type and ID, details. Used for logins, config changes, restores, deletions.
+
+---
+
+## 7. Run lifecycle
+
+```
+queued → dumping → compressing → [encrypting] → storing (per destination)
+       → verifying → pruning → success | partial | failed
+```
+
+| Step | Details |
+|---|---|
+| Preflight | Check free disk space against the last backup size × 1.5; test source connection |
+| Dump | Run the driver; stream stdout through the compressor; write to a temp work dir |
+| Compress / encrypt | gzip (or zstd), then optional `age` encryption |
+| Checksum | Compute SHA-256 and write a small manifest file next to the artifact |
+| Store | Copy to each destination independently |
+| Verify | Local: compare size and checksum. Drive: `rclone check` / hash comparison |
+| Prune | Apply retention per destination |
+| Notify | Send per the job's `notify_on` setting |
+| Cleanup | Always delete the temp work dir |
+
+### Rules
+- **Per-destination results.** "Local OK, Drive failed" is `partial`, with a retry button for only the failed destination.
+- **Exit codes.** Check the exit code of every process in a pipeline (`set -o pipefail` semantics). A failed dump piped into gzip must never appear as a success.
+- **Locks.** One active run per job; a global concurrency limit (default 2).
+- **Timeouts and cancel.** Every step has a timeout. Cancel kills the whole process group.
+- **Restart recovery.** On startup, any run still marked `running` becomes `interrupted` and its temp files are cleaned.
+- **Missed schedules.** If the container was down at trigger time, run once on startup when within a configurable grace period (APScheduler `misfire_grace_time`).
+- **No overwrite.** Artifact names include a timestamp; existing files are never replaced.
+
+### Artifact naming
+```
+<job-name>/<YYYY>/<MM>/<job-name>_<YYYYMMDDTHHMMSSZ>.<ext>[.age]
+<job-name>/<YYYY>/<MM>/<job-name>_<YYYYMMDDTHHMMSSZ>.manifest.json
+```
+
+Extensions: `.sql.gz` (MySQL), `.dump` (PostgreSQL custom format), `.archive.gz` (MongoDB), `.tar.gz` (Firestore export).
+
+---
+
+## 8. Drivers
+
+Every driver implements the same interface:
+
+```python
+class Driver(Protocol):
+    def test_connection(self) -> None: ...
+    def dump(self, out_dir: Path, log: Logger) -> list[Path]: ...
+    def restore(self, artifact: Path, target: Target, log: Logger) -> None: ...
+```
+
+### 8.1 MySQL
+- Tool: `mysqldump` (MySQL or MariaDB client matching your server family).
+- Typical command:
+  ```
+  mysqldump --defaults-extra-file=<tmp 0600 file> --single-transaction \
+            --routines --triggers --events --databases db1 db2 | gzip > out.sql.gz
+  ```
+- `--single-transaction` gives a consistent snapshot for InnoDB without locking. MyISAM tables are not covered by it.
+- Credentials go in a temporary options file with `0600` permissions, not on the command line.
+- Backup user needs: `SELECT`, `SHOW VIEW`, `TRIGGER`, `EVENT`, `LOCK TABLES` (and `PROCESS` if dumping tablespaces).
+- Restore: `gunzip -c file | mysql ...` into a target chosen by the user.
+
+### 8.2 PostgreSQL
+- Tool: `pg_dump` (custom format) plus `pg_dumpall --globals-only` for roles and tablespaces.
+- Typical command:
+  ```
+  pg_dump -Fc -h HOST -p PORT -U USER -d DB -f out.dump
+  ```
+- Custom format is already compressed and supports selective restore with `pg_restore`.
+- Credentials via `PGPASSWORD` in the subprocess environment only, or a temporary `.pgpass` file.
+- `pg_dump` must be at least as new as the server. Bundle the latest client, or several major versions if you back up mixed server versions.
+- Backup user: `CONNECT` plus `SELECT` on everything (e.g. membership in `pg_read_all_data` on PostgreSQL 14+).
+- Restore: `pg_restore --clean --if-exists -d TARGET out.dump`.
+
+### 8.3 MongoDB
+- Tool: `mongodump` from MongoDB Database Tools.
+- Typical command:
+  ```
+  mongodump --uri="mongodb://..." --archive=out.archive --gzip
+  ```
+- For a full replica-set backup add `--oplog` for a point-in-time consistent dump. `--oplog` cannot be combined with a single `--db` selection.
+- Backup user role: `backup` (or `readAnyDatabase` for simple cases).
+- Restore: `mongorestore --archive=out.archive --gzip`.
+- Pass the URI via a config file or environment, not process arguments, so it doesn't appear in `ps`.
+
+### 8.4 Firebase Firestore
+Firestore can't be dumped over a connection. The flow is:
+
+1. Authenticate with a service account: `gcloud auth activate-service-account --key-file=...`. Use an isolated `CLOUDSDK_CONFIG` directory per run so credentials never leak between jobs.
+2. Start the export:
+   ```
+   gcloud firestore export gs://STAGING_BUCKET/<job>/<timestamp> \
+          --project=PROJECT [--database=DB] [--collection-ids=a,b]
+   ```
+3. Poll the long-running operation (`gcloud firestore operations describe`) until done, respecting a long timeout.
+4. Download the export prefix: `gcloud storage cp -r gs://... <work dir>`.
+5. Pack it into a `.tar.gz` and treat it like any other artifact.
+6. Optionally delete the staging prefix, or rely on a bucket lifecycle rule.
+
+Requirements:
+- A GCS staging bucket in a location compatible with the Firestore database.
+- Service account roles: `roles/datastore.importExportAdmin` plus read/write access to the staging bucket.
+- Add a bucket lifecycle rule (e.g. delete after 1–7 days) so staging copies don't accumulate cost.
+- Restore uses `gcloud firestore import` and requires the export to be in a bucket again. The UI re-uploads the artifact to the staging bucket first. Importing can overwrite existing documents, so the restore screen must warn about this.
+- Optionally also enable Firestore's own scheduled backups / point-in-time recovery in Google Cloud as a second safety net.
+
+---
+
+## 9. Storage adapters
+
+```python
+class Storage(Protocol):
+    def put(self, local: Path, key: str) -> StoredObject: ...
+    def list(self, prefix: str) -> list[StoredObject]: ...
+    def get(self, key: str, dest: Path) -> None: ...
+    def delete(self, key: str) -> None: ...
+    def verify(self, local: Path, key: str) -> bool: ...
+```
+
+### Local
+- Writes under the mounted `/backups` volume, using temp-file-then-rename so partial files never look complete.
+- The path comes from the destination config but must stay within `/backups` (reject `..` and symlink escapes).
+- Set file permissions to `0600`.
+
+### Google Drive (via rclone)
+- Each run generates a temporary rclone config from the decrypted token (kept in a tmpfs path, deleted afterwards) and passes it with `RCLONE_CONFIG`.
+- Upload with `rclone copyto`, verify with `rclone check` (Drive provides MD5 checksums).
+- Retention deletes with `rclone delete` / `rclone deletefile` by key.
+- Use a dedicated folder (e.g. `db-backups/`) and restrict rclone's scope to it where possible.
+- Known issue: Google OAuth apps left in **Testing** status issue refresh tokens that expire after 7 days. Publish the OAuth app (it can stay unverified for personal use) or use a Shared Drive with a service account.
+- A service account has no Drive storage quota of its own, so it only works with a Shared Drive.
+- Surface token failure clearly in the UI ("Drive authorization expired — reconnect") and in notifications.
+
+---
+
+## 10. Scheduling
+
+- Each enabled job registers a cron trigger in APScheduler with its own timezone.
+- Editing or disabling a job updates the scheduler immediately.
+- The UI shows the next five fire times for a cron expression before saving.
+- Default timezone is UTC; displayed times follow the browser locale.
+- Triggers enqueue a run; the runner decides when it actually starts (locks and concurrency limit).
+
+---
+
+## 11. Retention
+
+Per destination, configurable:
+- `keep_last` — keep the newest N successful artifacts
+- `keep_days` — delete artifacts older than N days
+
+Rules:
+- An artifact is deleted only if **both** policies allow it (it is outside the newest N **and** older than the day limit), when both are set.
+- Never delete the **last successful** backup of a job, regardless of policy.
+- Failed or partial runs don't count toward `keep_last`.
+- Retention runs after each successful run and as a daily housekeeping task.
+- Deletions are recorded in the audit log.
+
+---
+
+## 12. Security
+
+### Application
+- First-run setup creates the admin account; there is no default password.
+- argon2 password hashes; HttpOnly, SameSite, Secure session cookies; CSRF protection on state-changing requests; login rate limiting and lockout.
+- All inputs validated with Pydantic; no shell string concatenation (always `exec` with argument lists); path inputs sanitized.
+- Secrets are redacted from logs, error messages and API responses (the API never returns stored passwords or tokens).
+
+### Credentials at rest
+- Source passwords, Drive tokens, service-account JSON and notification secrets are encrypted before they go in SQLite.
+- The master key comes from an env var or Docker secret (`APP_SECRET_KEY` / `APP_SECRET_KEY_FILE`), never from the database or image.
+- Document clearly: **losing the master key means re-entering all credentials.** Provide a key-rotation command.
+
+### Backup encryption
+- Optional per-job `age` encryption using a public key (recipient) stored in settings; the private key is **not** kept on the server.
+- Encrypted artifacts can't be restored from the UI without the user supplying the private key at restore time.
+
+### Container and network
+- Run as a non-root user; no Docker socket mount; read-only root filesystem with writable `/data`, `/backups` and a tmpfs for temp work.
+- Bind to `127.0.0.1` and put Caddy or Traefik in front for HTTPS. Never expose the app port directly.
+- Provide least-privilege, read-only database users per engine (see section 8) and document them.
+- Pin base-image and tool versions; scan the image in CI.
+
+---
+
+## 13. REST API
+
+All routes under `/api`, JSON bodies, session-cookie auth (except setup/login/health).
+
+```
+POST   /auth/setup            create first admin (only if no users exist)
+POST   /auth/login | /auth/logout
+GET    /auth/me
+
+GET/POST         /sources              PUT/DELETE /sources/{id}
+POST             /sources/{id}/test
+
+GET/POST         /destinations         PUT/DELETE /destinations/{id}
+POST             /destinations/{id}/test
+
+GET/POST         /jobs                 PUT/DELETE /jobs/{id}
+POST             /jobs/{id}/run        run now
+POST             /jobs/{id}/enable | /disable
+
+GET              /runs                 filters: job, status, date range
+GET              /runs/{id}
+GET              /runs/{id}/logs       Server-Sent Events (live) or full text
+POST             /runs/{id}/cancel
+POST             /runs/{id}/retry      retry failed destinations only
+
+GET              /backups              list artifacts
+GET              /backups/{id}/download
+DELETE           /backups/{id}
+POST             /backups/{id}/restore
+
+GET/POST/PUT/DELETE /notifications
+POST             /notifications/{id}/test
+
+GET              /dashboard            summary stats
+GET              /settings | PUT /settings
+GET              /audit
+
+GET              /healthz              unauthenticated liveness check
+```
+
+OpenAPI docs are served at `/api/docs` (disable or protect in production).
+
+---
+
+## 14. Web UI
+
+| Page | Contents |
+|---|---|
+| Setup / Login | First-run admin creation, login |
+| Dashboard | Per-job last status, next scheduled run, failures in the last 24h, disk usage, destination health |
+| Sources | List and add/edit form per DB type with a **Test connection** button; credentials are write-only (shown as "••••" after saving) |
+| Destinations | Local path check; Google Drive token paste with **Test**; retention settings |
+| Jobs | Create/edit with source, destinations, cron picker with next-fire preview, options; **Run now**, enable/disable |
+| Runs | History table with filters; run detail with step timeline, per-destination results and live log viewer; cancel and retry |
+| Backups | Browse artifacts by job/date; download, delete; **Restore** wizard |
+| Notifications | Add Slack/email/webhook channels with a test message |
+| Settings | Admin password, timezone, backup-encryption public key, key status, version info |
+| Audit | Read-only log of sensitive actions |
+
+UX rules:
+- Destructive actions require confirmation; restore requires typing the target database name.
+- Every long action shows progress and is cancelable.
+- Errors show a plain-language cause and the relevant log excerpt.
+
+---
+
+## 15. Restore
+
+- Restore reads from the local copy if present, otherwise downloads from Google Drive.
+- Verify the checksum before restoring.
+- Default target is a **different** database/instance than the source; restoring over the original needs an explicit extra confirmation.
+- Encrypted artifacts prompt for the `age` private key (not stored).
+- All restores are written to the audit log with user, artifact and target.
+- MVP fallback: "download artifact + copy-paste restore command" before the full wizard is built.
+- A scheduled **restore test** is a good later feature: restore to a scratch container and run a sanity query.
+
+---
+
+## 16. Notifications and observability
+
+- Channels: Slack webhook, SMTP email, generic webhook. Messages include job, status, duration, size, error summary and a link to the run.
+- **Dead-man's switch:** optional ping URL (e.g. Healthchecks.io) called after each successful run, so you're alerted if the whole system silently stops.
+- Structured JSON logs to stdout; per-run log files under `/data/logs` with a retention setting.
+- `/healthz` checks DB access and scheduler liveness; Docker `HEALTHCHECK` uses it.
+- Optional Prometheus `/metrics` endpoint (later): last success timestamp, duration, size per job.
+
+---
+
+## 17. Docker packaging
+
+### Image build (outline)
+```
+Stage 1 (node):    corepack enable && yarn install --immutable && yarn build  → /frontend/dist
+Stage 2 (python):  base image (Debian slim), then install:
+                     - mysql/mariadb client (mysqldump)
+                     - postgresql-client (pg_dump; latest major, add older if needed)
+                     - mongodb-database-tools (mongodump, mongorestore)
+                     - google-cloud-cli (gcloud)
+                     - rclone, age
+                   pip install backend; copy frontend/dist
+                   create non-root user; EXPOSE 8080
+                   CMD uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1
+```
+Expect a large image (roughly 1 GB or more), mainly due to the Google Cloud CLI.
+
+The tools are added to the image incrementally: `mysqldump` and `pg_dump` in milestone 3, `mongodump` and `gcloud` in milestone 4, `rclone` in milestone 5 (`age` when backup encryption is built).
+
+### docker-compose.yml (example)
+```yaml
+services:
+  dbbackup:
+    image: yourname/dbbackup:latest
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      APP_SECRET_KEY_FILE: /run/secrets/app_key
+      TZ: UTC
+    volumes:
+      - ./data:/data            # SQLite, logs
+      - /srv/backups:/backups   # local backups
+    read_only: true
+    tmpfs: [/tmp]
+    secrets: [app_key]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+secrets:
+  app_key:
+    file: ./app_key.txt
+```
+If your databases run in other containers, attach this service to the same Docker network. If they run on the host, use `host.docker.internal` / the host's address and make sure the DB allows the connection.
+
+### Environment variables
+| Variable | Purpose |
+|---|---|
+| `APP_SECRET_KEY` / `APP_SECRET_KEY_FILE` | Master key for encrypting stored credentials |
+| `DATA_DIR` | Default `/data` |
+| `BACKUP_DIR` | Default `/backups` |
+| `TZ` | Container timezone |
+| `MAX_CONCURRENT_RUNS` | Default 2 |
+| `LOG_LEVEL` | Default `info` |
+| `SESSION_TTL_HOURS` | Default 12 |
+
+---
+
+## 18. Testing strategy
+
+| Level | What |
+|---|---|
+| Unit | Cron parsing, retention rules, path sanitization, redaction, naming |
+| Driver integration | Testcontainers: real MySQL, PostgreSQL, MongoDB; seed data, dump, restore into a new instance, compare |
+| Firestore | Firebase emulator for logic tests; a real throwaway project for a periodic end-to-end export test |
+| Storage | Local adapter tests; rclone against a test Drive account or a local rclone remote as a stand-in |
+| Failure injection | Kill the container mid-run, fill the disk, break the Drive token, drop the DB connection, check status and cleanup |
+| API / UI | pytest API tests; Playwright smoke tests for login → add source → run now → see log |
+| Security | Dependency and image scanning, auth/CSRF tests, secret-redaction tests |
+
+A backup tool is only trustworthy if **restores are tested** — treat the restore round-trip test as a release gate.
+
+---
+
+## 19. Build milestones
+
+| # | Milestone | Done when |
+|---|---|---|
+| 1 | Skeleton: FastAPI + SQLite + Alembic, auth with first-run setup, React shell, Dockerfile and compose | You can log in to an empty dashboard running in Docker |
+| 2 | Sources CRUD and **local** destinations CRUD, encrypted credentials, "Test connection" (Google Drive deferred to milestone 5) | All four DB types and the local destination can be configured and tested |
+| 3 | PostgreSQL and MySQL drivers, local storage, manual "Run now", live logs | First real end-to-end backup |
+| 4 | MongoDB and Firestore drivers | All four databases back up |
+| 5 | All Google Drive work: install rclone in the image, add the `gdrive` destination type (migration), Drive token form and connection test, Drive adapter, verification, per-destination status, retry | Offsite copy works; partial failures are visible and retryable |
+| 6 | Scheduler, retention, notifications, interrupted-run recovery | Runs unattended |
+| 7 | Backups browser, download, restore wizard | Full round trip tested |
+| 8 | Hardening: audit log, rate limiting, key rotation, docs, CI, release image | Production-ready 1.0 |
+
+Milestones 1–3 produce something usable quickly; 4 and 5 hold the harder integrations.
+
+---
+
+## 20. Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Dump tool version mismatch (`pg_dump` older than server) | Bundle current clients; check versions in "Test connection" and warn |
+| Large databases make logical dumps slow or large | Show duration and size trends; document the limitation; consider physical backups later |
+| Drive token expires or app stuck in Testing mode | Clear UI error, notification, documented setup steps |
+| Master key lost | Document key backup; key-rotation tooling; export-free design means credentials are re-entered, backups remain intact |
+| Disk fills with backups or temp files | Preflight check, retention, per-run temp cleanup, dashboard disk usage alert |
+| Silent failure of the whole tool | Dead-man's-switch ping and failure notifications |
+| Credentials in logs or process lists | Config files/env for secrets, redaction filter, tests |
+| Staging-bucket cost for Firestore | Lifecycle rule on the bucket, optional delete after download |
+| Image size and build time | Multi-stage build, cache layers, accept the Google Cloud CLI cost |
+
+---
+
+## 21. Future enhancements
+
+- Additional destinations: S3-compatible, SFTP, Azure Blob.
+- Additional engines: MariaDB profile, SQLite, Redis, SQL Server.
+- In-app Google Drive OAuth connect flow.
+- Multi-user roles, SSO, API tokens.
+- Physical and incremental backups, WAL/binlog archiving, point-in-time recovery.
+- Scheduled automatic restore tests with verification queries.
+- Prometheus metrics and a Grafana dashboard.
+- Backup verification reports and weekly summary emails.
+- Split scheduler and workers for multi-node setups.
+
+---
+
+## 22. Open questions
+
+1. Preferred Python version and base image (Debian slim vs. Ubuntu)?
+2. Will the databases run on the same Docker host, in other containers, or remote/managed (RDS, Atlas, Cloud SQL)?
+3. Is a staging GCS bucket already available for Firestore exports?
+4. Approximate database sizes, to decide whether logical dumps are adequate?
+5. Preferred notification channel (Slack, email, other)?
+6. Should backups be encrypted with `age` from the start?

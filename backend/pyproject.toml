@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbbackup"
+version = "0.1.0"
+description = "Self-hosted database backup tool"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlmodel>=0.0.22",
+    "alembic>=1.13",
+    "argon2-cffi>=23.1",
+    "cryptography>=43",
+    "pydantic-settings>=2.4",
+    "itsdangerous>=2.2",
+    "PyMySQL>=1.1",
+    "psycopg[binary]>=3.2",
+    "pymongo>=4.8",
+    "google-auth>=2.34",
+    "httpx>=0.27",
+    "APScheduler>=3.11,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "testcontainers[mysql,postgres,mongodb]>=4.8",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "integration: needs Docker (Testcontainers); skipped automatically without Docker",
+    "firestore_fake: Firestore flow against a fake gcloud executable (no Google Cloud access)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S603", "S607", "S608"]
+"tests/fakes.py" = ["E501"]  # long one-line shell scripts
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*", "testcontainers.*", "pymysql.*", "docker.*", "apscheduler.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["app.drivers.firestore"]
+disallow_untyped_calls = false

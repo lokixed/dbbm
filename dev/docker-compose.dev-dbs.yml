@@ -1,0 +1,80 @@
+# DEV ONLY. Every password in this file is public and must never be used for real data.
+# Start with `make dev-dbs-up`, stop with `make dev-dbs-down`. See dev/README.md.
+name: dbbackup-dev-dbs
+
+networks:
+  dbbackup-dev:
+    name: dbbackup-dev
+
+services:
+  dev-mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: dev-only-root-pw # DEV ONLY
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - ./init/mysql:/docker-entrypoint-initdb.d:ro
+    networks: [dbbackup-dev]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pdev-only-root-pw --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  dev-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev-only-root-pw # DEV ONLY
+      POSTGRES_DB: shop
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    networks: [dbbackup-dev]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shop"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  dev-mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: dev-only-root-pw # DEV ONLY
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - ./init/mongo:/docker-entrypoint-initdb.d:ro
+    networks: [dbbackup-dev]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u root -p dev-only-root-pw --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep -q 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Notification targets for milestone 6 (see dev/README.md, "Notifications").
+  dev-mailpit:
+    image: axllent/mailpit:v1.34.0
+    ports:
+      - "127.0.0.1:1025:1025" # SMTP (no TLS, no auth)
+      - "127.0.0.1:8025:8025" # web UI: http://localhost:8025
+    networks: [dbbackup-dev]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  dev-echo:
+    # Logs every request (method, path, headers, body) to stdout: `docker logs dbbackup-dev-dbs-dev-echo-1`.
+    image: mendhak/http-https-echo:43
+    environment:
+      HTTP_PORT: "8080"
+      HTTPS_PORT: "8443"
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks: [dbbackup-dev]
+

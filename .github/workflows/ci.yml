@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
+      # The Google Drive adapter is tested against the real rclone (local backend standing in
+      # for Drive) and a fake rclone for Drive-only failures. CI never talks to Google.
+      - name: Install pinned rclone
+        run: sudo sh ../scripts/install-rclone.sh /usr/local/bin
+      - run: pytest -m "not integration"
+      - name: Detect Docker
+        id: docker
+        run: |
+          if docker info >/dev/null 2>&1; then echo "available=true" >> "$GITHUB_OUTPUT"; else echo "available=false" >> "$GITHUB_OUTPUT"; fi
+      # The MySQL/PostgreSQL/MongoDB backup round trips skip themselves here (no client tools on PATH);
+      # they run in the `docker` job below, inside the application image. Firestore is covered by
+      # the unit tests with a fake gcloud; CI never touches real Google Cloud.
+      - name: Integration tests (database drivers via Testcontainers)
+        if: steps.docker.outputs.available == 'true'
+        run: pytest -m integration
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn lint
+      - run: yarn typecheck
+      - run: yarn build
+
+  docker:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: dbbackup:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Client tools are installed
+        run: docker run --rm --entrypoint sh dbbackup:ci -c 'mysqldump --version && pg_dump --version && mongodump --version && mongorestore --version && rclone version'
+      # rclone must run as the app user on a read-only root filesystem (config and cache in /tmp).
+      - name: rclone runs read-only
+        run: docker run --rm --read-only --tmpfs /tmp --user 10001:10001 --entrypoint rclone dbbackup:ci version
+      # gcloud must work on a read-only root filesystem with its config under a writable path.
+      - name: gcloud runs read-only
+        run: |
+          docker run --rm --read-only --tmpfs /tmp --user 10001:10001 \
+            -e CLOUDSDK_CONFIG=/tmp/gcloud -e HOME=/tmp \
+            --entrypoint sh dbbackup:ci -c 'gcloud --version && gcloud firestore export --help >/dev/null'
+      - name: Time zone data is available
+        run: |
+          docker run --rm --entrypoint python dbbackup:ci -c \
+            "from zoneinfo import ZoneInfo; ZoneInfo('Europe/Berlin'); ZoneInfo('America/New_York')"
+      # The app starts read-only, owns the scheduler and reports it in /healthz.
+      - name: Scheduler is healthy in the image
+        run: |
+          docker run -d --name smoke --read-only --tmpfs /tmp \
+            --tmpfs /data:uid=10001,gid=10001 --tmpfs /backups:uid=10001,gid=10001 \
+            -e APP_SECRET_KEY=ci-only-master-key-0123456789-abcdefgh -p 127.0.0.1:18080:8080 dbbackup:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:18080/healthz > /tmp/health.json && break; sleep 2; done
+          cat /tmp/health.json
+          grep -q '"state": *"running"' /tmp/health.json
+          docker rm -f smoke
+      # Backup and restore round trips against real servers, using the client tools in the image.
+      - name: Integration tests inside the image
+        run: |
+          docker run --rm --user root --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/backend:/src:ro" \
+            --entrypoint sh dbbackup:ci -c \
+            'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
+            && cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'

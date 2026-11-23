@@ -1,0 +1,47 @@
+services:
+  dbbackup:
+    build: .
+    image: dbbackup:local
+    restart: unless-stopped
+    # Match the host user so the bind mounts and the key file are readable and writable.
+    user: "${DBBACKUP_UID:-10001}:${DBBACKUP_GID:-10001}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      APP_SECRET_KEY_FILE: /run/secrets/app_key
+      # Container clock and log time zone. Job schedules use their own time zone (set per job;
+      # the default comes from Settings), so this does not change when backups run.
+      TZ: "${TZ:-UTC}"
+      # Optional initial value of Settings > Public base URL (used for links in notifications).
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      # Webhook, Slack, email and heartbeat targets on private networks (10.x, 192.168.x, Docker
+      # networks...) are refused unless this is true. Loopback and link-local are always refused.
+      ALLOW_PRIVATE_NOTIFICATION_TARGETS: "${ALLOW_PRIVATE_NOTIFICATION_TARGETS:-false}"
+      # How many backup runs may execute at the same time; extra runs wait as "queued".
+      MAX_CONCURRENT_RUNS: "${MAX_CONCURRENT_RUNS:-2}"
+      # Plain HTTP on 127.0.0.1 by default; set to true when served over HTTPS (reverse proxy).
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
+    # The image runs exactly one uvicorn worker: it owns the scheduler (lock file
+    # /data/scheduler.lock). Never start a second container on the same ./data.
+    # Time for running backups to stop cleanly; they are marked "interrupted" and notified.
+    stop_grace_period: 30s
+    volumes:
+      # Also holds work/ (temporary dump files, removed after every run), logs/ (run logs)
+      # and scheduler.lock.
+      - ./data:/data
+      - ./backups:/backups
+    read_only: true
+    tmpfs:
+      - /tmp
+    secrets:
+      - app_key
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+secrets:
+  app_key:
+    file: ./app_key.txt
