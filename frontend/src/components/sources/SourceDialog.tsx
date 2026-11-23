@@ -234,7 +234,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
       {type === "mongo" && mongoMode === "fields" && (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Auth database" {...text("authDatabase")} />
             <Field label="Replica set (optional)" {...text("replicaSet")} />
           </div>
@@ -243,7 +243,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
       )}
 
       {isSqlLike && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select
             label="TLS mode"
             options={TLS_MODES[type].map((mode) => ({ value: mode, label: mode }))}
@@ -258,7 +258,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
       {type === "firestore" && (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Project ID" autoComplete="off" {...text("projectId")} />
             <Field label="Database ID" {...text("databaseId")} />
           </div>

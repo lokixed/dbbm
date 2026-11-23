@@ -260,7 +260,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
 
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5" noValidate>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Select
           label="Type"
           disabled={record !== null}
@@ -325,8 +325,8 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
 
       {type === "email" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="sm:col-span-2">
               <Field label="SMTP host" placeholder="smtp.example.com" autoComplete="off" {...text("host")} />
             </div>
             <Field label="Port" inputMode="numeric" {...text("port")} />
@@ -345,7 +345,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
             }}
           />
           {security === "none" && <Alert tone="warning">{INSECURE_EMAIL}</Alert>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Username (optional)" autoComplete="off" {...text("username")} />
             <SecretField
               id="channel-password"

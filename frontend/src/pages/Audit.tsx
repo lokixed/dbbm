@@ -63,7 +63,7 @@ export default function AuditPage() {
       />
 
       <div className="filter-bar flex flex-wrap items-end gap-3">
-        <div className="w-56">
+        <div className="w-full sm:w-56">
           <Select
             aria-label="Filter by action"
             value={filters.action}
@@ -74,7 +74,7 @@ export default function AuditPage() {
             ]}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Input
             aria-label="Filter by user"
             placeholder="User"
@@ -82,7 +82,7 @@ export default function AuditPage() {
             onChange={(username) => setFilter({ username })}
           />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Input
             aria-label="Search action or object"
             placeholder="Search"
@@ -90,10 +90,10 @@ export default function AuditPage() {
             onChange={(search) => setFilter({ search })}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Input aria-label="From date" type="date" value={filters.from} onChange={(from) => setFilter({ from })} />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Input aria-label="To date" type="date" value={filters.to} onChange={(to) => setFilter({ to })} />
         </div>
         <Button variant="secondary" onClick={() => setFilters(EMPTY)}>

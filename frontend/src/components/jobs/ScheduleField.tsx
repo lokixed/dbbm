@@ -64,7 +64,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
           </Button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           label="Cron expression"
           helperText="minute hour day-of-month month day-of-week (0 or 7 = Sunday). At most every 5 minutes."

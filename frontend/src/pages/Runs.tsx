@@ -95,7 +95,7 @@ export default function RunsPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <div className="w-56">
+        <div className="w-full sm:w-56">
           <Select
           aria-label="Filter by job"
                     value={filters.jobId}
@@ -106,7 +106,7 @@ export default function RunsPage() {
           ]}
         />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
           aria-label="Filter by status"
                     value={filters.status}

@@ -201,7 +201,7 @@ function JobForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           label="Timeout per step (seconds)"
           inputMode="numeric"
@@ -272,7 +272,7 @@ function JobForm({
 
       <div className="space-y-3 border border-app-border p-3">
         <Label>Notifications</Label>
-        <div className="grid grid-cols-2 items-end gap-3">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
           <Select
             label="Notify"
             options={[

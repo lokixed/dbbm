@@ -216,7 +216,7 @@ export default function BackupsPage() {
       />
 
       <div className="filter-bar flex flex-wrap items-end gap-3">
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
           aria-label="Filter by job"
                     value={filters.jobId}
@@ -224,7 +224,7 @@ export default function BackupsPage() {
           options={[{ value: "", label: "All jobs" }, ...(jobs.data ?? []).map((j) => ({ value: j.id, label: j.name }))]}
         />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
           aria-label="Filter by source"
                     value={filters.sourceId}
@@ -235,7 +235,7 @@ export default function BackupsPage() {
           ]}
         />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
           aria-label="Filter by destination"
                     value={filters.destinationId}
@@ -246,7 +246,7 @@ export default function BackupsPage() {
           ]}
         />
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Input
           aria-label="Filter by database"
                     placeholder="Database name"
@@ -254,7 +254,7 @@ export default function BackupsPage() {
           onChange={(database) => setFilter({ database })}
         />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
           aria-label="Filter by status"
                     value={filters.status}
@@ -266,7 +266,7 @@ export default function BackupsPage() {
           ]}
         />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Input
           aria-label="From date"
           type="date"
@@ -274,7 +274,7 @@ export default function BackupsPage() {
           onChange={(from) => setFilter({ from })}
         />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Input
           aria-label="To date"
           type="date"

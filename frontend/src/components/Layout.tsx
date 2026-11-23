@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Button from "xedonium/Button";
 import Drawer from "xedonium/Drawer";
@@ -49,6 +49,16 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
+  // The drawer is mobile-only: close it if the window grows to the desktop layout (md = 768px).
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMenuOpen(false);
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
   const handleLogout = () => {
     logout.mutate(undefined, { onSettled: () => navigate("/login", { replace: true }) });
   };
@@ -67,17 +77,21 @@ export function Layout() {
     { key: "logout", label: "Log out", icon: <LogOutIcon className="h-4 w-4" />, onClick: () => setConfirmingLogout(true) },
   ];
 
-  const sidebar = (
+  const brand = (
+    <span className="flex items-center gap-2 px-2">
+      <Logo size={28} />
+      <span className="text-lg font-semibold tracking-tight">DBBM</span>
+      {version.data && <span className="ml-2 text-xs normal-case tracking-normal text-app-muted">v{version.data.version}</span>}
+    </span>
+  );
+
+  const renderSidebar = (fill: boolean) => (
     <Sidebar
+      width={fill ? "w-full" : "w-60"}
+      borderRight={!fill}
       items={items}
       activeKey={activeKey(pathname)}
-      header={
-        <span className="flex items-center gap-2 px-2">
-          <Logo size={28} />
-          <span className="text-lg font-semibold tracking-tight">DBBM</span>
-          {version.data && <span className="ml-2 text-xs text-app-muted">v{version.data.version}</span>}
-        </span>
-      }
+      header={fill ? undefined : brand}
       linkComponent={Link}
       linkProp="to"
       label="Main navigation"
@@ -92,7 +106,7 @@ export function Layout() {
       >
         Skip to main content
       </a>
-      <aside className="hidden shrink-0 md:block">{sidebar}</aside>
+      <aside className="hidden shrink-0 md:block">{renderSidebar(false)}</aside>
       <main id="main-content" tabIndex={-1} className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-none sm:p-6">
         <div className="mb-4 md:hidden">
           <Button variant="secondary" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
@@ -101,8 +115,10 @@ export function Layout() {
         </div>
         <Outlet />
       </main>
-      <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left" width="max-w-xs" padded={false} title="DBBM">
-        <div onClick={() => setMenuOpen(false)}>{sidebar}</div>
+      <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left" width="max-w-xs" padded={false} title={brand}>
+        <div className="min-h-0 flex-1" onClick={() => setMenuOpen(false)}>
+          {renderSidebar(true)}
+        </div>
       </Drawer>
       <ConfirmDialog
         open={confirmingLogout}
