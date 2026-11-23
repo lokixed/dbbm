@@ -7,6 +7,8 @@ export interface JobFormValues {
   sourceId: string;
   destinationIds: string[];
   compress: boolean;
+  encrypt: boolean;
+  recipientIds: string[];
   timeoutSeconds: string;
   schedule: string;
   timezone: string;
@@ -24,6 +26,8 @@ export const jobSchema = z.object({
   sourceId: z.string().min(1, "Choose a source"),
   destinationIds: z.array(z.string()).min(1, "Choose at least one destination"),
   compress: z.boolean(),
+  encrypt: z.boolean(),
+  recipientIds: z.array(z.string()),
   timeoutSeconds: z
     .string()
     .trim()
@@ -43,12 +47,21 @@ export const jobSchema = z.object({
   channelIds: z.array(z.string()),
 });
 
+/** Encryption needs at least one key; checked on submit, with the server enforcing it too. */
+export function encryptionProblem(values: Pick<JobFormValues, "encrypt" | "recipientIds">): string | undefined {
+  return values.encrypt && values.recipientIds.length === 0
+    ? "Choose at least one encryption key, or turn encryption off."
+    : undefined;
+}
+
 export function jobDefaults(timezone: string): JobFormValues {
   return {
     name: "",
     sourceId: "",
     destinationIds: [],
     compress: true,
+    encrypt: false,
+    recipientIds: [],
     timeoutSeconds: "3600",
     schedule: "",
     timezone,
@@ -64,6 +77,8 @@ export function jobToValues(job: JobRecord): JobFormValues {
     sourceId: job.source.id,
     destinationIds: job.destinations.map((d) => d.id),
     compress: job.compress,
+    encrypt: job.encrypt,
+    recipientIds: job.recipients.map((r) => r.id),
     timeoutSeconds: String(job.timeout_seconds),
     schedule: job.schedule ?? "",
     timezone: job.timezone,
@@ -88,6 +103,8 @@ export function toJobInput(
     schedule: schedule === "" ? null : schedule,
     timezone: values.timezone,
     compress: values.compress,
+    encrypt: values.encrypt,
+    recipient_ids: values.encrypt ? values.recipientIds : [],
     timeout_seconds: Number(values.timeoutSeconds),
     notify_on: values.notifyOn,
     notify_on_recovery: values.notifyOnRecovery,

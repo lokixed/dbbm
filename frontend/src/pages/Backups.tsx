@@ -58,13 +58,23 @@ function CopyStatus({ backup }: { backup: Backup }) {
       </Tooltip>
     );
   }
+  const encrypted = backup.encrypted ? (
+    <Tooltip
+      text={`Encrypted with age (keys ${backup.recipients.join(", ")}). Download gives the encrypted file as stored; open it with: age --decrypt -i key.txt -o output file.age`}
+    >
+      <Badge badgeContent="Encrypted" color="info" />
+    </Tooltip>
+  ) : null;
   const title = backup.verified_at
     ? `Re-verified ${formatTime(backup.verified_at)}`
     : "Checked against its checksum when it was stored.";
   return (
-    <Tooltip text={title}>
-      <Badge badgeContent="Verified" color="success" />
-    </Tooltip>
+    <span className="flex flex-wrap gap-1">
+      <Tooltip text={title}>
+        <Badge badgeContent="Verified" color="success" />
+      </Tooltip>
+      {encrypted}
+    </span>
   );
 }
 

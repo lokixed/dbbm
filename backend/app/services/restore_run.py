@@ -8,7 +8,7 @@ has been verified against the one recorded at backup time.
 import asyncio
 import shutil
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +19,7 @@ from app.drivers import get_driver
 from app.drivers.base import DumpError, RestoreContext, RestoreError, RestoreOptions
 from app.models import Artifact, Destination, Run, Source
 from app.models.run import RunStatus
+from app.services import age
 from app.services.audit import write_audit
 from app.services.destination_tokens import DestinationTokenStore
 from app.services.hashing import sha256_file
@@ -55,7 +56,7 @@ def source_type_of(path: str, source_type: str | None = None) -> str | None:
     the file extension (which is ambiguous: PostgreSQL role files are .sql.gz too)."""
     if source_type:
         return source_type
-    name = PurePosixPath(path).name
+    name = PurePosixPath(path).name.removesuffix(".age")
     return next((t for ext, t in EXTENSION_TYPES.items() if name.endswith(ext)), None)
 
 
@@ -75,6 +76,10 @@ class RestorePlan:
     options: RestoreOptions
     timeout_seconds: int
     username: str | None
+    encrypted: bool = False
+    # The age private key for an encrypted backup. Memory only: never part of summary(), the
+    # database, the log or an audit entry, and hidden from repr() so it cannot leak in a traceback.
+    private_key: str | None = field(default=None, repr=False)
 
     def summary(self) -> dict[str, Any]:
         """Non-secret facts shown with the run."""
@@ -87,6 +92,7 @@ class RestorePlan:
             "target_database": self.options.target_database,
             "drop": self.options.drop,
             "full_instance": self.options.full_instance,
+            "encrypted": self.encrypted,
         }
 
 
@@ -97,6 +103,7 @@ def load_restore_plan(
     options: RestoreOptions,
     timeout_seconds: int,
     username: str | None,
+    private_key: str | None = None,
 ) -> RestorePlan:
     try:
         secrets = load_secrets(target.secrets_enc)
@@ -117,6 +124,8 @@ def load_restore_plan(
         options=options,
         timeout_seconds=timeout_seconds,
         username=username,
+        encrypted=artifact.encrypted,
+        private_key=private_key,
     )
 
 
@@ -153,13 +162,19 @@ async def restore_body(
     try:
         await asyncio.to_thread(work_dir.mkdir, 0o700, True, True)
         driver = get_driver(plan.target_type, plan.target_config, plan.target_secrets)
-        log.add_secrets(driver.sensitive_values())
-        state.secrets = driver.sensitive_values()
+        secrets = driver.sensitive_values()
+        if plan.private_key:
+            secrets.append(plan.private_key)
+        log.add_secrets(secrets)
+        state.secrets = secrets
         async with runner.step(run_id, state, log, "preflight"):
             await _preflight(driver, log)
         async with runner.step(run_id, state, log, "fetch backup") as step:
             path = await _fetch(runner, plan, work_dir, log)
             step["detail"] = f"{format_bytes(plan.size)}, SHA-256 verified."
+        if plan.encrypted:
+            async with runner.step(run_id, state, log, "decrypt"):
+                path = await _decrypt(plan, path, work_dir, log)
         async with runner.step(run_id, state, log, "restore"):
             ctx = RestoreContext(work_dir, plan.timeout_seconds, log)
             try:
@@ -170,6 +185,29 @@ async def restore_body(
         return RunStatus.SUCCESS
     finally:
         await runner.cleanup(run_id, work_dir, state, log)
+
+
+async def _decrypt(plan: RestorePlan, stored: Path, work_dir: Path, log: RunLogger) -> Path:
+    """Decrypt the (checksum-verified) ciphertext into the work directory. The private key goes
+    to `age` on standard input; a wrong key or damaged file stops the run before the target is
+    touched."""
+    if not plan.private_key:
+        raise RunFailedError("This backup is encrypted and no private key was provided.")
+    name = stored.name.removesuffix(".age")
+    target = work_dir / ("restore-" + name)
+    free = (await asyncio.to_thread(shutil.disk_usage, work_dir)).free
+    needed = int(plan.size * FREE_SPACE_FACTOR)
+    if free < needed:
+        raise RunFailedError(
+            f"Not enough free disk space to decrypt the backup: "
+            f"{format_bytes(free)} free, {format_bytes(needed)} needed."
+        )
+    try:
+        await age.decrypt_file(stored, target, plan.private_key, plan.timeout_seconds)
+    except age.AgeError as exc:
+        raise RunFailedError(f"{exc} Nothing was changed on the target.") from None
+    log.info("Decrypted the backup.")
+    return target
 
 
 async def _preflight(driver: Any, log: RunLogger) -> None:

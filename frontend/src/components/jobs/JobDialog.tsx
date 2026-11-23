@@ -16,6 +16,7 @@ import { ApiError } from "@/api/client";
 import { useDestinations } from "@/api/destinations";
 import { useSaveJob } from "@/api/jobs";
 import { useChannels } from "@/api/notifications";
+import { useRecipients } from "@/api/recipients";
 import { useAppSettings } from "@/api/settings";
 import { useSources } from "@/api/sources";
 import type { JobRecord } from "@/api/types";
@@ -24,6 +25,7 @@ import { SecretField } from "@/components/SecretField";
 import { useToast } from "@/components/toast";
 import { bindBool, bindText } from "@/lib/formBinding";
 import {
+  encryptionProblem,
   jobDefaults,
   jobSchema,
   jobToValues,
@@ -63,6 +65,7 @@ function JobForm({
   const sources = useSources();
   const destinations = useDestinations();
   const channels = useChannels();
+  const recipients = useRecipients();
   const [formError, setFormError] = useState<string | null>(null);
   const [heartbeat, setHeartbeat] = useState<SecretState>(() => initialSecret(job?.heartbeat_set ?? false));
   const [heartbeatTouched, setHeartbeatTouched] = useState(false);
@@ -75,6 +78,8 @@ function JobForm({
   const errors = formState.errors;
   const selectedDestinations = useWatch({ control, name: "destinationIds" });
   const selectedChannels = useWatch({ control, name: "channelIds" });
+  const encrypt = useWatch({ control, name: "encrypt" });
+  const selectedRecipients = useWatch({ control, name: "recipientIds" });
   const sourceId = useWatch({ control, name: "sourceId" });
   const schedule = useWatch({ control, name: "schedule" });
   const timezone = useWatch({ control, name: "timezone" });
@@ -99,10 +104,22 @@ function JobForm({
       { shouldDirty: true },
     );
 
+  const toggleRecipient = (id: string) =>
+    setValue(
+      "recipientIds",
+      selectedRecipients.includes(id) ? selectedRecipients.filter((r) => r !== id) : [...selectedRecipients, id],
+      { shouldDirty: true },
+    );
+
   const submit = form.handleSubmit(async (values) => {
     setFormError(null);
     setHeartbeatTouched(true);
     if (heartbeatError(heartbeat)) return;
+    const problem = encryptionProblem(values);
+    if (problem) {
+      setFormError(problem);
+      return;
+    }
     try {
       const saved = await save.mutateAsync({
         id: job?.id ?? null,
@@ -196,6 +213,46 @@ function JobForm({
             <span className="ml-2 text-xs text-app-muted">Always gzip for this source</span>
           )}
         </div>
+      </div>
+
+      <div className="space-y-3 border border-app-border p-3">
+        <Switch
+          checked={encrypt}
+          onChange={(value) => setValue("encrypt", value, { shouldDirty: true })}
+          label="Encrypt backups with age"
+        />
+        {encrypt && (
+          <>
+            <Alert tone="warning">
+              Losing the private key means these backups cannot be recovered. This server never has it.
+              Keep it, and a recovery key, somewhere safe.
+            </Alert>
+            <div className="space-y-1">
+              <p className="text-sm">Encrypt to these keys</p>
+              {recipients.isSuccess && recipients.data.length === 0 && (
+                <HelperText>
+                  No keys yet.{" "}
+                  <Link className="underline" to="/settings">
+                    Add one in Settings
+                  </Link>
+                  .
+                </HelperText>
+              )}
+              {recipients.data?.map((key) => (
+                <Checkbox
+                  key={key.id}
+                  checked={selectedRecipients.includes(key.id)}
+                  onChange={() => toggleRecipient(key.id)}
+                  label={key.name}
+                  description={key.fingerprint}
+                />
+              ))}
+              <HelperText>
+                Any one of the selected keys can open a backup. If encryption fails, no backup is stored.
+              </HelperText>
+            </div>
+          </>
+        )}
       </div>
 
       <ScheduleField

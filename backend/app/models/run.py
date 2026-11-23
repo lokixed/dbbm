@@ -100,6 +100,9 @@ class Artifact(SQLModel, table=True):
     # Remote MD5 as reported and verified by Google Drive; None for local copies.
     md5: str | None = Field(default=None, max_length=32)
     compressed: bool
+    # The stored file is `age` ciphertext; `recipients` holds the key fingerprints (public).
+    encrypted: bool = Field(default=False)
+    recipients: list[str] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
     created_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(UTCDateTime, nullable=False)
     )

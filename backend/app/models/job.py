@@ -30,6 +30,8 @@ class Job(SQLModel, table=True):
     schedule: str | None = Field(default=None, max_length=100)
     timezone: str = Field(default="UTC", max_length=64)
     compress: bool = Field(default=True)
+    # Encrypt artifacts with `age` to the recipients linked in job_recipients.
+    encrypt: bool = Field(default=False)
     timeout_seconds: int = Field(default=3600)
     notify_on: str = Field(default=NotifyOn.FAILURE.value, max_length=16)
     notify_on_recovery: bool = Field(default=True)

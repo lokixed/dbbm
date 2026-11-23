@@ -12,10 +12,12 @@ from app.api.run_views import summarize_runs
 from app.core.db import SessionDep
 from app.core.schedule import ScheduleError, schedule_problem, validate_schedule
 from app.models import (
+    AgeRecipient,
     Destination,
     Job,
     JobDestination,
     JobNotificationChannel,
+    JobRecipient,
     NotificationChannel,
     Run,
     Source,
@@ -23,6 +25,7 @@ from app.models import (
 from app.models.base import utcnow
 from app.models.run import ACTIVE_STATUSES
 from app.schemas.job import JobIn, JobOut, RefOut, RunSummaryOut, SourceRefOut
+from app.schemas.recipient import RecipientRefOut
 from app.services.app_settings import read_settings
 from app.services.audit import write_audit
 from app.services.container import Services
@@ -74,6 +77,17 @@ def _channels(db: Session, job_id: uuid.UUID) -> list[NotificationChannel]:
     )
 
 
+def _recipients(db: Session, job_id: uuid.UUID) -> list[AgeRecipient]:
+    return list(
+        db.exec(
+            select(AgeRecipient)
+            .join(JobRecipient, col(JobRecipient.recipient_id) == col(AgeRecipient.id))
+            .where(col(JobRecipient.job_id) == job_id)
+            .order_by(col(AgeRecipient.name))
+        ).all()
+    )
+
+
 def _to_out(db: Session, job: Job, services: Services) -> JobOut:
     source = db.get(Source, job.source_id)
     if source is None:
@@ -92,6 +106,11 @@ def _to_out(db: Session, job: Job, services: Services) -> JobOut:
         schedule_error=schedule_problem(job.schedule, job.timezone),
         next_run_at=services.scheduler.next_run_at(job.id),
         compress=job.compress,
+        encrypt=job.encrypt,
+        recipients=[
+            RecipientRefOut(id=str(r.id), name=r.name, fingerprint=r.fingerprint)
+            for r in _recipients(db, job.id)
+        ],
         timeout_seconds=job.timeout_seconds,
         notify_on=job.notify_on,
         notify_on_recovery=job.notify_on_recovery,
@@ -118,6 +137,13 @@ def _check_refs(db: Session, body: JobIn) -> list[Destination]:
     for channel_id in body.notification_channel_ids:
         if db.get(NotificationChannel, channel_id) is None:
             raise invalid_field(["notification_channel_ids"], "Notification channel not found.")
+    for recipient_id in body.recipient_ids:
+        if db.get(AgeRecipient, recipient_id) is None:
+            raise invalid_field(["recipient_ids"], "Encryption key not found.")
+    if body.encrypt and not body.recipient_ids:
+        raise invalid_field(
+            ["recipient_ids"], "Choose at least one encryption key, or turn encryption off."
+        )
     return destinations
 
 
@@ -145,6 +171,7 @@ def _apply(
     job.source_id = body.source_id
     job.enabled = body.enabled
     job.compress = body.compress
+    job.encrypt = body.encrypt
     job.timeout_seconds = body.timeout_seconds
     job.notify_on = body.notify_on.value
     job.notify_on_recovery = body.notify_on_recovery
@@ -156,10 +183,14 @@ def _apply(
     db.flush()
     db.exec(delete(JobDestination).where(col(JobDestination.job_id) == job.id))
     db.exec(delete(JobNotificationChannel).where(col(JobNotificationChannel.job_id) == job.id))
+    db.exec(delete(JobRecipient).where(col(JobRecipient.job_id) == job.id))
     db.add_all(JobDestination(job_id=job.id, destination_id=d.id) for d in destinations)
     db.add_all(
         JobNotificationChannel(job_id=job.id, notification_channel_id=c)
         for c in body.notification_channel_ids
+    )
+    db.add_all(
+        JobRecipient(job_id=job.id, recipient_id=r) for r in dict.fromkeys(body.recipient_ids)
     )
     return heartbeat_changed
 
@@ -185,6 +216,8 @@ def _audit_details(job: Job, body: JobIn, heartbeat_changed: bool) -> dict[str, 
         "schedule": job.schedule,
         "timezone": job.timezone,
         "compress": job.compress,
+        "encrypt": job.encrypt,
+        "recipient_ids": [str(r) for r in body.recipient_ids],
         "timeout_seconds": job.timeout_seconds,
         "notify_on": job.notify_on,
         "notify_on_recovery": job.notify_on_recovery,

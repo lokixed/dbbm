@@ -154,6 +154,9 @@ export interface JobRecord {
   schedule_error: string | null;
   next_run_at: string | null;
   compress: boolean;
+  /** Backups are encrypted with age to these keys. */
+  encrypt: boolean;
+  recipients: { id: string; name: string; fingerprint: string }[];
   timeout_seconds: number;
   notify_on: NotifyOn;
   notify_on_recovery: boolean;
@@ -172,6 +175,8 @@ export interface JobInput {
   schedule: string | null;
   timezone: string | null;
   compress: boolean;
+  encrypt: boolean;
+  recipient_ids: string[];
   timeout_seconds: number;
   notify_on: NotifyOn;
   notify_on_recovery: boolean;
@@ -190,6 +195,8 @@ export interface ArtifactRecord {
   sha256: string;
   md5: string | null;
   compressed: boolean;
+  encrypted: boolean;
+  recipients: string[];
   created_at: string;
 }
 

@@ -12,6 +12,7 @@ import { z } from "zod";
 import { useTimezones } from "@/api/schedule";
 import { useAppSettings, useSaveSettings } from "@/api/settings";
 import type { AppSettings, AppSettingsRecord } from "@/api/types";
+import { EncryptionKeys } from "@/components/settings/EncryptionKeys";
 import { useToast } from "@/components/toast";
 import { bindText } from "@/lib/formBinding";
 
@@ -189,6 +190,7 @@ export default function SettingsPage() {
         </Alert>
       )}
       {settings.isSuccess && <SettingsForm settings={settings.data} />}
+      <EncryptionKeys />
     </div>
   );
 }

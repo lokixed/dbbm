@@ -34,9 +34,20 @@ from app.drivers.base import (
     DumpReporter,
     StepHandle,
 )
-from app.models import Artifact, AuthStatus, Destination, Job, JobDestination, Run, Source
+from app.models import (
+    AgeRecipient,
+    Artifact,
+    AuthStatus,
+    Destination,
+    Job,
+    JobDestination,
+    JobRecipient,
+    Run,
+    Source,
+)
 from app.models.base import new_uuid, utcnow
 from app.models.run import ACTIVE_STATUSES, RunStatus, RunTrigger
+from app.services import age
 from app.services.destination_tokens import DestinationTokenStore
 from app.services.hashing import OperationCancelledError, sha256_file
 from app.services.logstream import RunLogger, log_path_for
@@ -146,6 +157,9 @@ class RunPlan:
     source_secrets: dict[str, str]
     destinations: list[DestinationInfo]
     last_artifact_size: int | None
+    # (fingerprint, public key) of every key to encrypt to; empty when encryption is off.
+    recipients: list[tuple[str, str]] = field(default_factory=list)
+    encrypt: bool = False
 
 
 @dataclass
@@ -183,6 +197,8 @@ class RetrySource:
     size: int
     sha256: str
     compressed: bool
+    encrypted: bool = False
+    recipients: tuple[str, ...] = ()
 
 
 @dataclass
@@ -559,7 +575,14 @@ class Runner:
                     continue
                 target_row = db.get(Destination, uuid.UUID(entry["destination_id"]))
                 sources = [
-                    RetrySource(destination_info(d), a.size_bytes, a.sha256, a.compressed)
+                    RetrySource(
+                        destination_info(d),
+                        a.size_bytes,
+                        a.sha256,
+                        a.compressed,
+                        a.encrypted,
+                        tuple(a.recipients or ()),
+                    )
                     for a, d in stored
                     if a.source_database == unit["database"] and a.path == key
                 ]
@@ -597,6 +620,21 @@ class Runner:
             ).all()
             if not rows:
                 raise RunFailedError("The job has no destinations.")
+            recipients = [
+                (r.fingerprint, r.public_key)
+                for r in db.exec(
+                    select(AgeRecipient)
+                    .join(JobRecipient, col(JobRecipient.recipient_id) == col(AgeRecipient.id))
+                    .where(col(JobRecipient.job_id) == job_id)
+                    .order_by(col(AgeRecipient.name))
+                ).all()
+            ]
+            if job.encrypt and not recipients:
+                # Fail closed: never fall back to storing an unencrypted backup.
+                raise RunFailedError(
+                    "Encryption is turned on for this job but it has no encryption key. "
+                    "Add a key to the job, or turn encryption off."
+                )
             return RunPlan(
                 job_name=job.name,
                 compress=job.compress,
@@ -606,6 +644,8 @@ class Runner:
                 source_secrets=secrets,
                 destinations=[destination_info(d) for d in rows],
                 last_artifact_size=self._last_artifact_size(db, job_id),
+                recipients=recipients,
+                encrypt=job.encrypt,
             )
 
     @staticmethod
@@ -674,6 +714,8 @@ class Runner:
                     sha256=art.sha256,
                     md5=md5,
                     compressed=art.compressed,
+                    encrypted=art.encrypted,
+                    recipients=list(art.recipients) if art.encrypted else None,
                 )
             )
             db.commit()
@@ -918,6 +960,12 @@ class Runner:
                 f"{format_bytes(free)} free, {format_bytes(required)} needed."
             )
 
+        if plan.encrypt:
+            try:
+                log.info(f"Encryption: {await age.version()}, {len(plan.recipients)} key(s).")
+            except age.AgeError as exc:
+                raise RunFailedError(str(exc)) from None
+
         databases = driver.select_databases(result.databases or [])
         if not databases:
             raise RunFailedError("There are no databases to back up on this source.")
@@ -953,23 +1001,29 @@ class Runner:
         log.info(f"-- {database} --")
         began = time.monotonic()
         art = dumped
-        if art is None:
+        if art is None or plan.encrypt:
             reporter = _UnitReporter(partial(self._save, run_id, state), steps, state, log, secrets)
             unit_ctx = replace(ctx, report=reporter)
             try:
-                if driver.reports_substeps:
-                    art = await driver.dump_database(database, unit_ctx)
-                else:
-                    async with reporter.step("dump"):
+                if art is None:
+                    if driver.reports_substeps:
                         art = await driver.dump_database(database, unit_ctx)
+                    else:
+                        async with reporter.step("dump"):
+                            art = await driver.dump_database(database, unit_ctx)
+                if plan.encrypt:
+                    art = await self._encrypt(art, plan, reporter, log)
             except DumpError as exc:
+                what = "Encryption" if isinstance(exc, age.AgeError) else "Dump"
+                if art is not None:
+                    art.path.unlink(missing_ok=True)  # never leave plaintext behind
                 unit["dump"] = {"status": "failed", "error": str(exc), "steps": steps}
                 unit["destinations"] = [
                     {"destination_id": str(d.id), "destination_name": d.name, "status": "skipped"}
                     for d, _s in storages
                 ]
                 state.errors.append(f"{database}: {exc}")
-                log.error(f"Dump of {database} failed: {exc}")
+                log.error(f"{what} of {database} failed: {exc}")
                 await self._save(run_id, state)
                 return
         unit["dump"] = {
@@ -977,6 +1031,7 @@ class Runner:
             "duration_ms": int((time.monotonic() - began) * 1000),
             "size_bytes": art.size,
             "sha256": art.sha256,
+            "encrypted": art.encrypted,
             "steps": steps,
         }
         log.info(f"Dump of {database} finished: {format_bytes(art.size)}, sha256 {art.sha256}")
@@ -1004,6 +1059,29 @@ class Runner:
         finally:
             art.path.unlink(missing_ok=True)
             manifest.unlink(missing_ok=True)
+
+    @staticmethod
+    async def _encrypt(
+        art: DumpedArtifact, plan: RunPlan, reporter: _UnitReporter, log: RunLogger
+    ) -> DumpedArtifact:
+        """Encrypt the dump to the job's keys. The plaintext file is deleted as soon as the
+        ciphertext exists, and size and checksum from here on describe the ciphertext."""
+        target = art.path.with_name(art.path.name + ".age")
+        async with reporter.step("encrypt"):
+            size, digest = await age.encrypt_file(
+                art.path, target, [key for _fp, key in plan.recipients], plan.timeout_seconds
+            )
+        art.path.unlink(missing_ok=True)
+        log.info(f"Encrypted to {len(plan.recipients)} key(s): {format_bytes(size)}.")
+        return replace(
+            art,
+            path=target,
+            extension=art.extension + ".age",
+            size=size,
+            sha256=digest,
+            encrypted=True,
+            recipients=tuple(fp for fp, _key in plan.recipients),
+        )
 
     @staticmethod
     def _unique_key(job: str, art: DumpedArtifact, moment: datetime, used: set[str]) -> str:
@@ -1037,7 +1115,11 @@ class Runner:
             "size_bytes": art.size,
             "sha256": art.sha256,
             "compression": art.compression,
+            "encrypted": art.encrypted,
         }
+        if art.encrypted:
+            # Public information only: which keys can decrypt this file.
+            body["recipients"] = list(art.recipients)
         if extra:
             body["source"] = extra
         path.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
@@ -1234,6 +1316,8 @@ class Runner:
                 sha256=sha,
                 compressed=source.compressed,
                 compression="",
+                encrypted=source.encrypted,
+                recipients=source.recipients,
             )
             return art, manifest, dest.name
         return None

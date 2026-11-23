@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class BackupOut(BaseModel):
@@ -21,6 +21,9 @@ class BackupOut(BaseModel):
     sha256: str
     md5: str | None = None
     compressed: bool
+    # The stored file is age ciphertext; these are the fingerprints of the keys that open it.
+    encrypted: bool = False
+    recipients: list[str] = Field(default_factory=list)
     created_at: datetime
     # None until "Verify now" has re-read the copy; it was verified when it was uploaded.
     verified_at: datetime | None = None
@@ -53,3 +56,6 @@ class RestoreIn(BaseModel):
     confirm_database: str
     # Needed only when the restore would overwrite the original database.
     confirm_overwrite_original: bool = False
+    # Needed only for an encrypted backup: the age private key. Used in memory for this restore;
+    # never stored, logged or echoed.
+    private_key: SecretStr | None = Field(default=None, max_length=4096)

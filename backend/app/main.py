@@ -17,6 +17,7 @@ from app.api import (
     health,
     jobs,
     notifications,
+    recipients,
     retention,
     runs,
     schedule,
@@ -98,6 +99,7 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(runs.router)
     app.include_router(backups.router)
+    app.include_router(recipients.router)
     app.include_router(dashboard.router)
     app.include_router(retention.router)
     app.include_router(notifications.router)

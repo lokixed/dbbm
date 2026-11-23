@@ -195,6 +195,57 @@ case "$mode" in
 esac
 """
 
+_AGE = """#!/bin/sh
+# A stand-in for the age CLI: "encrypts" to a header listing the recipients, and "decrypts" only
+# when the identity on stdin matches one of them. It fails the way age does for a wrong key, a
+# truncated file and a damaged file. Identities are never recorded.
+dir=$(dirname "$0")
+case "$1" in
+  --version) echo "v1.3.2"; exit 0;;
+esac
+prev=""; out=""; recips=""; ident=""
+for a; do
+  case "$prev" in
+    -o) out="$a";;
+    -r) recips="$recips $a";;
+    -i) ident="$a";;
+  esac
+  prev="$a"
+done
+src="$a"
+case "$1" in
+  --encrypt)
+    echo "$*" > "$dir/age.encrypt.args"
+    [ "$(cat "$dir/age.mode" 2>/dev/null || echo ok)" = fail ] && { echo "age: error: simulated failure" >&2; exit 1; }
+    size=$(wc -c < "$src" | tr -d ' ')
+    sum=$(cksum < "$src" | cut -d' ' -f1)
+    { printf 'AGEFAKE\n%s\n%s\n%s\n' "$recips " "$size" "$sum"; cat "$src"; } > "$out"
+    exit 0;;
+  --decrypt)
+    echo "$*" > "$dir/age.decrypt.args"
+    [ "$ident" = "-" ] || { echo "age: error: this fake needs -i -" >&2; exit 1; }
+    key=$(cat)
+    [ -s "$src" ] || { echo "age: error: failed to read header: parsing age header: file is empty" >&2; exit 1; }
+    [ "$(head -n 1 "$src")" = AGEFAKE ] || { echo "age: error: failed to read header: parsing age header: unexpected intro: \"hello\"" >&2; exit 1; }
+    [ "$(wc -l < "$src")" -ge 4 ] || { echo "age: error: failed to read header: failed to parse header: failed to read line: EOF" >&2; exit 1; }
+    pub="age1$(printf %s "${key#AGE-SECRET-KEY-1}" | tr 'A-Z' 'a-z')"
+    case "$(sed -n 2p "$src")" in
+      *" $pub "*) ;;
+      *) echo "age: error: no identity matched any of the recipients" >&2; exit 1;;
+    esac
+    size=$(sed -n 3p "$src"); sum=$(sed -n 4p "$src")
+    header=$(head -n 4 "$src" | wc -c | tr -d ' ')
+    tail -c +$((header + 1)) "$src" > "$out.body"
+    have=$(wc -c < "$out.body" | tr -d ' ')
+    if [ "$have" -lt "$size" ]; then rm -f "$out.body"; echo "age: error: failed to decrypt and authenticate payload chunk, file may be corrupted or tampered with" >&2; exit 1; fi
+    if [ "$(cksum < "$out.body" | cut -d' ' -f1)" != "$sum" ]; then rm -f "$out.body"; echo "age: error: failed to decrypt and authenticate payload chunk, file may be corrupted or tampered with" >&2; exit 1; fi
+    mv "$out.body" "$out"
+    exit 0;;
+esac
+echo "fake age: unhandled: $*" >&2
+exit 2
+"""
+
 _GCLOUD = """#!/bin/sh
 dir=$(dirname "$0")
 mode() { cat "$dir/gcloud_$1.mode" 2>/dev/null || echo ok; }
@@ -297,6 +348,7 @@ def fake_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeBins:
         ("mongorestore", _MONGORESTORE),
         ("mysql", _MYSQL_CLIENT),
         ("pg_restore", _PG_RESTORE),
+        ("age", _AGE),
         ("gcloud", _GCLOUD),
     ):
         path = directory / name

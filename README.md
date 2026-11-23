@@ -49,6 +49,31 @@ Restore user privileges: restoring needs write access, so create a separate rest
 
 A run is `success` when every database reached every destination and was verified, `partial` when some did, and `failed` when none did. A second run of the same job cannot start while one is active.
 
+## Backup encryption
+
+Jobs can encrypt every backup with [age](https://github.com/FiloSottile/age) before it is checksummed, stored or uploaded, so a leaked Google Drive account or disk does not expose your data. The server only ever holds **public keys**. It never has a private key.
+
+**Losing the private key means the backups are unrecoverable.** Nobody can open an encrypted backup without it, not even the administrator.
+
+1. Generate a key pair on your own machine, not on the server: `age-keygen -o backup-key.txt`. It prints the public key (`age1...`) and writes the private key to the file. Store that file somewhere safe and offline, for example in a password manager.
+2. Make a second key pair as a recovery key and keep it somewhere else. A backup can be opened with any one of the keys it was encrypted to.
+3. Open **Settings**, section **Backup encryption keys**, and add the public keys. A private key (`AGE-SECRET-KEY-...`) is refused.
+4. Edit the job, turn on **Encrypt backups with age** and choose the keys.
+
+Encrypted artifacts end in `.age` (for example `.sql.gz.age`). The checksum, size and Google Drive MD5 describe the encrypted file, and the manifest records `encrypted: true` and the key fingerprints, never any private material. If a job is set to encrypt and no key is set, `age` is missing or encryption fails, the run fails and no unencrypted backup is stored.
+
+To restore an encrypted backup, the restore wizard asks for the private key. Paste it or load the file. It is used for that restore only, held in memory, and never stored or logged. A wrong key, a truncated file or a damaged file stops the restore before the target is touched.
+
+To read a backup yourself, download it from **Backups** (it downloads as stored, still encrypted) and run:
+
+```
+age --decrypt -i backup-key.txt -o backup.sql.gz backup.sql.gz.age
+```
+
+Rotating keys: add the new public key, add it to the jobs, then remove the old one from the jobs. Backups made earlier stay readable only with the key they were encrypted to, so keep the old private key as long as you keep those backups. To re-encrypt an old backup, decrypt it and encrypt it to the new key: `age -d -i old-key.txt backup.age | age -r age1NEWPUBLICKEY -o backup-new.age`.
+
+Recovery drill, at least once per quarter: take a backup from your storage (not from the server's disk), fetch the private key from where you keep it, decrypt it with `age`, and restore it into a scratch database. If any step fails, fix it while you still have the original data.
+
 ## Supported databases
 
 | Source | Tool in the image | What you get |

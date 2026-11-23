@@ -19,7 +19,7 @@ When you are ready to start a milestone, ask for its Copilot prompt (e.g. "write
 | 5 | Google Drive via rclone, verification, retry | Prompt written |
 | 6 | Scheduler, retention, notifications, heartbeat pings | Prompt written |
 | 7 | Backups browser, download, restore | **Nearly done**: all four engines restore; left are signed download URLs, per-collection restore, a general tool-version check and the manual Firestore check on a real project |
-| 8 | Backup encryption (`age`) | **TODO** |
+| 8 | Backup encryption (`age`) | **Done**: keys, encrypted backups, restore with a private key (not yet committed) |
 | 9 | Hardening and 1.0 release | **TODO** |
 
 Tick off milestones 1 to 6 here as you finish and commit them:
@@ -112,39 +112,39 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 **Depends on:** milestone 7 (restore must be able to decrypt).
 
 ### Key management
-- [ ] Install `age` in the Docker image (pinned release, checksum verified)
-- [ ] Settings page: add one or more **age public keys (recipients)**. The server stores only public keys
-- [ ] Provide a key generation helper for convenience in the UI or docs (generate the key pair **in the browser or on the admin's machine**, and make clear that the private key must be saved by the user because the server can never recover it)
-- [ ] Support multiple recipients so a backup can be decrypted by more than one key (for example a personal key and a recovery key)
+- [x] Install `age` in the Docker image (pinned release, checksum verified) (`scripts/install-age.sh`, age v1.3.2, tarball checked against the SHA-256 GitHub publishes for the release; built and run in the image)
+- [x] Settings page: add one or more **age public keys (recipients)**. The server stores only public keys
+- [x] Provide a key generation helper for convenience in the UI or docs (generate the key pair **in the browser or on the admin's machine**, and make clear that the private key must be saved by the user because the server can never recover it) (done as instructions in Settings and the README: `age-keygen` on the admin's machine; generating keys in the browser would need a new frontend dependency, so it is not built)
+- [x] Support multiple recipients so a backup can be decrypted by more than one key (for example a personal key and a recovery key)
 
 ### Backup flow
-- [ ] Job option `encrypt` (the column already exists in the design) selects recipients to encrypt to
-- [ ] Pipeline order: dump, compress, **encrypt**, checksum, store. Checksums, sizes and Drive MD5 are computed on the encrypted file
-- [ ] Artifact extension `.age` appended to the normal one; the manifest records `encrypted: true` and recipient fingerprints (never private material)
-- [ ] Encryption is streaming (no whole-file buffering) and part of the existing temp-file-then-rename flow
-- [ ] Retry from a stored artifact keeps working (it copies the already-encrypted file)
-- [ ] A job set to encrypt **fails closed**: if no recipient is configured or encryption fails, no unencrypted artifact is stored
+- [x] Job option `encrypt` (the column already exists in the design) selects recipients to encrypt to
+- [x] Pipeline order: dump, compress, **encrypt**, checksum, store. Checksums, sizes and Drive MD5 are computed on the encrypted file
+- [x] Artifact extension `.age` appended to the normal one; the manifest records `encrypted: true` and recipient fingerprints (never private material)
+- [x] Encryption is streaming (no whole-file buffering) and part of the existing temp-file-then-rename flow
+- [x] Retry from a stored artifact keeps working (it copies the already-encrypted file)
+- [x] A job set to encrypt **fails closed**: if no recipient is configured or encryption fails, no unencrypted artifact is stored
 
 ### Restore and download flow
-- [ ] Restore of an encrypted artifact asks for the **private key** (paste or file upload), used only in memory for that request and never written to disk, logs, or the database
-- [ ] Download offers "as stored (encrypted)" and shows instructions for decrypting locally with the `age` CLI
-- [ ] Clear error messages for wrong key, truncated file, and tampered file
+- [x] Restore of an encrypted artifact asks for the **private key** (paste or file upload), used only in memory for that request and never written to disk, logs, or the database
+- [x] Download offers "as stored (encrypted)" and shows instructions for decrypting locally with the `age` CLI
+- [x] Clear error messages for wrong key, truncated file, and tampered file (tested against real age; age cannot tell a truncated payload from a tampered one, so those share one message, while a cut header, a wrong key and a non-age file each have their own)
 
 ### UI and docs
-- [ ] Backups browser shows an "encrypted" badge and the recipient fingerprints
-- [ ] Prominent warning when enabling encryption: **losing the private key means the backups are unrecoverable**
-- [ ] Documentation: how to generate, store and rotate keys, how to decrypt with the CLI, and a recovery drill
+- [x] Backups browser shows an "encrypted" badge and the recipient fingerprints
+- [x] Prominent warning when enabling encryption: **losing the private key means the backups are unrecoverable**
+- [x] Documentation: how to generate, store and rotate keys, how to decrypt with the CLI, and a recovery drill
 
 ### Tests
-- [ ] Round trip: encrypt on backup, decrypt on restore, data matches
-- [ ] Wrong key, multiple recipients, tampered ciphertext, fail-closed behavior
-- [ ] The private key never appears in logs, API responses, audit entries, process arguments, or on disk
-- [ ] Drive upload and verification work on encrypted artifacts
+- [x] Round trip: encrypt on backup, decrypt on restore, data matches (unit tests with a fake `age`, and `tests/integration/test_restore_roundtrip.py` with real age and real MySQL, PostgreSQL and MongoDB)
+- [x] Wrong key, multiple recipients, tampered ciphertext, fail-closed behavior
+- [x] The private key never appears in logs, API responses, audit entries, process arguments, or on disk
+- [x] Drive upload and verification work on encrypted artifacts
 
 ### Acceptance criteria
-- [ ] An encrypted backup is unreadable without the key, and the file in Google Drive is ciphertext
-- [ ] Restore with the correct key works for all four database types; with a wrong key it fails cleanly and changes nothing
-- [ ] The server holds no private key anywhere
+- [x] An encrypted backup is unreadable without the key, and the file in Google Drive is ciphertext
+- [x] Restore with the correct key works for all four database types; with a wrong key it fails cleanly and changes nothing (MySQL, PostgreSQL and MongoDB with real age and real servers; Firestore with the fake `gcloud`)
+- [x] The server holds no private key anywhere
 
 ---
 

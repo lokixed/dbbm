@@ -58,6 +58,8 @@ def run_detail(db: Session, run: Run) -> RunOut:
             sha256=a.sha256,
             md5=a.md5,
             compressed=a.compressed,
+            encrypted=a.encrypted,
+            recipients=list(a.recipients or []),
             created_at=a.created_at,
         )
         for a, name in rows

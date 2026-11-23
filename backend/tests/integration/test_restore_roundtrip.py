@@ -1,16 +1,21 @@
 """Back up and restore through the application's own engines, against real servers.
 
-Each test seeds a database, backs it up with a job, restores that backup into a new database
-through the restore API, and compares the two (row and document counts, a checksum of the data,
-and the schema objects). Then it damages the copy and restores again with "replace existing".
+Every test runs twice: plain, and with encryption on (real `age`, a key pair made by
+`age-keygen`, restored with the private key). Each test seeds a database, backs it up with a
+job, restores that backup into a new database through the restore API, and compares the two
+(row and document counts, a checksum of the data, and the schema objects). Then it damages the
+copy and restores again with "replace existing".
 
-They need mysqldump, mysql, pg_dump, pg_restore, mongodump and mongorestore on PATH and are
-skipped without them; `make test-integration-docker` runs them inside the application image.
+They need mysqldump, mysql, pg_dump, pg_restore, mongodump, mongorestore, age and age-keygen
+on PATH and are skipped without them; `make test-integration-docker` runs them inside the
+application image.
 """
 
 import shutil
+import subprocess
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any
 
 import psycopg
@@ -20,6 +25,7 @@ from fastapi.testclient import TestClient
 from pymongo import MongoClient
 
 from app.api import backups as backups_api
+from app.core.config import get_settings
 from tests.conftest import api_post
 from tests.integration.conftest import Endpoint
 from tests.runs_helpers import make_destination, make_job, run_now, wait_final
@@ -29,7 +35,16 @@ pytestmark = [
     pytest.mark.skipif(
         not all(
             shutil.which(t)
-            for t in ("mysqldump", "mysql", "pg_dump", "pg_restore", "mongodump", "mongorestore")
+            for t in (
+                "mysqldump",
+                "mysql",
+                "pg_dump",
+                "pg_restore",
+                "mongodump",
+                "mongorestore",
+                "age",
+                "age-keygen",
+            )
         ),
         reason="the database client tools must be installed",
     ),
@@ -56,18 +71,66 @@ def create_source(client: TestClient, body: dict[str, Any]) -> dict[str, Any]:
     return created
 
 
-def back_up(client: TestClient, source: dict[str, Any], database: str) -> dict[str, Any]:
-    job = make_job(client, source, [make_destination(client)], f"{source['name']}-job")
+@dataclass(frozen=True)
+class Mode:
+    """Plain backups, or backups encrypted to a real age key whose private half the test holds."""
+
+    recipient_ids: list[str]
+    private_key: str | None
+
+    @property
+    def encrypted(self) -> bool:
+        return self.private_key is not None
+
+
+def real_keygen() -> tuple[str, str]:
+    out = subprocess.run(["age-keygen"], capture_output=True, text=True, check=True)  # noqa: S603, S607
+    private = next(x for x in out.stdout.splitlines() if x.startswith("AGE-SECRET-KEY-"))
+    public = next(x.split(": ")[1] for x in out.stderr.splitlines() if x.startswith("Public key:"))
+    return public, private
+
+
+@pytest.fixture(params=["plain", "encrypted"])
+def mode(request: pytest.FixtureRequest, authed: TestClient) -> Iterator[Mode]:
+    if request.param == "plain":
+        yield Mode([], None)
+        return
+    public, private = real_keygen()
+    created = api_post(authed, "/api/recipients", {"name": "rt-key", "public_key": public}).json()
+    yield Mode([created["id"]], private)
+    # The server must never have held the private key: not in the database, logs or any file.
+    settings = get_settings()
+    for root in (settings.data_dir, settings.backup_dir):
+        for path in root.rglob("*"):
+            if path.is_file():
+                assert private.encode() not in path.read_bytes(), f"private key found in {path}"
+
+
+def back_up(
+    client: TestClient, source: dict[str, Any], database: str, mode: Mode
+) -> dict[str, Any]:
+    job = make_job(
+        client,
+        source,
+        [make_destination(client)],
+        f"{source['name']}-job",
+        encrypt=mode.encrypted,
+        recipient_ids=mode.recipient_ids,
+    )
     run = run_now(client, job)
     assert run["status"] == "success", (run["error"], run["step_results"])
     items = client.get(f"/api/backups?run_id={run['id']}").json()["items"]
     (backup,) = [i for i in items if i["source_database"] == database]
     found: dict[str, Any] = backup
+    stored = (get_settings().backup_dir / "daily" / found["path"]).read_bytes()
+    assert found["encrypted"] is mode.encrypted
+    assert stored.startswith(b"age-encryption.org/v1") is mode.encrypted  # real age ciphertext
+    assert found["path"].endswith(".age") is mode.encrypted
     return found
 
 
 def restore(
-    client: TestClient, backup: dict[str, Any], target: dict[str, Any], **over: Any
+    client: TestClient, backup: dict[str, Any], target: dict[str, Any], mode: Mode, **over: Any
 ) -> dict[str, Any]:
     """Restore into DST on `target` and wait for the run; retries while the target is busy."""
     body = {
@@ -76,6 +139,8 @@ def restore(
         "confirm_database": DST,
         **over,
     }
+    if mode.private_key:
+        body["private_key"] = mode.private_key
     deadline = time.monotonic() + 15
     while True:
         response = api_post(client, f"/api/backups/{backup['id']}/restore", body)
@@ -156,22 +221,22 @@ def mysql_source(mysql_server: Endpoint) -> Iterator[dict[str, Any]]:
 
 
 def test_mysql_round_trip_through_the_restore_engine(
-    authed: TestClient, mysql_server: Endpoint, mysql_source: dict[str, Any]
+    authed: TestClient, mysql_server: Endpoint, mysql_source: dict[str, Any], mode: Mode
 ) -> None:
     source = create_source(authed, mysql_source)
-    backup = back_up(authed, source, SRC)
+    backup = back_up(authed, source, SRC, mode)
     expected = mysql_fingerprint(mysql_server, SRC)
     assert expected["counts"] == {"customers": 40, "orders": 80} and expected["routines"] == [
         "hello"
     ]
 
-    restore(authed, backup, source)
+    restore(authed, backup, source, mode)
     assert mysql_fingerprint(mysql_server, DST) == expected
 
     with mysql_root(mysql_server, DST) as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM orders WHERE id <= 60")
         cur.execute("CREATE TABLE junk (x INT)")
-    restore(authed, backup, source, drop=True)
+    restore(authed, backup, source, mode, drop=True)
     assert mysql_fingerprint(mysql_server, DST) == expected  # the junk table is gone too
 
 
@@ -245,20 +310,20 @@ def pg_source(postgres_server: Endpoint) -> Iterator[dict[str, Any]]:
 
 
 def test_postgres_round_trip_through_the_restore_engine(
-    authed: TestClient, postgres_server: Endpoint, pg_source: dict[str, Any]
+    authed: TestClient, postgres_server: Endpoint, pg_source: dict[str, Any], mode: Mode
 ) -> None:
     source = create_source(authed, pg_source)
-    backup = back_up(authed, source, SRC)
+    backup = back_up(authed, source, SRC, mode)
     expected = pg_fingerprint(postgres_server, SRC)
     assert expected["counts"] == {"customers": 40, "orders": 80} and expected["views"] == 1
 
-    restore(authed, backup, source)
+    restore(authed, backup, source, mode)
     assert pg_fingerprint(postgres_server, DST) == expected
 
     with pg_connect(postgres_server, DST) as conn:
         conn.execute("DELETE FROM orders WHERE id <= 60")
         conn.execute("UPDATE customers SET name = 'changed'")
-    restore(authed, backup, source, drop=True)
+    restore(authed, backup, source, mode, drop=True)
     assert pg_fingerprint(postgres_server, DST) == expected
 
 
@@ -311,10 +376,10 @@ def mongo_source(mongo_server: Endpoint) -> Iterator[dict[str, Any]]:
 
 
 def test_mongo_round_trip_through_the_restore_engine(
-    authed: TestClient, mongo_server: Endpoint, mongo_source: dict[str, Any]
+    authed: TestClient, mongo_server: Endpoint, mongo_source: dict[str, Any], mode: Mode
 ) -> None:
     source = create_source(authed, mongo_source)
-    backup = back_up(authed, source, SRC)
+    backup = back_up(authed, source, SRC, mode)
     client = mongo_client(mongo_server)
     try:
         expected = mongo_fingerprint(client, SRC)
@@ -322,12 +387,12 @@ def test_mongo_round_trip_through_the_restore_engine(
             len(expected["docs"]["orders"]) == 80 and "customer_1" in expected["indexes"]["orders"]
         )
 
-        restore(authed, backup, source)
+        restore(authed, backup, source, mode)
         assert mongo_fingerprint(client, DST) == expected
 
         client[DST]["orders"].delete_many({"_id": {"$lt": 60}})
         client[DST]["customers"].update_many({}, {"$set": {"name": "changed"}})
-        restore(authed, backup, source, drop=True)
+        restore(authed, backup, source, mode, drop=True)
         assert mongo_fingerprint(client, DST) == expected
     finally:
         client.close()

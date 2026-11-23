@@ -22,6 +22,7 @@ from app.schemas.backup import BackupOut, BackupPage, RescanOut, RestoreIn, Veri
 from app.schemas.job import RunSummaryOut
 from app.schemas.source import FirestoreConfig
 from app.services import backups as svc
+from app.services.age import AgeError, extract_private_key
 from app.services.audit import write_audit
 from app.services.naming import database_label
 from app.services.restore_run import DEFAULT_TIMEOUT, load_restore_plan, source_type_of
@@ -67,6 +68,8 @@ def _out(row: Row) -> BackupOut:
         sha256=artifact.sha256,
         md5=artifact.md5,
         compressed=artifact.compressed,
+        encrypted=artifact.encrypted,
+        recipients=list(artifact.recipients or []),
         created_at=artifact.created_at,
         verified_at=artifact.verified_at,
         missing=artifact.missing_at is not None,
@@ -270,6 +273,21 @@ def _check_firestore_target(target: Source, body: RestoreIn) -> None:
         )
 
 
+def _private_key_for(artifact: Artifact, body: RestoreIn) -> str | None:
+    """The age private key for an encrypted backup (validated); None for a plain one."""
+    if not artifact.encrypted:
+        return None
+    if body.private_key is None:
+        raise HTTPException(
+            status_code=422,
+            detail="This backup is encrypted. Provide the age private key to restore it.",
+        )
+    try:
+        return extract_private_key(body.private_key.get_secret_value())
+    except AgeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 RESTORES_PER_MINUTE = 5
 _restore_starts: dict[str, deque[float]] = defaultdict(deque)
 
@@ -352,11 +370,14 @@ async def restore_backup(
                 "Confirm overwriting the original to continue."
             ),
         )
+    private_key = _private_key_for(artifact, body)
     if _rate_limited(user.username):
         raise HTTPException(status_code=429, detail="Too many restores started. Wait a minute.")
     options = RestoreOptions(artifact.source_database, body.target_database, body.drop, full)
     try:
-        plan = load_restore_plan(artifact, copy, target, options, DEFAULT_TIMEOUT, user.username)
+        plan = load_restore_plan(
+            artifact, copy, target, options, DEFAULT_TIMEOUT, user.username, private_key
+        )
         run_id = await services.runner.submit_restore(plan)
     except RunFailedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None

@@ -103,7 +103,11 @@ RUN set -eux; \
 COPY scripts/install-rclone.sh /tmp/install-rclone.sh
 RUN sh /tmp/install-rclone.sh /usr/local/bin && rm -f /tmp/install-rclone.sh
 
-# TODO(later): age (backup encryption)
+# ---- age (milestone 8) ----
+# Pinned release; the script checks the tarball against a SHA-256 pinned in it.
+COPY scripts/install-age.sh /tmp/install-age.sh
+RUN sh /tmp/install-age.sh /usr/local/bin && rm -f /tmp/install-age.sh
+
 RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin dbbackup \
     && mkdir -p /data /backups \
     && chown dbbackup:dbbackup /data /backups

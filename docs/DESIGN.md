@@ -214,7 +214,8 @@ All primary keys are UUIDs. Timestamps are stored in UTC.
 | path | text | key within the destination |
 | size_bytes | bigint | |
 | sha256 | text | |
-| encrypted | bool | |
+| encrypted | bool | the stored file is age ciphertext (path ends in `.age`) |
+| recipients | json | fingerprints of the keys it was encrypted to (public) |
 | created_at / expires_at | datetime | |
 | deleted_at | datetime | soft delete for audit |
 | verified_at | datetime | last successful "Verify now"; null until then (it was verified at upload) |
@@ -402,8 +403,12 @@ Rules:
 - Document clearly: **losing the master key means re-entering all credentials.** Provide a key-rotation command.
 
 ### Backup encryption
-- Optional per-job `age` encryption using a public key (recipient) stored in settings; the private key is **not** kept on the server.
+- Optional per-job `age` encryption using public keys (recipients) stored in the `age_recipients` table and linked to jobs in `job_recipients`; the private key is **not** kept on the server.
 - Encrypted artifacts can't be restored from the UI without the user supplying the private key at restore time.
+- Pipeline: dump, compress, **encrypt**, checksum, store. The `age` CLI reads and writes the files itself (constant memory); the plaintext is deleted as soon as the ciphertext exists. Size, SHA-256 and the Drive MD5 describe the ciphertext.
+- A job set to encrypt fails closed: no key, `age` missing or an `age` error fails the unit and nothing is stored.
+- Decryption runs `age --decrypt -i -` with the private key on standard input only (never a file, an argument, a log or the database). The plaintext goes to the run's work directory and is removed with it.
+- Public keys are validated (`age1` plus 58 bech32 characters); a private key pasted into the public-key field is refused. Only classic X25519 keys are accepted.
 
 ### Container and network
 - Run as a non-root user; no Docker socket mount; read-only root filesystem with writable `/data`, `/backups` and a tmpfs for temp work.
@@ -443,7 +448,8 @@ GET              /backups/{id}/download  verifies the SHA-256 first; local copy 
 POST             /backups/{id}/verify    re-read the stored copy (local SHA-256, Drive MD5)
 POST             /backups/rescan?destination_id=   mark artifacts whose files are gone
 DELETE           /backups/{id}
-POST             /backups/{id}/restore  body: target_source_id, target_database, drop, confirm_database, confirm_overwrite_original; starts a run of kind `restore`
+POST             /backups/{id}/restore  body: target_source_id, target_database, drop, confirm_database, confirm_overwrite_original, private_key (encrypted backups only); starts a run of kind `restore`
+GET/POST         /recipients           age public keys for backup encryption; DELETE /recipients/{id} (refused while a job uses the key)
 
 GET/POST/PUT/DELETE /notifications
 POST             /notifications/{id}/test

@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.schedule import ScheduleError, normalize_cron, validate_timezone
 from app.models.job import NotifyOn
 from app.schemas.common import Name
+from app.schemas.recipient import RecipientRefOut
 from app.services.outbound import OutboundBlocked, check_url_static, validate_url
 
 MAX_SCHEDULE_LENGTH = 100
@@ -27,6 +28,9 @@ class JobIn(BaseModel):
     # IANA name; omitted means the default_timezone setting.
     timezone: str | None = None
     compress: bool = True
+    # Encrypt every artifact with age to these keys (add them under Settings).
+    encrypt: bool = False
+    recipient_ids: Annotated[list[uuid.UUID], Field(max_length=20)] = Field(default_factory=list)
     timeout_seconds: Annotated[int, Field(strict=True, ge=MIN_TIMEOUT, le=MAX_TIMEOUT)] = 3600
     notify_on: NotifyOn = NotifyOn.FAILURE
     notify_on_recovery: bool = True
@@ -118,6 +122,8 @@ class JobOut(BaseModel):
     schedule_error: str | None = None
     next_run_at: datetime | None = None
     compress: bool
+    encrypt: bool = False
+    recipients: list[RecipientRefOut] = Field(default_factory=list)
     timeout_seconds: int
     notify_on: str
     notify_on_recovery: bool
@@ -138,6 +144,8 @@ class ArtifactOut(BaseModel):
     sha256: str
     md5: str | None = None
     compressed: bool
+    encrypted: bool = False
+    recipients: list[str] = Field(default_factory=list)
     created_at: datetime
 
 

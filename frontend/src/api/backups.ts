@@ -19,6 +19,9 @@ export interface Backup {
   sha256: string;
   md5: string | null;
   compressed: boolean;
+  /** The stored file is age ciphertext; `recipients` are the fingerprints of the keys that open it. */
+  encrypted: boolean;
+  recipients: string[];
   created_at: string;
   /** Null until "Verify now" has re-read the copy; it was verified when it was uploaded. */
   verified_at: string | null;
@@ -113,6 +116,8 @@ export interface RestoreInput {
   drop: boolean;
   confirm_database: string;
   confirm_overwrite_original: boolean;
+  /** The age private key of an encrypted backup. Sent once, kept in memory, never stored. */
+  private_key?: string;
 }
 
 /** All stored copies (one per destination) of the same database from the same run. */

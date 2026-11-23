@@ -1,3 +1,4 @@
+from app.models.age_recipient import AgeRecipient, JobRecipient
 from app.models.app_setting import AppSetting
 from app.models.audit_log import AuditLog
 from app.models.destination import AuthStatus, Destination, DestinationType
@@ -15,6 +16,7 @@ from app.models.source import Source, SourceType
 from app.models.user import User
 
 __all__ = [
+    "AgeRecipient",
     "AppSetting",
     "Artifact",
     "AuditLog",
@@ -26,6 +28,7 @@ __all__ = [
     "EventType",
     "Job",
     "JobDestination",
+    "JobRecipient",
     "JobNotificationChannel",
     "NotificationChannel",
     "NotificationEvent",

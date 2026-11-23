@@ -107,6 +107,9 @@ class DumpedArtifact:
     sha256: str
     compressed: bool
     compression: str  # "gzip", "none" or "pg_dump_custom"
+    # Set once the file has been encrypted with age; sha256 and size then describe the ciphertext.
+    encrypted: bool = False
+    recipients: tuple[str, ...] = ()  # fingerprints of the keys it was encrypted to
 
 
 class Driver(Protocol):
