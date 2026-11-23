@@ -9,12 +9,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # Yarn 4: keep only the shareable parts of .yarn
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/sdks
+!**/.yarn/versions
 
 # Python
 __pycache__/
@@ -31,7 +31,7 @@ htmlcov/
 
 # Runtime data and secrets
 data/
-backups/
+/backups/
 .dev/
 app_key.txt
 .env
