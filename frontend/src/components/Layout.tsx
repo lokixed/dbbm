@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import AppShell from "xedonium/AppShell";
 import Button from "xedonium/Button";
+import Drawer from "xedonium/Drawer";
 import Sidebar, { type SidebarItem } from "xedonium/Sidebar";
-import ThemeToggle from "xedonium/ThemeToggle";
+import { useTheme } from "xedonium/theme";
 import ArchiveIcon from "xedonium/icons/Archive";
 import BellIcon from "xedonium/icons/Bell";
 import CalendarClockIcon from "xedonium/icons/CalendarClock";
@@ -10,9 +11,13 @@ import DatabaseIcon from "xedonium/icons/Database";
 import HardDriveIcon from "xedonium/icons/HardDrive";
 import LayoutDashboardIcon from "xedonium/icons/LayoutDashboard";
 import LogOutIcon from "xedonium/icons/LogOut";
+import MenuIcon from "xedonium/icons/Menu";
+import MoonIcon from "xedonium/icons/Moon";
 import PlayIcon from "xedonium/icons/Play";
 import SettingsIcon from "xedonium/icons/Settings";
+import SunIcon from "xedonium/icons/Sun";
 import { useLogout, useMe } from "@/api/auth";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const NAV_ITEMS: SidebarItem[] = [
   { key: "/", label: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-4 w-4" /> },
@@ -37,40 +42,64 @@ export function Layout() {
   const { pathname } = useLocation();
   const { data: user } = useMe();
   const logout = useLogout();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   const handleLogout = () => {
     logout.mutate(undefined, { onSettled: () => navigate("/login", { replace: true }) });
   };
 
-  const header = (
-    <div className="flex h-14 items-center justify-end gap-2 border-b border-app-border px-6">
-      <span className="mr-2 text-sm text-app-muted">{user?.username}</span>
-      <ThemeToggle />
-      <Button variant="flat" onClick={handleLogout} disabled={logout.isPending}>
-        <LogOutIcon className="h-4 w-4" />
-        Log out
-      </Button>
-    </div>
+  const { activeTheme, toggleTheme } = useTheme();
+
+  const items: SidebarItem[] = [
+    ...NAV_ITEMS,
+    { key: "divider-account", divider: true },
+    { key: "account", label: user?.username ?? "Account", section: true },
+    {
+      key: "theme",
+      label: activeTheme === "dark" ? "Light theme" : "Dark theme",
+      icon: activeTheme === "dark" ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />,
+      onClick: toggleTheme,
+    },
+    { key: "logout", label: "Log out", icon: <LogOutIcon className="h-4 w-4" />, onClick: () => setConfirmingLogout(true) },
+  ];
+
+  const sidebar = (
+    <Sidebar
+      items={items}
+      activeKey={activeKey(pathname)}
+      header={<span className="px-2 text-lg font-semibold tracking-tight">DBBackup</span>}
+      linkComponent={Link}
+      linkProp="to"
+      label="Main navigation"
+    />
   );
 
   return (
-    <AppShell
-      header={header}
-      sidebarTitle="DBBackup"
-      sidebar={
-        <Sidebar
-          items={NAV_ITEMS}
-          activeKey={activeKey(pathname)}
-          header={<span className="px-2 text-lg font-semibold tracking-tight">DBBackup</span>}
-          linkComponent={Link}
-          linkProp="to"
-          label="Main navigation"
-        />
-      }
-    >
-      <main className="p-6">
+    <div className="flex h-screen overflow-hidden bg-app-bg text-app-text">
+      <aside className="hidden shrink-0 md:block">{sidebar}</aside>
+      <main className="relative min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mb-4 md:hidden">
+          <Button variant="secondary" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+            <MenuIcon className="h-4 w-4" />
+          </Button>
+        </div>
         <Outlet />
       </main>
-    </AppShell>
+      <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left" width="max-w-xs" padded={false} title="DBBackup">
+        <div onClick={() => setMenuOpen(false)}>{sidebar}</div>
+      </Drawer>
+      <ConfirmDialog
+        open={confirmingLogout}
+        title="Log out?"
+        description="You will need to sign in again to manage backups."
+        confirmLabel="Log out"
+        pendingLabel="Logging out..."
+        tone="default"
+        pending={logout.isPending}
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmingLogout(false)}
+      />
+    </div>
   );
 }

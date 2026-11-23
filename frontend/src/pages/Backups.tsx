@@ -17,6 +17,7 @@ import RefreshCwIcon from "xedonium/icons/RefreshCw";
 import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import ShieldCheckIcon from "xedonium/icons/ShieldCheck";
 import Trash2Icon from "xedonium/icons/Trash2";
+import RelativeTime from "xedonium/RelativeTime";
 import {
   PAGE_SIZE,
   downloadUrl,
@@ -147,8 +148,17 @@ export default function BackupsPage() {
         </Tooltip>
       ),
     },
-    { key: "created", header: "Created", render: (backup) => formatTime(backup.created_at) },
-    { key: "size", header: "Size", align: "right", render: (backup) => formatBytes(backup.size_bytes) },
+    {
+      key: "created",
+      header: "Created",
+      render: (backup) => <span className="whitespace-nowrap"><RelativeTime date={backup.created_at} /></span>,
+    },
+    {
+      key: "size",
+      header: "Size",
+      align: "right",
+      render: (backup) => <span className="whitespace-nowrap">{formatBytes(backup.size_bytes)}</span>,
+    },
     {
       key: "sha",
       header: "SHA-256",
@@ -165,7 +175,7 @@ export default function BackupsPage() {
       header: "Actions",
       align: "right",
       render: (backup) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-1 whitespace-nowrap">
           <ButtonLink
             variant="secondary"
             href={backup.missing ? undefined : downloadUrl(backup.id)}
@@ -217,44 +227,48 @@ export default function BackupsPage() {
       />
 
       <div className="flex flex-wrap items-end gap-3">
-        <Select
+        <div className="w-48">
+          <Select
           aria-label="Filter by job"
-          className="w-48"
-          value={filters.jobId}
+                    value={filters.jobId}
           onChange={(jobId) => setFilter({ jobId })}
           options={[{ value: "", label: "All jobs" }, ...(jobs.data ?? []).map((j) => ({ value: j.id, label: j.name }))]}
         />
-        <Select
+        </div>
+        <div className="w-48">
+          <Select
           aria-label="Filter by source"
-          className="w-48"
-          value={filters.sourceId}
+                    value={filters.sourceId}
           onChange={(sourceId) => setFilter({ sourceId })}
           options={[
             { value: "", label: "All sources" },
             ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name })),
           ]}
         />
-        <Select
+        </div>
+        <div className="w-48">
+          <Select
           aria-label="Filter by destination"
-          className="w-48"
-          value={filters.destinationId}
+                    value={filters.destinationId}
           onChange={(destinationId) => setFilter({ destinationId })}
           options={[
             { value: "", label: "All destinations" },
             ...(destinations.data ?? []).map((d) => ({ value: d.id, label: d.name })),
           ]}
         />
-        <Input
+        </div>
+        <div className="w-44">
+          <Input
           aria-label="Filter by database"
-          className="w-44"
-          placeholder="Database name"
+                    placeholder="Database name"
           value={filters.database}
           onChange={(database) => setFilter({ database })}
         />
-        <Select
+        </div>
+        <div className="w-40">
+          <Select
           aria-label="Filter by status"
-          className="w-40"
-          value={filters.status}
+                    value={filters.status}
           onChange={(status) => setFilter({ status: status as BackupFilters["status"] })}
           options={[
             { value: "", label: "Any status" },
@@ -262,20 +276,23 @@ export default function BackupsPage() {
             { value: "missing", label: "Missing" },
           ]}
         />
-        <Input
+        </div>
+        <div className="w-40">
+          <Input
           aria-label="From date"
           type="date"
-          className="w-40"
-          value={filters.from}
+                    value={filters.from}
           onChange={(from) => setFilter({ from })}
         />
-        <Input
+        </div>
+        <div className="w-40">
+          <Input
           aria-label="To date"
           type="date"
-          className="w-40"
-          value={filters.to}
+                    value={filters.to}
           onChange={(to) => setFilter({ to })}
         />
+        </div>
         <Button
           variant="secondary"
           onClick={onRescan}

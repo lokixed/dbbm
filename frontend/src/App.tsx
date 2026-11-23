@@ -36,7 +36,7 @@ function UnauthorizedRedirect() {
 
 export default function App() {
   return (
-    <ThemeProvider storageKey="dbbackup-theme" allowSystem>
+    <ThemeProvider storageKey="dbbackup-theme">
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <BrowserRouter>

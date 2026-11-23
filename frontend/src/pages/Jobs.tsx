@@ -13,13 +13,13 @@ import PencilIcon from "xedonium/icons/Pencil";
 import PlayIcon from "xedonium/icons/Play";
 import PlusIcon from "xedonium/icons/Plus";
 import Trash2Icon from "xedonium/icons/Trash2";
+import RelativeTime from "xedonium/RelativeTime";
 import { useDeleteJob, useJobs, useRunJob, useSetJobEnabled } from "@/api/jobs";
 import type { JobRecord } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
-import { formatTime } from "@/lib/format";
 
 function ScheduleBadge({ job }: { job: JobRecord }) {
   if (!job.schedule) return <Badge badgeContent="Manual" color="secondary" />;
@@ -130,7 +130,7 @@ export default function JobsPage() {
       key: "next",
       header: "Next run",
       render: (job) =>
-        job.next_run_at ? formatTime(job.next_run_at) : <span className="text-app-muted">-</span>,
+        job.next_run_at ? <RelativeTime date={job.next_run_at} /> : <span className="text-app-muted">-</span>,
     },
     {
       key: "last",
@@ -139,7 +139,7 @@ export default function JobsPage() {
         job.last_run ? (
           <Link to={`/runs/${job.last_run.id}`} className="inline-flex items-center gap-2 hover:underline">
             <RunStatusBadge status={job.last_run.status} />
-            <span className="text-xs text-app-muted">{formatTime(job.last_run.created_at)}</span>
+            <span className="whitespace-nowrap text-xs text-app-muted"><RelativeTime date={job.last_run.created_at} /></span>
           </Link>
         ) : (
           <RunStatusBadge status={null} />
@@ -153,20 +153,31 @@ export default function JobsPage() {
         const starting = run.isPending && run.variables === job.id;
         const active = job.last_run?.status === "queued" || job.last_run?.status === "running";
         return (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1 whitespace-nowrap">
             <Button
               variant="flat"
               disabled={starting || active}
               onClick={() => runNow(job)}
               aria-label={`Run ${job.name} now`}
+              tooltip="Run now"
             >
-              <PlayIcon className="h-4 w-4" /> Run now
+              <PlayIcon className="h-4 w-4" />
             </Button>
-            <Button variant="flat" onClick={() => setEditor({ open: true, job })} aria-label={`Edit ${job.name}`}>
-              <PencilIcon className="h-4 w-4" /> Edit
+            <Button
+              variant="flat"
+              onClick={() => setEditor({ open: true, job })}
+              aria-label={`Edit ${job.name}`}
+              tooltip="Edit"
+            >
+              <PencilIcon className="h-4 w-4" />
             </Button>
-            <Button variant="flat" onClick={() => setDeleting(job)} aria-label={`Delete ${job.name}`}>
-              <Trash2Icon className="h-4 w-4" /> Delete
+            <Button
+              variant="flat"
+              onClick={() => setDeleting(job)}
+              aria-label={`Delete ${job.name}`}
+              tooltip="Delete"
+            >
+              <Trash2Icon className="h-4 w-4" />
             </Button>
           </div>
         );

@@ -9,6 +9,7 @@ import Label from "xedonium/Label";
 import PlayIcon from "xedonium/icons/Play";
 import SearchIcon from "xedonium/icons/Search";
 import { useRetentionPreview, useRunRetention } from "@/api/destinations";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { RetentionPreview, RetentionRunResult } from "@/api/types";
 import { parsePolicyValue, type DestinationFormValues } from "@/lib/destinationForm";
 import { bindText } from "@/lib/formBinding";
@@ -81,6 +82,7 @@ export function RetentionSection({ destinationId, form, keepLast, keepDays, unsa
   const preview = useRetentionPreview();
   const runNow = useRunRetention();
   const [result, setResult] = useState<RetentionRunResult | null>(null);
+  const [confirmingRun, setConfirmingRun] = useState(false);
   const errors = form.formState.errors;
   const keepLastValue = parsePolicyValue(keepLast);
   const keepDaysValue = parsePolicyValue(keepDays);
@@ -129,7 +131,7 @@ export function RetentionSection({ destinationId, form, keepLast, keepDays, unsa
               variant="secondary"
               disabled={runNow.isPending || unsaved}
               tooltip={unsaved ? "Save the policy first" : undefined}
-              onClick={() => runNow.mutate(destinationId, { onSuccess: (data) => setResult(data) })}
+              onClick={() => setConfirmingRun(true)}
             >
               <PlayIcon className="h-4 w-4" />
               Run retention now
@@ -144,6 +146,25 @@ export function RetentionSection({ destinationId, form, keepLast, keepDays, unsa
       ) : (
         <HelperText>Save the destination to preview or run retention.</HelperText>
       )}
+      <ConfirmDialog
+        open={confirmingRun}
+        title="Run retention now?"
+        description="Backups outside the saved retention policy are permanently deleted from this destination. This cannot be undone."
+        confirmLabel="Run retention"
+        pendingLabel="Running..."
+        pending={runNow.isPending}
+        onConfirm={() =>
+          destinationId &&
+          runNow.mutate(destinationId, {
+            onSuccess: (data) => {
+              setResult(data);
+              setConfirmingRun(false);
+            },
+            onError: () => setConfirmingRun(false),
+          })
+        }
+        onCancel={() => setConfirmingRun(false)}
+      />
     </div>
   );
 }

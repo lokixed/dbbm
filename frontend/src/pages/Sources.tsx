@@ -69,7 +69,7 @@ export default function SourcesPage() {
       render: (source) => {
         const testing = test.isPending && test.variables === source.id;
         return (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1 whitespace-nowrap">
             <Button
               variant="flat"
               onClick={() => setEditor({ open: true, source })}

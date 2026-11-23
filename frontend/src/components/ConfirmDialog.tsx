@@ -7,6 +7,7 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   pending?: boolean;
   pendingLabel?: string;
+  tone?: "default" | "danger";
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   confirmLabel,
   pending = false,
   pendingLabel = "Deleting...",
+  tone = "danger",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -27,7 +29,7 @@ export function ConfirmDialog({
       onClose={onCancel}
       onConfirm={onConfirm}
       title={title}
-      tone="danger"
+      tone={tone}
       busy={pending}
       confirmLabel={confirmLabel}
       busyLabel={pendingLabel}

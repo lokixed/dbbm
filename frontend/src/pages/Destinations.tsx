@@ -111,7 +111,7 @@ export default function DestinationsPage() {
       render: (d) => {
         const testing = test.isPending && test.variables === d.id;
         return (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1 whitespace-nowrap">
             <Button
               variant="flat"
               onClick={() => setEditor({ open: true, destination: d, focusToken: false })}

@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* A table inside a card would draw a second border next to the card's own, so drop it. */
+.bg-app-card.border .overflow-x-auto.border {
+  border-width: 0;
+  border-radius: 0;
+}

@@ -11,6 +11,7 @@ import Tooltip from "xedonium/Tooltip";
 import ArrowLeftIcon from "xedonium/icons/ArrowLeft";
 import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import XCircleIcon from "xedonium/icons/XCircle";
+import RelativeTime from "xedonium/RelativeTime";
 import { ApiError } from "@/api/client";
 import { useCancelRun, useRetryRun, useRun } from "@/api/runs";
 import { ACTIVE_STATUSES, type ArtifactRecord, type RunNotification } from "@/api/types";
@@ -21,7 +22,7 @@ import { DestinationResults } from "@/components/runs/DestinationResults";
 import { LogViewer } from "@/components/runs/LogViewer";
 import { RunTimeline } from "@/components/runs/RunTimeline";
 import { useToast } from "@/components/toast";
-import { formatBytes, formatDuration, formatTime } from "@/lib/format";
+import { formatBytes, formatDuration } from "@/lib/format";
 import { hasRetryableFailures } from "@/lib/retry";
 
 /** Re-renders every second while `active`, so a running duration keeps counting. */
@@ -136,9 +137,9 @@ export default function RunDetailPage() {
         <div className="flex flex-wrap items-center gap-3 text-sm text-app-muted">
           <RunStatusBadge status={data.status} />
           <span>Duration {formatDuration(data.started_at, data.finished_at, now)}</span>
-          <span>Started {formatTime(data.started_at ?? data.created_at)}</span>
+          <span>Started <RelativeTime date={data.started_at ?? data.created_at} /></span>
           <span className="capitalize">Trigger: {data.trigger}</span>
-          {data.scheduled_for && <span>Scheduled for {formatTime(data.scheduled_for)}</span>}
+          {data.scheduled_for && <span>Scheduled for <RelativeTime date={data.scheduled_for} /></span>}
         </div>
         {(data.parent_run_id || data.retry_run_ids.length > 0) && (
           <div className="flex flex-wrap items-center gap-3 text-sm">

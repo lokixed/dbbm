@@ -406,10 +406,12 @@ export function ChannelDialog({ open, channel, onClose }: ChannelDialogProps) {
       title={channel ? "Edit notification channel" : "Add notification channel"}
       maxWidth="max-w-2xl"
     >
+      <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         Secrets (webhook URLs, passwords, headers) are stored encrypted and never shown again.
       </HelperText>
       <ChannelForm channel={channel} onClose={onClose} />
+      </div>
     </Modal>
   );
 }

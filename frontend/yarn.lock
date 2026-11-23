@@ -1180,7 +1180,7 @@ __metadata:
     typescript: "npm:^6"
     typescript-eslint: "npm:^8.73.0"
     vite: "npm:^8.3.8"
-    xedonium: "npm:^1.28.2"
+    xedonium: "npm:1.30.0"
     zod: "npm:^4.6.7"
   languageName: unknown
   linkType: soft
@@ -2800,14 +2800,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xedonium@npm:^1.28.2":
-  version: 1.28.2
-  resolution: "xedonium@npm:1.28.2"
+"xedonium@npm:1.30.0":
+  version: 1.30.0
+  resolution: "xedonium@npm:1.30.0"
   peerDependencies:
     react: ">=18"
     react-dom: ">=18"
     tailwindcss: ^3.4.0 || ^4.0.0
-  checksum: 10c0/c9a43ef2d70e553e0ce27c50cc70dc7e04b1354d3cc0c1854eea0ba08b13afa5bff1a2739568b123e36751cac2e50aecbbdc75040539534cf49cc72b2488d2ac
+  checksum: 10c0/802466d5eefaa7cf00b4e85149bd451052d687b3e03027c9e7dadb0d957f45e17a220244cb75f6da7b3f7ac58b325a3641e180e154b2f6f3c20d845d951a8527
   languageName: node
   linkType: hard
 

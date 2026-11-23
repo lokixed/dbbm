@@ -276,10 +276,12 @@ export function DestinationDialog({ open, destination, focusToken = false, onClo
       title={focusToken ? "Reconnect Google Drive" : destination ? "Edit destination" : "Add destination"}
       maxWidth="max-w-2xl"
     >
+      <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         Backups are copied to every destination of a job and verified there.
       </HelperText>
       <DestinationForm destination={destination} focusToken={focusToken} onClose={onClose} />
+      </div>
     </Modal>
   );
 }

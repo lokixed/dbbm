@@ -15,6 +15,7 @@ import PencilIcon from "xedonium/icons/Pencil";
 import PlusIcon from "xedonium/icons/Plus";
 import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
+import RelativeTime from "xedonium/RelativeTime";
 import {
   EVENTS_PAGE_SIZE,
   useChannelEvents,
@@ -29,7 +30,6 @@ import { ChannelDialog } from "@/components/notifications/ChannelDialog";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
 import { useToast } from "@/components/toast";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
-import { formatTime } from "@/lib/format";
 
 const TYPE_LABEL = { slack: "Slack", email: "Email", webhook: "Webhook" } as const;
 
@@ -37,7 +37,7 @@ const EVENT_COLUMNS: TableColumn<NotificationEvent>[] = [
   {
     key: "time",
     header: "Time",
-    render: (event) => <span className="whitespace-nowrap text-xs">{formatTime(event.created_at)}</span>,
+    render: (event) => <span className="whitespace-nowrap text-xs"><RelativeTime date={event.created_at} /></span>,
   },
   {
     key: "event",
@@ -214,7 +214,7 @@ export default function NotificationsPage() {
         return (
           <span className="inline-flex items-center gap-2 text-xs">
             {channel.last_test.message ? <Tooltip text={channel.last_test.message}>{badge}</Tooltip> : badge}
-            <span className="text-app-muted">{formatTime(channel.last_test.at)}</span>
+            <span className="text-app-muted"><RelativeTime date={channel.last_test.at} /></span>
           </span>
         );
       },
@@ -231,22 +231,39 @@ export default function NotificationsPage() {
       render: (channel) => {
         const sending = test.isPending && test.variables === channel.id;
         return (
-          <div className="flex justify-end gap-1">
-            <Button variant="flat" disabled={sending} onClick={() => sendTest(channel)}>
-              <SendIcon className="h-4 w-4" /> Send test
+          <div className="flex justify-end gap-1 whitespace-nowrap">
+            <Button
+              variant="flat"
+              disabled={sending}
+              onClick={() => sendTest(channel)}
+              aria-label={`Send test to ${channel.name}`}
+              tooltip="Send test"
+            >
+              <SendIcon className="h-4 w-4" />
             </Button>
-            <Button variant="flat" onClick={() => setEventsFor(channel)}>
-              <HistoryIcon className="h-4 w-4" /> Events
+            <Button
+              variant="flat"
+              onClick={() => setEventsFor(channel)}
+              aria-label={`Events of ${channel.name}`}
+              tooltip="Events"
+            >
+              <HistoryIcon className="h-4 w-4" />
             </Button>
             <Button
               variant="flat"
               onClick={() => setEditor({ open: true, channel })}
               aria-label={`Edit ${channel.name}`}
+              tooltip="Edit"
             >
-              <PencilIcon className="h-4 w-4" /> Edit
+              <PencilIcon className="h-4 w-4" />
             </Button>
-            <Button variant="flat" onClick={() => setDeleting(channel)} aria-label={`Delete ${channel.name}`}>
-              <Trash2Icon className="h-4 w-4" /> Delete
+            <Button
+              variant="flat"
+              onClick={() => setDeleting(channel)}
+              aria-label={`Delete ${channel.name}`}
+              tooltip="Delete"
+            >
+              <Trash2Icon className="h-4 w-4" />
             </Button>
           </div>
         );

@@ -301,6 +301,7 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
   const ready = !settings.isPending && !sources.isPending && !destinations.isPending;
   return (
     <Modal open={open} onClose={onClose} title={job ? "Edit job" : "Add job"} maxWidth="max-w-2xl">
+      <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         A job backs up every database of one source to one or more destinations.
       </HelperText>
@@ -309,6 +310,7 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
       ) : (
         <Loader variant="inline" label="Loading..." />
       )}
+      </div>
     </Modal>
   );
 }

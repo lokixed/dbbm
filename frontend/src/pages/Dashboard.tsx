@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
+import ButtonLink from "xedonium/ButtonLink";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
 import Loader from "xedonium/Loader";
@@ -10,6 +11,7 @@ import Progress from "xedonium/Progress";
 import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
 import PlayIcon from "xedonium/icons/Play";
+import RelativeTime from "xedonium/RelativeTime";
 import { useRunJob } from "@/api/jobs";
 import { useDashboard } from "@/api/runs";
 import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
@@ -25,7 +27,7 @@ const HEALTH_COLUMNS: TableColumn<DestinationHealth>[] = [
   {
     key: "last",
     header: "Last stored backup",
-    render: (d) => (d.last_success_at ? formatTime(d.last_success_at) : "Never"),
+    render: (d) => (d.last_success_at ? <RelativeTime date={d.last_success_at} /> : "Never"),
   },
   {
     key: "status",
@@ -54,7 +56,7 @@ function DiskBar({ disk, threshold }: { disk: DiskUsage; threshold: number }) {
   const usedPercent = disk.total_bytes ? (100 * disk.used_bytes) / disk.total_bytes : 0;
   return (
     <div className="space-y-1">
-      <div className="flex justify-between gap-2 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
         <span className="font-medium">
           {disk.label}
           {disk.kind === "destination" && (
@@ -72,7 +74,11 @@ function DiskBar({ disk, threshold }: { disk: DiskUsage; threshold: number }) {
   );
 }
 
+const FAILURES_PREVIEW = 5;
+
 function OverviewCards({ data }: { data: Dashboard }) {
+  const failures = data.failures_24h.slice(0, FAILURES_PREVIEW);
+  const hiddenFailures = data.failures_24h.length - FAILURES_PREVIEW;
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card title="Next scheduled runs">
@@ -82,25 +88,41 @@ function OverviewCards({ data }: { data: Dashboard }) {
             <div key={n.job_id} className="flex justify-between gap-2">
               <span className="font-medium">{n.job_name}</span>
               <Tooltip text={`${n.schedule} (${n.timezone})`}>
-                <span className="text-app-muted">{formatTime(n.next_run_at)}</span>
+                <span className="text-app-muted"><RelativeTime date={n.next_run_at} /></span>
               </Tooltip>
             </div>
           ))}
         </div>
       </Card>
       <Card title="Failures in the last 24 h">
-        <div className="space-y-1 text-sm">
-          {data.failures_24h.length === 0 && <HelperText>None.</HelperText>}
-          {data.failures_24h.map((f) => (
-            <Link key={f.run_id} to={`/runs/${f.run_id}`} className="flex justify-between gap-2 hover:underline">
-              <span className="font-medium">{f.job_name}</span>
-              <span className="flex items-center gap-2">
+        {data.failures_24h.length === 0 ? (
+          <HelperText>None.</HelperText>
+        ) : (
+          <ul className="divide-y divide-app-border text-sm">
+            {failures.map((f) => (
+              <li key={f.run_id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                <Link to={`/runs/${f.run_id}`} className="min-w-0 hover:underline">
+                  <span className="block break-words font-medium">{f.job_name}</span>
+                  <span className="block text-xs text-app-muted">
+                    {f.finished_at ? <RelativeTime date={f.finished_at} /> : ""}
+                  </span>
+                </Link>
                 <RunStatusBadge status={f.status} />
-                <span className="text-xs text-app-muted">{f.finished_at ? formatTime(f.finished_at) : ""}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {hiddenFailures > 0 && (
+          <ButtonLink
+            variant="flat"
+            className="mt-3"
+            href="/runs?status=failed"
+            linkComponent={Link}
+            linkProp="to"
+          >
+            View all
+          </ButtonLink>
+        )}
       </Card>
       <Card title="Disk usage">
         <div className="space-y-3">
@@ -196,11 +218,11 @@ export default function DashboardPage() {
                     )}
                     {!entry.enabled && <Badge badgeContent="Disabled" color="secondary" />}
                   </div>
-                  <dl className="grid grid-cols-2 gap-y-1">
+                  <dl className="grid grid-cols-[7rem_1fr] gap-y-1">
                     <dt className="text-app-muted">Last success</dt>
-                    <dd>{entry.last_success_at ? formatTime(entry.last_success_at) : "Never"}</dd>
+                    <dd>{entry.last_success_at ? <RelativeTime date={entry.last_success_at} /> : "Never"}</dd>
                     <dt className="text-app-muted">Next run</dt>
-                    <dd>{entry.next_run_at ? formatTime(entry.next_run_at) : entry.schedule ? "-" : "Manual"}</dd>
+                    <dd>{entry.next_run_at ? <RelativeTime date={entry.next_run_at} /> : entry.schedule ? "-" : "Manual"}</dd>
                     <dt className="text-app-muted">Last size</dt>
                     <dd>{entry.last_artifact_size === null ? "-" : formatBytes(entry.last_artifact_size)}</dd>
                   </dl>

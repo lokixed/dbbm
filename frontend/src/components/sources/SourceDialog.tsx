@@ -375,10 +375,12 @@ interface SourceDialogProps {
 export function SourceDialog({ open, source, onClose }: SourceDialogProps) {
   return (
     <Modal open={open} onClose={onClose} title={source ? "Edit source" : "Add source"} maxWidth="max-w-2xl">
+      <div className="px-6 pb-6 pt-4">
       <HelperText className="mb-4">
         Credentials are encrypted at rest and never shown again after saving.
       </HelperText>
       <SourceDialogBody source={source} onClose={onClose} />
+      </div>
     </Modal>
   );
 }

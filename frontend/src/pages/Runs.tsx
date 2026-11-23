@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
@@ -9,11 +9,12 @@ import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
+import RelativeTime from "xedonium/RelativeTime";
 import { useJobs } from "@/api/jobs";
 import { useRuns, type RunFilters } from "@/api/runs";
 import type { RunSummary, RunStatus } from "@/api/types";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
-import { formatBytes, formatDuration, formatTime } from "@/lib/format";
+import { formatBytes, formatDuration } from "@/lib/format";
 
 const STATUSES: RunStatus[] = [
   "queued",
@@ -61,7 +62,7 @@ const COLUMNS: TableColumn<RunSummary>[] = [
         <RunStatusBadge status={run.status} />
       ),
   },
-  { key: "started", header: "Started", render: (run) => formatTime(run.started_at ?? run.created_at) },
+  { key: "started", header: "Started", render: (run) => <RelativeTime date={run.started_at ?? run.created_at} /> },
   { key: "duration", header: "Duration", render: (run) => formatDuration(run.started_at, run.finished_at) },
   { key: "artifacts", header: "Artifacts", align: "right", render: (run) => run.artifact_count },
   {
@@ -73,7 +74,16 @@ const COLUMNS: TableColumn<RunSummary>[] = [
 ];
 
 export default function RunsPage() {
-  const [filters, setFilters] = useState<RunFilters>({ jobId: "", status: "" });
+  const [params, setParams] = useSearchParams();
+  const statusParam = params.get("status");
+  const [filters, setFilters] = useState<RunFilters>({
+    jobId: "",
+    status: STATUSES.includes(statusParam as RunStatus) ? (statusParam as RunStatus) : "",
+  });
+  const updateFilters = (next: RunFilters) => {
+    setFilters(next);
+    setParams(next.status ? { status: next.status } : {}, { replace: true });
+  };
   const runs = useRuns(filters);
   const jobs = useJobs();
 
@@ -85,26 +95,28 @@ export default function RunsPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Select
+        <div className="w-56">
+          <Select
           aria-label="Filter by job"
-          className="w-56"
-          value={filters.jobId}
-          onChange={(jobId) => setFilters({ ...filters, jobId })}
+                    value={filters.jobId}
+          onChange={(jobId) => updateFilters({ ...filters, jobId })}
           options={[
             { value: "", label: "All jobs" },
             ...(jobs.data ?? []).map((job) => ({ value: job.id, label: job.name })),
           ]}
         />
-        <Select
+        </div>
+        <div className="w-48">
+          <Select
           aria-label="Filter by status"
-          className="w-48"
-          value={filters.status}
-          onChange={(status) => setFilters({ ...filters, status: status as RunStatus | "" })}
+                    value={filters.status}
+          onChange={(status) => updateFilters({ ...filters, status: status as RunStatus | "" })}
           options={[
             { value: "", label: "All statuses" },
             ...STATUSES.map((status) => ({ value: status, label: status })),
           ]}
         />
+        </div>
       </div>
 
       <Card padded={false}>
