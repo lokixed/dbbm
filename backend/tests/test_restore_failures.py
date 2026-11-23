@@ -124,7 +124,7 @@ def test_full_disk_stops_a_drive_restore_before_downloading(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target, copies = mongo_on_both(authed)
-    full = shutil._ntuple_diskusage(total=100, used=100, free=0)  # type: ignore[attr-defined]
+    full = shutil._ntuple_diskusage(total=100, used=100, free=0)
     monkeypatch.setattr("app.services.restore_run.shutil.disk_usage", lambda _p: full)
     calls_before = fake_rclone.commands().count("copyto")
 

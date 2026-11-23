@@ -158,7 +158,7 @@ def test_a_driver_without_restore_support_refuses_clearly(tmp_path: Path) -> Non
         def _probe(self) -> ConnectionTestResult:
             return ConnectionTestResult(ok=True, message="ok")
 
-    ctx = RestoreContext(tmp_path, 10, logging.getLogger("test"))  # type: ignore[arg-type]
+    ctx = RestoreContext(tmp_path, 10, logging.getLogger("test"))
     with pytest.raises(RestoreError, match="newengine backups is not supported yet"):
         asyncio.run(
             NewEngine({}, {}).restore_database(tmp_path / "x", RestoreOptions("a", "b"), ctx)
