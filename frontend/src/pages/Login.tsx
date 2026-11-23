@@ -9,6 +9,7 @@ import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useLogin, useMe } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
 import { AuthBackdrop } from "@/components/AuthBackdrop";
+import { AuthHeader } from "@/components/AuthHeader";
 
 interface LocationState {
   from?: string;
@@ -44,10 +45,8 @@ export default function LoginPage() {
       </div>
       <Card
         className="w-full max-w-sm"
-        title="Sign in"
-        headingLevel={2}
-        subtitle={state.notice ?? "Sign in to DBBM."}
       >
+        <AuthHeader title="Sign in" subtitle={state.notice ?? "Sign in to DBBM."} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field
             label="Username"

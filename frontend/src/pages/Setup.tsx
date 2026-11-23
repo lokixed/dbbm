@@ -9,6 +9,7 @@ import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useSetup } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
 import { AuthBackdrop } from "@/components/AuthBackdrop";
+import { AuthHeader } from "@/components/AuthHeader";
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -59,10 +60,8 @@ export default function SetupPage() {
       </div>
       <Card
         className="w-full max-w-sm"
-        title="Welcome to DBBM"
-        headingLevel={2}
-        subtitle="Create the administrator account to get started."
       >
+        <AuthHeader title="Welcome to DBBM" subtitle={"Create the administrator account to get started."} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field
             label="Username"

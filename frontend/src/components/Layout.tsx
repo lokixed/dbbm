@@ -19,6 +19,7 @@ import SettingsIcon from "xedonium/icons/Settings";
 import SunIcon from "xedonium/icons/Sun";
 import { useLogout, useMe, useVersion } from "@/api/auth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Logo } from "@/components/Logo";
 
 const NAV_ITEMS: SidebarItem[] = [
   { key: "/", label: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-4 w-4" /> },
@@ -72,7 +73,8 @@ export function Layout() {
       items={items}
       activeKey={activeKey(pathname)}
       header={
-        <span className="px-2">
+        <span className="flex items-center gap-2 px-2">
+          <Logo size={28} />
           <span className="text-lg font-semibold tracking-tight">DBBM</span>
           {version.data && <span className="ml-2 text-xs text-app-muted">v{version.data.version}</span>}
         </span>
@@ -103,7 +105,7 @@ export function Layout() {
         description="You will need to sign in again to manage backups."
         confirmLabel="Log out"
         pendingLabel="Logging out..."
-        tone="default"
+        tone="danger"
         pending={logout.isPending}
         onConfirm={handleLogout}
         onCancel={() => setConfirmingLogout(false)}

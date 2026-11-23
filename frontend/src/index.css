@@ -11,9 +11,9 @@
   --color-app-text: 33 33 33;
   --color-app-muted: 117 117 117;
   --color-app-soft: 66 66 66;
-  --color-app-strong: 25 118 210;
-  --color-app-primary: 25 118 210;
-  --color-app-primary-hover: 21 101 192;
+  --color-app-strong: 37 99 235;
+  --color-app-primary: 29 63 184;
+  --color-app-primary-hover: 23 50 147;
   --color-app-primary-text: 255 255 255;
 }
 
@@ -24,9 +24,9 @@ html[data-theme="dark"] {
   --color-app-text: 255 255 255;
   --color-app-muted: 176 176 176;
   --color-app-soft: 224 224 224;
-  --color-app-strong: 33 150 243;
-  --color-app-primary: 25 118 210;
-  --color-app-primary-hover: 21 101 192;
+  --color-app-strong: 37 99 235;
+  --color-app-primary: 29 63 184;
+  --color-app-primary-hover: 23 50 147;
   --color-app-primary-text: 255 255 255;
 }
 
@@ -58,6 +58,12 @@ html[data-theme="dark"] {
   .auth-tile {
     animation: none;
   }
+}
+
+/* Text on an accent-filled item (the selected sidebar entry, its badge) is white in both themes;
+   the library uses the page background colour, which is dark in the dark theme. */
+.bg-app-strong.text-app-bg {
+  color: rgb(var(--color-app-primary-text));
 }
 
 /* A table inside a card would draw a second border next to the card's own, so drop it. */

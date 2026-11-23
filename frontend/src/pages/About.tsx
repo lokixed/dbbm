@@ -8,6 +8,7 @@ import Markdown from "xedonium/Markdown";
 import Sidebar from "xedonium/Sidebar";
 import type { SidebarItem } from "xedonium/Sidebar";
 import { useMe } from "@/api/auth";
+import { Logo } from "@/components/Logo";
 
 // Public page: no sign-in required, and only xedonium components. The text mirrors README.md,
 // docs/OPERATIONS.md and docs/SECURITY.md; keep them in sync when those change.
@@ -313,6 +314,7 @@ export default function AboutPage() {
     <Flex direction="column" className="min-h-screen bg-app-bg text-app-text">
       <AppBar
         brand="DBBM"
+        logo={<Logo size={28} />}
         brandHref="/"
         linkComponent={Link}
         linkProp="to"
