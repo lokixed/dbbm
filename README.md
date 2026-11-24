@@ -239,20 +239,20 @@ link-local addresses (including `169.254.169.254`) are always refused, private n
 
 ## Configuration
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `APP_SECRET_KEY` / `APP_SECRET_KEY_FILE` | required | Master key (at least 32 characters). Set one, not both |
-| `DATA_DIR` | `/data` | SQLite database, run logs (`logs/`) and temporary dump files (`work/`) |
-| `BACKUP_DIR` | `/backups` | Local backup target |
-| `MAX_CONCURRENT_RUNS` | `2` | Runs executing at once; extra runs wait as "queued" |
-| `SESSION_TTL_HOURS` | `12` | Session lifetime |
-| `LOG_LEVEL` | `INFO` | Log level |
-| `COOKIE_SECURE` | `true` (compose: `false`) | `Secure` flag on cookies; set `true` behind HTTPS |
-| `ENABLE_DOCS` | `false` | Serve OpenAPI docs at `/api/docs` |
-| `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS` | `5` / `900` | Login rate limiting |
-| `TZ` | `UTC` | Container clock and log time zone (jobs use their own time zone) |
-| `PUBLIC_BASE_URL` | empty | Initial value of Settings > Public base URL (links in notifications) |
-| `ALLOW_PRIVATE_NOTIFICATION_TARGETS` | `false` | Allow webhook, Slack, SMTP and ping targets on private networks |
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `APP_SECRET_KEY` / `APP_SECRET_KEY_FILE` | **Yes, one of them** | none | Master key (at least 32 characters). Set one, not both |
+| `DATA_DIR` | No | `/data` | SQLite database, run logs (`logs/`) and temporary dump files (`work/`) |
+| `BACKUP_DIR` | No | `/backups` | Local backup target |
+| `MAX_CONCURRENT_RUNS` | No | `2` | Runs executing at once; extra runs wait as "queued" |
+| `SESSION_TTL_HOURS` | No | `12` | Session lifetime |
+| `LOG_LEVEL` | No | `INFO` | Log level |
+| `COOKIE_SECURE` | Set it for plain HTTP | `true` (compose: `false`) | `Secure` flag on cookies; set `true` behind HTTPS |
+| `ENABLE_DOCS` | No | `false` | Serve OpenAPI docs at `/api/docs` |
+| `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS` | No | `5` / `900` | Login rate limiting |
+| `TZ` | No | `UTC` | Container clock and log time zone (jobs use their own time zone) |
+| `PUBLIC_BASE_URL` | No | empty | Initial value of Settings > Public base URL (links in notifications) |
+| `ALLOW_PRIVATE_NOTIFICATION_TARGETS` | No | `false` | Allow webhook, Slack, SMTP and ping targets on private networks |
 
 ## Development
 

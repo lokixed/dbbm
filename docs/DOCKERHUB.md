@@ -38,6 +38,7 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
+      COOKIE_SECURE: "false" # plain HTTP on localhost; use "true" behind HTTPS
       TZ: UTC
     volumes:
       - ./data:/data
@@ -81,16 +82,23 @@ job. Health check: `curl http://127.0.0.1:8080/healthz`.
 
 ## Environment variables
 
-| Variable | Purpose |
-|---|---|
-| `APP_SECRET_KEY` / `APP_SECRET_KEY_FILE` | Master key for encrypting stored credentials |
-| `DATA_DIR` | Default `/data` |
-| `BACKUP_DIR` | Default `/backups` |
-| `TZ` | Container timezone |
-| `MAX_CONCURRENT_RUNS` | Backup runs at the same time. Default 2 |
-| `COOKIE_SECURE` | Set `true` behind HTTPS |
-| `PUBLIC_BASE_URL` | Base URL used in notification links |
-| `LOG_LEVEL` | Default `info` |
+Only the master key is required. `COOKIE_SECURE` has a default, but the default expects HTTPS, so
+set it to `false` when you open the app over plain `http://`.
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `APP_SECRET_KEY_FILE` or `APP_SECRET_KEY` | **Yes, one of them** | none | Master key (at least 32 characters) for encrypting stored credentials. Set one, not both. Prefer the file. The app refuses to start without it |
+| `COOKIE_SECURE` | Set it for plain HTTP | `true` | Marks session cookies `Secure`. Keep `true` behind HTTPS; set `false` to sign in over plain HTTP |
+| `DATA_DIR` | No | `/data` | Metadata database, run logs and temporary dump files |
+| `BACKUP_DIR` | No | `/backups` | Where local backup files go |
+| `TZ` | No | `UTC` | Container clock and log time zone |
+| `MAX_CONCURRENT_RUNS` | No | `2` | Backup runs at the same time (1 to 32) |
+| `SESSION_TTL_HOURS` | No | `12` | How long a sign-in lasts |
+| `LOG_LEVEL` | No | `INFO` | Log level |
+| `PUBLIC_BASE_URL` | No | empty | Initial base URL for notification links; the UI setting takes over once saved |
+| `ALLOW_PRIVATE_NOTIFICATION_TARGETS` | No | `false` | Allow webhook, Slack, email and heartbeat targets on private networks |
+| `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_SECONDS` | No | `5` / `900` | Sign-in rate limiting |
+| `ENABLE_DOCS` | No | `false` | Serve the API docs at `/api/docs` |
 
 ## What is inside
 

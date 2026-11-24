@@ -58,7 +58,7 @@
     }
     a { color: var(--link); }
     a:focus-visible, button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
     header.top { border-bottom: 1px solid var(--border); }
     header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; color: var(--text); text-decoration: none; }
@@ -81,6 +81,7 @@
     h2 { font-size: 26px; margin: 0 0 12px; letter-spacing: -0.01em; }
     h3 { font-size: 18px; margin: 24px 0 8px; }
     p { margin: 0 0 14px; }
+    section > p, section > ul { max-width: 100ch; } /* keep long text readable; tables, cards and code use the full width */
     ul { padding-left: 22px; margin: 0 0 14px; }
     li { margin: 4px 0; }
     code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; }
@@ -160,6 +161,7 @@ mkdir -p data backups</code></pre></div>
       - "127.0.0.1:8080:8080"
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
+      COOKIE_SECURE: "false" # plain HTTP on localhost; use "true" behind HTTPS
       TZ: UTC
     volumes:
       - ./data:/data
@@ -212,17 +214,23 @@ docker compose up -d</code></pre></div>
       <section id="configuration" aria-labelledby="configuration-title">
         <h2 id="configuration-title">Configuration</h2>
         <table>
-          <thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+          <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
-            <tr><td><code>APP_SECRET_KEY_FILE</code> / <code>APP_SECRET_KEY</code></td><td>Master key for encrypting stored credentials. Prefer the file.</td></tr>
-            <tr><td><code>DATA_DIR</code></td><td>Metadata database and run logs. Default <code>/data</code>.</td></tr>
-            <tr><td><code>BACKUP_DIR</code></td><td>Where backup files go. Default <code>/backups</code>.</td></tr>
-            <tr><td><code>TZ</code></td><td>Container time zone. Each job has its own schedule time zone.</td></tr>
-            <tr><td><code>MAX_CONCURRENT_RUNS</code></td><td>Backup runs at the same time. Default 2.</td></tr>
-            <tr><td><code>COOKIE_SECURE</code></td><td>Set <code>true</code> when served over HTTPS.</td></tr>
-            <tr><td><code>PUBLIC_BASE_URL</code></td><td>Base URL used in notification links.</td></tr>
+            <tr><td><code>APP_SECRET_KEY_FILE</code> or <code>APP_SECRET_KEY</code></td><td><strong>Yes, one of them</strong></td><td>none</td><td>Master key (at least 32 characters) for encrypting stored credentials. Set one, not both. Prefer the file. The app refuses to start without it.</td></tr>
+            <tr><td><code>COOKIE_SECURE</code></td><td>Set it for plain HTTP</td><td><code>true</code></td><td>Marks session cookies <code>Secure</code>. Keep <code>true</code> behind HTTPS. Set <code>false</code> to sign in over plain HTTP, as in the example above.</td></tr>
+            <tr><td><code>DATA_DIR</code></td><td>No</td><td><code>/data</code></td><td>Metadata database, run logs and temporary dump files.</td></tr>
+            <tr><td><code>BACKUP_DIR</code></td><td>No</td><td><code>/backups</code></td><td>Where local backup files go.</td></tr>
+            <tr><td><code>TZ</code></td><td>No</td><td><code>UTC</code></td><td>Container clock and log time zone. Each job has its own schedule time zone.</td></tr>
+            <tr><td><code>MAX_CONCURRENT_RUNS</code></td><td>No</td><td><code>2</code></td><td>Backup runs at the same time (1 to 32). Extra runs wait as queued.</td></tr>
+            <tr><td><code>SESSION_TTL_HOURS</code></td><td>No</td><td><code>12</code></td><td>How long a sign-in lasts.</td></tr>
+            <tr><td><code>LOG_LEVEL</code></td><td>No</td><td><code>INFO</code></td><td>Log level.</td></tr>
+            <tr><td><code>PUBLIC_BASE_URL</code></td><td>No</td><td>empty</td><td>Initial base URL used in notification links. Settings in the UI take over once saved.</td></tr>
+            <tr><td><code>ALLOW_PRIVATE_NOTIFICATION_TARGETS</code></td><td>No</td><td><code>false</code></td><td>Allow webhook, Slack, email and heartbeat targets on private networks.</td></tr>
+            <tr><td><code>LOGIN_MAX_ATTEMPTS</code> / <code>LOGIN_LOCKOUT_SECONDS</code></td><td>No</td><td><code>5</code> / <code>900</code></td><td>Sign-in rate limiting.</td></tr>
+            <tr><td><code>ENABLE_DOCS</code></td><td>No</td><td><code>false</code></td><td>Serve the API docs at <code>/api/docs</code>.</td></tr>
           </tbody>
         </table>
+        <p>Only the master key is truly required. <code>COOKIE_SECURE</code> has a default, but the default expects HTTPS, so set it to <code>false</code> when you open the app over plain <code>http://</code>.</p>
 
         <h3>Google Drive and Firestore</h3>
         <ul>
