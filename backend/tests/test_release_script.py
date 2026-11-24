@@ -21,6 +21,9 @@ def load_script() -> ModuleType:
     return module
 
 
+if not SCRIPT.exists():  # the in-image integration run only copies backend/
+    pytest.skip("scripts/release.py is not available here", allow_module_level=True)
+
 release = load_script()
 Commit = release.Commit
 
