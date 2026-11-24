@@ -72,6 +72,7 @@
     h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
     .lead { font-size: 19px; color: var(--soft); max-width: 640px; margin: 0 0 24px; }
     .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .latest { margin: 20px 0 0; color: var(--muted); font-size: 15px; }
     .btn { display: inline-block; padding: 10px 18px; font-weight: 600; text-decoration: none; border: 1px solid var(--primary); }
     .btn.primary { background: var(--primary); color: var(--primary-text); }
     .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
@@ -126,6 +127,8 @@
           <a class="btn secondary" href="https://hub.docker.com/r/lokixed/dbbm">Docker Hub</a>
           <a class="btn secondary" href="https://github.com/lokixed/dbbm">Source on GitHub</a>
         </div>
+        <p class="latest">Latest release: <a id="latest-link" href="https://github.com/lokixed/dbbm/releases"><strong>v<span class="ver">1.0.0-rc.1</span></strong></a>
+          <span aria-hidden="true">&middot;</span> <code>docker pull lokixed/dbbm:<span class="ver">1.0.0-rc.1</span></code></p>
       </div>
 
       <section aria-labelledby="features">
@@ -314,6 +317,8 @@ docker compose up -d</code></pre></div>
           document.querySelectorAll(".ver").forEach(function (el) {
             el.textContent = tag.replace(/^v/, "");
           });
+          var link = document.getElementById("latest-link");
+          if (link) link.href = "https://github.com/lokixed/dbbm/releases/tag/" + tag;
         })
         .catch(function () {});
     })();
