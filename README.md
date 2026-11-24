@@ -98,6 +98,8 @@ Firestore needs, in your Google Cloud project: billing enabled; the Cloud Firest
 
 Image size: earlier builds carried the Google Cloud CLI, about 1.1 GB of a roughly 1.9 GB image. Firestore now uses Google's REST APIs and the CLI is gone, so the image is about that much smaller (check with `docker images dbbm`).
 
+The image is built for linux/amd64 only (MySQL's apt repository has no arm64 packages for Debian).
+
 The image bundles the official MySQL 8.4 client and the PostgreSQL 18 client. `pg_dump` must be at least as new as the server it backs up; otherwise the run fails early and tells you which version to build with (`docker build --build-arg PG_MAJOR=<n> .`). Backups are not encrypted yet. Restoring is done by hand for now; see [dev/README.md](dev/README.md).
 
 ## Google Drive destination

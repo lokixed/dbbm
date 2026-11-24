@@ -100,24 +100,6 @@ jobs:
           tags: dbbm:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The release image is multi-arch. The Go tools cross-compile on this machine, so check the
-      # arm64 build here without running anything under emulation.
-      - name: Go tools cross-compile for arm64
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: mongotools
-          platforms: linux/arm64
-          push: false
-          cache-from: type=gha
-      - name: age cross-compiles for arm64
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: age
-          platforms: linux/arm64
-          push: false
-          cache-from: type=gha
       - name: Client tools are installed
         run: docker run --rm --entrypoint sh dbbm:ci -c 'mysqldump --version && pg_dump --version && mongodump --version && mongorestore --version && rclone version'
       # rclone must run as the app user on a read-only root filesystem (config and cache in /tmp).

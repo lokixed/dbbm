@@ -12,8 +12,7 @@ COPY frontend/ ./
 RUN yarn build
 
 # ---- Stage 2: age, built with a current Go toolchain ----
-# Runs on the build machine's own architecture and cross-compiles for the target, so the arm64 image
-# does not compile under emulation.
+# Runs on the build machine's own architecture and cross-compiles for the target platform.
 FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie AS age
 ARG TARGETOS
 ARG TARGETARCH

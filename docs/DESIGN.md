@@ -544,7 +544,7 @@ Stage 2 (python):  base image (Debian slim), then install:
                    create non-root user; EXPOSE 8080
                    CMD uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1
 ```
-Firestore uses Google's REST APIs, so the image holds no Google Cloud CLI. The Go tools are cross-compiled on the build machine, so a multi-architecture build does not compile under emulation.
+Firestore uses Google's REST APIs, so the image holds no Google Cloud CLI. The Go tools are cross-compiled on the build machine. The image is built for linux/amd64 only: MySQL's apt repository has no arm64 packages for Debian, and the design uses the official MySQL client. Adding arm64 later means choosing another MySQL client for it.
 
 The tools are added to the image incrementally: `mysqldump` and `pg_dump` in milestone 3, `mongodump` in milestone 4, `rclone` in milestone 5 (`age` when backup encryption is built).
 

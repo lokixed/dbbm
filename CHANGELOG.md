@@ -18,7 +18,7 @@ failure-injection suite, CI release run) are still open.
 - `python -m app.cli rotate-key` (dry run, rollback copy), `backup-db` and `export-config`.
 - Security headers (CSP, frame, referrer, nosniff, HSTS behind HTTPS) on every response.
 - Version in the UI, `/healthz` and `/api/version`.
-- CI: `pip-audit`, `yarn npm audit`, gitleaks, Trivy. Tag-triggered multi-architecture release
+- CI: `pip-audit`, `yarn npm audit`, gitleaks, Trivy. Tag-triggered release
   workflow with SBOM, provenance and a keyless signature.
 - Container hardening in `docker-compose.yml` (`cap_drop`, `no-new-privileges`, limits).
 - Operations and security guides.
@@ -30,6 +30,9 @@ failure-injection suite, CI release run) are still open.
   written to disk.
 - `age`, `mongodump` and `mongorestore` are built from source with a current Go toolchain, and pip
   is removed from the final image.
+
+### Known limits
+- The image is for linux/amd64 only. MySQL's apt repository has no arm64 packages for Debian.
 
 ### Upgrade notes
 - No schema migration in this release. New setting `audit_retention_days` defaults to 365.
