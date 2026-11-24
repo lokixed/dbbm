@@ -2,6 +2,15 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- The version is calculated from Conventional Commits when CI passes on `main`: a breaking change is
+  a major, `feat` a minor, anything else a patch. The release job writes it into
+  `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`, rotates this
+  changelog, tags `vX.Y.Z` and publishes the image and the GitHub release.
+- The version is shown on every page of the web UI, including sign-in, setup and About.
+
 ## [1.0.0-rc.1]
 
 First release candidate. Not yet declared 1.0: the manual acceptance checks in `docs/TODO.md`
@@ -33,7 +42,7 @@ failure-injection suite, CI release run) are still open.
 
 ### Release process
 - The release job is part of the CI workflow: when CI passes on `main` it publishes the image to
-  Docker Hub and GHCR (`edge`, `sha-<commit>`, and the version tags for a new version) and creates
+  Docker Hub and GHCR (`edge`, `sha-<commit>`, and the version tags for a new release) and creates
   the GitHub release. The Docker Hub page shows `docs/DOCKERHUB.md`.
 
 ### Known limits

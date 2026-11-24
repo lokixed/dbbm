@@ -14,8 +14,9 @@ Source code, full documentation and issues: <https://github.com/lokixed/dbbm>
 
 | Tag | What it is |
 |---|---|
-| `1.0.0-rc.1` (`X.Y.Z`) | A release. Pin one of these in production |
-| `latest` | The newest **stable** release (versions with no `-rc` suffix). Not set yet |
+| `X.Y.Z` (for example `1.0.0-rc.1`) | One release. Pin one of these in production |
+| `X.Y` | The newest patch of that minor version |
+| `latest` | The newest release |
 | `edge` | The latest commit on `main` that passed CI. May change at any time |
 | `sha-<commit>` | One exact commit |
 

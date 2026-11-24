@@ -102,7 +102,7 @@ Run uvicorn with **one worker**. The scheduler, run queue and lock table live in
 | API client | Generated from FastAPI's OpenAPI schema (`openapi-typescript`) |
 | Tests | pytest (with pytest-timeout), Testcontainers (MySQL, Postgres, Mongo), Playwright for UI smoke tests |
 | Lint / format | Ruff, mypy, ESLint, Prettier |
-| CI | GitHub Actions: lint, test, scan, build; one workflow, whose last job publishes the image to Docker Hub and GHCR once everything passes on `main` |
+| CI | GitHub Actions: lint, test, scan, build; one workflow, whose last job calculates the version from Conventional Commits (`scripts/release.py`) and publishes the image to Docker Hub and GHCR once everything passes on `main` |
 
 ---
 

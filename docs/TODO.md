@@ -68,7 +68,7 @@ The code and docs are done (version 1.0.0-rc.1). What is left:
 - [ ] Load and endurance test: many jobs on schedules over several days, watching memory, open files, and leftover work directories
 
 ### Upgrades and releases
-- [ ] Cut a stable `1.0.0` release through the automatic release job (amd64 only; arm64 needs another MySQL client, see DESIGN.md section 17)
+- [ ] Cut the first stable release by running the CI workflow on `main` with version `1.0.0` (releases are automatic after that; amd64 only, arm64 needs another MySQL client, see DESIGN.md section 17)
 - [ ] Optional "update available" hint in the UI
 
 ### Documentation

@@ -17,7 +17,7 @@ import PlayIcon from "xedonium/icons/Play";
 import FileTextIcon from "xedonium/icons/FileText";
 import SettingsIcon from "xedonium/icons/Settings";
 import SunIcon from "xedonium/icons/Sun";
-import { useLogout, useMe, useVersion } from "@/api/auth";
+import { useLogout, useMe } from "@/api/auth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Logo } from "@/components/Logo";
 
@@ -45,7 +45,6 @@ export function Layout() {
   const { pathname } = useLocation();
   const { data: user } = useMe();
   const logout = useLogout();
-  const version = useVersion();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
@@ -81,7 +80,6 @@ export function Layout() {
     <span className="flex items-center gap-2 px-2">
       <Logo size={28} />
       <span className="text-lg font-semibold tracking-tight">DBBM</span>
-      {version.data && <span className="ml-2 text-xs normal-case tracking-normal text-app-muted">v{version.data.version}</span>}
     </span>
   );
 

@@ -29,15 +29,40 @@ cd frontend && yarn lint && yarn typecheck && yarn build
 - Ask before adding a dependency that is not in DESIGN.md.
 - Update the docs in the same change as the behavior they describe.
 
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org): `feat: ...`, `fix: ...`, `docs: ...`,
+`chore: ...`. The release version is calculated from them, so the type matters:
+
+| Commit | Next version |
+|---|---|
+| `feat!: ...`, `fix(api)!: ...`, or a `BREAKING CHANGE:` line in the body | major |
+| `feat: ...` / `feat(scope): ...` | minor |
+| anything else (`fix`, `docs`, `chore`, ...) | patch |
+
 ## Releases
 
-Releases are automatic: when every CI job passes on `main`, the `release` job in
-`.github/workflows/ci.yml` publishes the image to Docker Hub and GHCR.
+Releases are automatic and nobody types a version number. When every CI job passes on `main`, the
+`release` job in `.github/workflows/ci.yml` publishes the image to Docker Hub and GHCR.
 
 - Every green push updates the `edge` and `sha-<commit>` tags.
-- To cut a release, update `backend/app/version.py`, `backend/pyproject.toml` and
-  `frontend/package.json`, add a section for the version to `CHANGELOG.md`, and merge to `main`. When
-  CI passes, the job tags `vX.Y.Z`, publishes the version tags and creates the GitHub release. A
-  stable version (no `-rc.1` style suffix) also moves `latest` and `X.Y`.
-- Do not push version tags by hand. A version that already has a tag is not released again.
-- The Docker Hub page shows `docs/DOCKERHUB.md`; it is updated on every release job.
+- It then calculates the next version with `scripts/release.py`: the latest stable `vX.Y.Z` tag plus
+  the bump the commits since that tag call for. If nothing qualifies (no new commits), only the
+  `edge` and `sha` tags change.
+- A release writes the version into `backend/app/version.py`, `backend/pyproject.toml` and
+  `frontend/package.json`, moves the notes under `## [Unreleased]` in `CHANGELOG.md` to a dated
+  section (or writes them from the commit subjects if that section is empty), builds and smoke-tests
+  the image, pushes the image tags (`X.Y.Z`, `X.Y`, `latest`), commits `chore(release): vX.Y.Z`,
+  tags it and creates the GitHub release.
+- The job refuses instead of guessing: a malformed version, a tag that already exists, or a version
+  that is not greater than the latest one stops the run with an error.
+- **The first stable release is manual.** No stable tag exists yet, so run the CI workflow from the
+  Actions tab on `main` with `version` set (for example `1.0.0`). From then on it is automatic. The
+  same form can force a `bump` (major, minor or patch) instead of reading the commit log.
+- The release commit is pushed to `main` by the workflow, so run `git pull --rebase` before you
+  push. If main moved while a run was in progress, that run skips the release and the newer run
+  publishes it.
+- Write release notes by hand under `## [Unreleased]` in `CHANGELOG.md` when the commit subjects are
+  not enough.
+- Do not create version tags by hand. The Docker Hub page shows `docs/DOCKERHUB.md`; it is updated
+  on every release job.
