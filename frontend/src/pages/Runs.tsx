@@ -4,7 +4,6 @@ import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -14,6 +13,7 @@ import { useJobs } from "@/api/jobs";
 import { useRuns, type RunFilters } from "@/api/runs";
 import type { RunSummary, RunStatus } from "@/api/types";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
+import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatDuration } from "@/lib/format";
 
 const STATUSES: RunStatus[] = [
@@ -120,7 +120,7 @@ export default function RunsPage() {
       </div>
 
       <Card padded={false}>
-        {runs.isPending && <Loader variant="dots" label="Loading runs..." className="p-6" />}
+        {runs.isPending && <LogoLoader />}
         {runs.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

@@ -5,7 +5,6 @@ import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import Field from "xedonium/Field";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import { z } from "zod";
@@ -15,6 +14,7 @@ import type { AppSettings, AppSettingsRecord } from "@/api/types";
 import { ChangePassword } from "@/components/settings/ChangePassword";
 import { EncryptionKeys } from "@/components/settings/EncryptionKeys";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { bindText } from "@/lib/formBinding";
 
 interface SettingsFormValues {
@@ -188,7 +188,7 @@ export default function SettingsPage() {
         title="Settings"
         subtitle="Application-wide behaviour for schedules, notifications and cleanup."
       />
-      {settings.isPending && <Loader variant="dots" label="Loading settings..." />}
+      {settings.isPending && <LogoLoader />}
       {settings.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

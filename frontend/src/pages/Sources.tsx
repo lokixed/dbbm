@@ -2,7 +2,6 @@ import { useState } from "react";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
@@ -16,6 +15,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SourceDialog } from "@/components/sources/SourceDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { SOURCE_TYPES } from "@/lib/sourceForm";
 
 const typeLabel = (type: string) => SOURCE_TYPES.find((t) => t.type === type)?.label ?? type;
@@ -92,7 +92,7 @@ export default function SourcesPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {sources.isPending && <Loader variant="dots" label="Loading sources..." className="p-6" />}
+        {sources.isPending && <LogoLoader />}
         {sources.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

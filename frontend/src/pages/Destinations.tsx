@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
@@ -18,6 +17,7 @@ import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { DestinationDialog } from "@/components/destinations/DestinationDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 
 interface EditorState {
   open: boolean;
@@ -136,7 +136,7 @@ export default function DestinationsPage() {
       <ReauthBanner destinations={needsReauth} onReconnect={reconnect} />
 
       <Card padded={false}>
-        {destinations.isPending && <Loader variant="dots" label="Loading destinations..." className="p-6" />}
+        {destinations.isPending && <LogoLoader />}
         {destinations.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

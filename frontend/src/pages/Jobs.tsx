@@ -4,7 +4,6 @@ import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -21,6 +20,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 
 function ScheduleBadge({ job }: { job: JobRecord }) {
   if (!job.schedule) return <Badge badgeContent="Manual" color="secondary" />;
@@ -170,7 +170,7 @@ export default function JobsPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {jobs.isPending && <Loader variant="dots" label="Loading jobs..." className="p-6" />}
+        {jobs.isPending && <LogoLoader />}
         {jobs.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

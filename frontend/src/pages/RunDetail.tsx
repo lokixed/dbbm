@@ -4,7 +4,6 @@ import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
@@ -22,6 +21,7 @@ import { DestinationResults } from "@/components/runs/DestinationResults";
 import { LogViewer } from "@/components/runs/LogViewer";
 import { RunTimeline } from "@/components/runs/RunTimeline";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatDuration } from "@/lib/format";
 import { hasRetryableFailures } from "@/lib/retry";
 
@@ -94,7 +94,7 @@ export default function RunDetailPage() {
       },
     });
 
-  if (run.isPending) return <Loader variant="dots" label="Loading run..." />;
+  if (run.isPending) return <LogoLoader />;
   if (run.isError) {
     const missing = run.error instanceof ApiError && run.error.status === 404;
     return (

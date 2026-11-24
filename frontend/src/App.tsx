@@ -6,6 +6,7 @@ import { setUnauthorizedHandler } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ToastProvider } from "@/components/toast";
+import { pageTitle } from "@/lib/pageTitle";
 import AuditPage from "@/pages/Audit";
 import BackupsPage from "@/pages/Backups";
 import DashboardPage from "@/pages/Dashboard";
@@ -24,27 +25,11 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
-const PAGE_TITLES: [string, string][] = [
-  ["/runs/", "Run"],
-  ["/runs", "Runs"],
-  ["/sources", "Sources"],
-  ["/destinations", "Destinations"],
-  ["/jobs", "Jobs"],
-  ["/backups", "Backups"],
-  ["/notifications", "Notifications"],
-  ["/audit", "Audit log"],
-  ["/settings", "Settings"],
-  ["/docs", "Docs"],
-  ["/login", "Sign in"],
-  ["/setup", "Setup"],
-];
-
 // Screen readers announce the document title on navigation, so each page gets its own.
 function RouteTitle() {
   const { pathname } = useLocation();
   useEffect(() => {
-    const page = PAGE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "Dashboard";
-    document.title = `${page} - DBBM`;
+    document.title = `${pageTitle(pathname)} - DBBM`;
   }, [pathname]);
   return null;
 }

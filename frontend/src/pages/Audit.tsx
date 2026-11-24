@@ -4,12 +4,12 @@ import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
 import Input from "xedonium/Input";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import { AUDIT_PAGE_SIZE, useAuditLog, type AuditEntry, type AuditFilters } from "@/api/audit";
 import { formatTime } from "@/lib/format";
+import { LogoLoader } from "@/components/LogoLoader";
 
 const EMPTY: AuditFilters = { action: "", username: "", search: "", from: "", to: "" };
 
@@ -101,7 +101,7 @@ export default function AuditPage() {
         </Button>
       </div>
 
-      {log.isPending && <Loader variant="dots" label="Loading audit log..." />}
+      {log.isPending && <LogoLoader />}
       {log.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

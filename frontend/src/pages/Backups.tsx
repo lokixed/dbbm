@@ -6,7 +6,6 @@ import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
 import Input from "xedonium/Input";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import Table, { type TableColumn } from "xedonium/Table";
@@ -35,6 +34,7 @@ import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyHash } from "@/components/CopyHash";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatTime } from "@/lib/format";
 
 const EMPTY: BackupFilters = {
@@ -293,7 +293,7 @@ export default function BackupsPage() {
         </Button>
       </div>
 
-      {backups.isPending && <Loader variant="dots" label="Loading backups..." />}
+      {backups.isPending && <LogoLoader />}
       {backups.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">

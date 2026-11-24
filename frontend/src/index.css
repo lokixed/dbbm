@@ -61,6 +61,30 @@ html[data-theme="dark"] {
   }
 }
 
+/* Page loader (LogoLoader): the logo's tiles appear one after another, hold, then fade. Each tile
+   scales about its own centre; `both` keeps the delayed tiles hidden until their turn. */
+.logo-loader-tile {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: logo-loader-assemble 1.8s ease-in-out infinite both;
+}
+.logo-loader-tile:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.logo-loader-tile:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes logo-loader-assemble {
+  0% { opacity: 0; transform: scale(0.5); }
+  25%, 70% { opacity: 1; transform: scale(1); }
+  92%, 100% { opacity: 0; transform: scale(0.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-loader-tile {
+    animation: none;
+  }
+}
+
 /* Text on an accent-filled item (the selected sidebar entry, its badge) is white in both themes;
    the library uses the page background colour, which is dark in the dark theme. */
 .bg-app-strong.text-app-bg {

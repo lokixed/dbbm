@@ -5,7 +5,6 @@ import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -31,6 +30,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChannelDialog } from "@/components/notifications/ChannelDialog";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
 
 const TYPE_LABEL = { slack: "Slack", email: "Email", webhook: "Webhook" } as const;
@@ -79,7 +79,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
       }
     >
       <div className="space-y-3 pb-4">
-        {events.isPending && <Loader variant="dots" label="Loading events..." className="px-6" />}
+        {events.isPending && <LogoLoader label="Loading events..." />}
         {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
         {events.isSuccess && (
           <>
@@ -260,7 +260,7 @@ export default function NotificationsPage() {
       </PageHeader>
 
       <Card padded={false}>
-        {channels.isPending && <Loader variant="dots" label="Loading channels..." className="p-6" />}
+        {channels.isPending && <LogoLoader label="Loading channels..." />}
         {channels.isError && (
           <Alert tone="danger">
             <div className="flex items-center justify-between gap-4">

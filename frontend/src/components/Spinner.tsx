@@ -1,5 +1,5 @@
-import LoadingScreen from "xedonium/LoadingScreen";
+import { LogoLoader } from "@/components/LogoLoader";
 
 export function FullPageSpinner() {
-  return <LoadingScreen variant="dots" />;
+  return <LogoLoader fullScreen />;
 }

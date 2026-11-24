@@ -5,7 +5,6 @@ import Button from "xedonium/Button";
 import ButtonLink from "xedonium/ButtonLink";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
-import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import Progress from "xedonium/Progress";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -18,6 +17,7 @@ import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
+import { LogoLoader } from "@/components/LogoLoader";
 import { errorClassLabel } from "@/lib/errorClass";
 import { formatBytes, formatTime } from "@/lib/format";
 
@@ -153,7 +153,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader title="Dashboard" subtitle="The latest state of every backup job." />
 
-      {dashboard.isPending && <Loader variant="dots" label="Loading..." />}
+      {dashboard.isPending && <LogoLoader />}
       {dashboard.isError && (
         <Alert tone="danger">
           <div className="flex items-center justify-between gap-4">
