@@ -23,7 +23,7 @@ Database migrations run automatically at start. **Downgrade:** migrations only m
 back, stop the container, restore the `app.db` copy made in step 1, and start the older image.
 
 Versions follow [semantic versioning](https://semver.org). Changes are listed in
-[CHANGELOG.md](../CHANGELOG.md). The version is shown in the sidebar and in `/healthz`.
+[CHANGELOG.md](../CHANGELOG.md). The version is shown on every page of the web UI (the sidebar footer, and the sign-in, setup and Docs pages) and in `/healthz`.
 
 ## Orchestrators (compose, Portainer)
 

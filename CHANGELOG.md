@@ -9,7 +9,10 @@ Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver]
   a major, `feat` a minor, anything else a patch. The release job writes it into
   `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`, rotates this
   changelog, tags `vX.Y.Z` and publishes the image and the GitHub release.
-- The version is shown on every page of the web UI, including sign-in, setup and About.
+- The version is shown on every page of the web UI, placed in the page layout (sidebar footer, and
+  the sign-in, setup and Docs pages), and `/healthz` reports it in every response.
+- The in-app About page is now the Docs page at `/docs`; `/about` redirects to it. The sign-in and
+  setup pages end with a footer line inside the card: a Docs link on the left, `DBBM vX.Y.Z` on the right.
 - A landing page for the image (`site/`), published to GitHub Pages by the CI/CD workflow.
 - CI runs only the jobs whose files changed (backend, frontend, image, site, Docker Hub page), and
   only changes to what goes into the image publish a release.

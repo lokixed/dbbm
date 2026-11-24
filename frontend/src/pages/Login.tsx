@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
@@ -9,6 +9,7 @@ import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useLogin, useMe } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
 import { AuthBackdrop } from "@/components/AuthBackdrop";
+import { AuthFooter } from "@/components/AuthFooter";
 import { AuthHeader } from "@/components/AuthHeader";
 
 interface LocationState {
@@ -68,10 +69,8 @@ export default function LoginPage() {
             {login.isPending ? "Signing in…" : "Sign in"}
           </Button>
         </form>
+        <AuthFooter />
       </Card>
-      <Link to="/about" className="absolute bottom-4 border border-app-border bg-app-card px-3 py-1.5 text-sm text-app-text hover:underline">
-        About DBBM
-      </Link>
     </main>
   );
 }

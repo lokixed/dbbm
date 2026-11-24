@@ -18,6 +18,7 @@ import FileTextIcon from "xedonium/icons/FileText";
 import SettingsIcon from "xedonium/icons/Settings";
 import SunIcon from "xedonium/icons/Sun";
 import { useLogout, useMe } from "@/api/auth";
+import { AppVersion } from "@/components/AppVersion";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Logo } from "@/components/Logo";
 
@@ -90,6 +91,7 @@ export function Layout() {
       items={items}
       activeKey={activeKey(pathname)}
       header={fill ? undefined : brand}
+      footer={<AppVersion className="block px-3 py-3 text-app-muted" />}
       linkComponent={Link}
       linkProp="to"
       label="Main navigation"

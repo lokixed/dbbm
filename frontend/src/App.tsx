@@ -1,17 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "xedonium/theme";
 import { setUnauthorizedHandler } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ToastProvider } from "@/components/toast";
-import { VersionBadge } from "@/components/VersionBadge";
-import AboutPage from "@/pages/About";
 import AuditPage from "@/pages/Audit";
 import BackupsPage from "@/pages/Backups";
 import DashboardPage from "@/pages/Dashboard";
 import DestinationsPage from "@/pages/Destinations";
+import DocsPage from "@/pages/Docs";
 import JobsPage from "@/pages/Jobs";
 import LoginPage from "@/pages/Login";
 import NotificationsPage from "@/pages/Notifications";
@@ -35,7 +34,7 @@ const PAGE_TITLES: [string, string][] = [
   ["/notifications", "Notifications"],
   ["/audit", "Audit log"],
   ["/settings", "Settings"],
-  ["/about", "About"],
+  ["/docs", "Docs"],
   ["/login", "Sign in"],
   ["/setup", "Setup"],
 ];
@@ -70,9 +69,9 @@ export default function App() {
           <BrowserRouter>
             <UnauthorizedRedirect />
             <RouteTitle />
-            <VersionBadge />
             <Routes>
-              <Route path="/about" element={<AboutPage />} />
+              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/about" element={<Navigate to="/docs" replace />} />
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>

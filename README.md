@@ -24,7 +24,7 @@ A prebuilt image is on Docker Hub (`lokixed/dbbm`) and GHCR (`ghcr.io/lokixed/db
 
 - The port is bound to `127.0.0.1` only. Put Caddy or Traefik in front for HTTPS and set `COOKIE_SECURE=true` in `.env`.
 - Losing `app_key.txt` means re-entering every stored credential.
-- Health check: `curl http://127.0.0.1:8080/healthz`.
+- Health check: `curl http://127.0.0.1:8080/healthz` returns the status, the database check, the app version and the scheduler state, for example `{"status":"ok","db":"ok","version":"1.0.0","scheduler":{...}}`. The version is also in the web UI footer.
 
 ## Add your first source and destination
 
@@ -78,7 +78,7 @@ Recovery drill, at least once per quarter: take a backup from your storage (not 
 
 ## More documentation
 
-- `/about` on the running app is a public landing page (no sign-in) with the features, install steps, security notes and operations guide.
+- `/docs` on the running app (the old `/about` redirects there) is a public page (no sign-in) with the features, install steps, security notes and operations guide.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): upgrades, HTTPS with Caddy or Traefik, backing up the tool itself, the disaster recovery drill, master key rotation, a lost admin password, monitoring and troubleshooting.
 - [docs/SECURITY.md](docs/SECURITY.md): what the tool protects against and what it does not.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).

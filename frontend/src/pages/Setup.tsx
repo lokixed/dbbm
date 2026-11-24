@@ -9,6 +9,7 @@ import ThemeToggle from "xedonium/ThemeToggle";
 import { useAuthStatus, useSetup } from "@/api/auth";
 import { FullPageSpinner } from "@/components/Spinner";
 import { AuthBackdrop } from "@/components/AuthBackdrop";
+import { AuthFooter } from "@/components/AuthFooter";
 import { AuthHeader } from "@/components/AuthHeader";
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -92,6 +93,7 @@ export default function SetupPage() {
             {setup.isPending ? "Creating…" : "Create admin"}
           </Button>
         </form>
+        <AuthFooter />
       </Card>
     </main>
   );

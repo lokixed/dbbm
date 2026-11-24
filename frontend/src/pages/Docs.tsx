@@ -8,6 +8,7 @@ import Markdown from "xedonium/Markdown";
 import Sidebar from "xedonium/Sidebar";
 import type { SidebarItem } from "xedonium/Sidebar";
 import { useMe } from "@/api/auth";
+import { AppVersion } from "@/components/AppVersion";
 import { Logo } from "@/components/Logo";
 
 // Public page: no sign-in required, and only xedonium components. The text mirrors README.md,
@@ -307,7 +308,7 @@ function jumpTo(id: string) {
   window.location.hash = id;
 }
 
-export default function AboutPage() {
+export default function DocsPage() {
   // Only the top-right button depends on this; a 401 here is expected and does not redirect.
   const me = useMe();
   return (
@@ -354,6 +355,7 @@ export default function AboutPage() {
               </Container>
             ))}
             <Markdown>{`---\n\n${FOOTER}`}</Markdown>
+            <AppVersion className="block pb-4 text-app-muted" />
           </Container>
         </Flex>
       </Container>

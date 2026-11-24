@@ -9,6 +9,7 @@ from sqlmodel import Session
 from app.core.config import Settings, get_settings
 from app.core.db import get_engine
 from app.main import create_app
+from app.version import __version__
 
 
 def test_healthz_ok(client: TestClient) -> None:
@@ -17,6 +18,7 @@ def test_healthz_ok(client: TestClient) -> None:
     body = response.json()
     assert body["status"] == "ok"
     assert body["db"] == "ok"
+    assert body["version"] == __version__
     assert body["scheduler"]["state"] == "running"
     assert body["scheduler"]["owner"] is True
 
@@ -28,6 +30,7 @@ def test_healthz_reports_db_failure(client: TestClient, monkeypatch: pytest.Monk
     monkeypatch.setattr(Session, "connection", boom)
     response = client.get("/healthz")
     assert response.status_code == 503
+    assert response.json()["version"] == __version__  # still reported when unhealthy
     assert "db down" not in response.text
 
 
@@ -86,7 +89,7 @@ def test_spa_fallback_and_api_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     with TestClient(create_app()) as client:
         assert "spa" in client.get("/dashboard").text
         assert "spa" in client.get("/").text
-        assert "spa" in client.get("/about").text  # public landing page, no sign-in
+        assert "spa" in client.get("/docs").text  # public docs page, no sign-in
         assert client.get("/assets/app.js").text == "console.log(1)"
         assert client.get("/api/unknown").status_code == 404
         assert "spa" not in client.get("/api/unknown").text

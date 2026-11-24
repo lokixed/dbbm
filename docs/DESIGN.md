@@ -525,7 +525,7 @@ UX rules:
 - Channels: Slack webhook, SMTP email, generic webhook. Messages include job, status, duration, size, error summary and a link to the run.
 - **Dead-man's switch:** optional ping URL (e.g. Healthchecks.io) called after each successful run, so you're alerted if the whole system silently stops.
 - Structured JSON logs to stdout; per-run log files under `/data/logs` with a retention setting.
-- `/healthz` checks DB access and scheduler liveness; Docker `HEALTHCHECK` uses it.
+- `/healthz` checks DB access and scheduler liveness and reports the app version in every response, healthy or not; Docker `HEALTHCHECK` uses it.
 - Optional Prometheus `/metrics` endpoint (later): last success timestamp, duration, size per job.
 
 ---
