@@ -125,16 +125,22 @@ RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin
     && chown dbbm:dbbm /data /backups
 
 WORKDIR /app
-COPY backend/ ./
-# Install the dependencies only; the app itself runs from /app (it needs alembic/ beside it).
-RUN pip install --root-user-action=ignore . \
-    && pip uninstall -y dbbm \
-    && rm -rf build ./*.egg-info \
+# Dependencies first, keyed only on pyproject.toml: editing the app's source does not reinstall
+# them. The app itself runs from /app (it needs alembic/ beside it), so only its dependencies are
+# installed. The pip cache is a BuildKit cache mount (kept between builds, never in the image), and
+# the generous timeout/retries survive a slow or flaky connection.
+COPY backend/pyproject.toml ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -c "import tomllib; print(*tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies'], sep=chr(10))" > /tmp/requirements.txt \
+    && PIP_NO_CACHE_DIR=0 pip install --root-user-action=ignore --default-timeout=100 --retries=10 --upgrade -r /tmp/requirements.txt setuptools \
+    && rm -f /tmp/requirements.txt \
     && python -c "from zoneinfo import ZoneInfo; ZoneInfo('Europe/Berlin'); ZoneInfo('Asia/Kolkata')"
 # pip is not needed at run time and bundles libraries (msgpack, urllib3, pkg_resources) with known
 # vulnerabilities, so it is removed together with the wheels ensurepip carries. setuptools stays
 # current. To install packages in a running container, bootstrap pip again with get-pip.py.
-RUN pip install --root-user-action=ignore --upgrade setuptools     && pip uninstall -y pip     && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled
+RUN pip uninstall -y pip \
+    && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled
+COPY backend/ ./
 ENV PYTHONPATH=/app
 COPY --from=frontend /frontend/dist ./frontend/dist
 

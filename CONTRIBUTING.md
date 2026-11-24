@@ -53,6 +53,7 @@ requests run the checks but never publish.
 
 Only changes to what goes into the image (`backend/`, `frontend/`, `Dockerfile`, `.dockerignore`,
 the install scripts) publish an image. A manual run, a new branch or a force push runs everything.
+A failed GitHub Pages deploy or Docker Hub description update fails the run.
 
 ## Commit messages
 

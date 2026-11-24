@@ -301,7 +301,7 @@ jobs:
               ;;
             10)
               echo "release=false" >> "$GITHUB_OUTPUT"
-              echo "::notice::No release this time; only the edge and sha tags are updated."
+              echo "::notice::No release this time; only the latest, edge and sha tags are updated."
               ;;
             *)
               exit "$code"
@@ -444,14 +444,12 @@ jobs:
           readme-filepath: docs/DOCKERHUB.md
 
   # The landing page in site/ on GitHub Pages, https://lokixed.github.io/dbbm/. A repository admin
-  # must switch it on once (Settings > Pages > Source: "GitHub Actions"). Until then this job fails
-  # without failing the run.
+  # switches it on once (Settings > Pages > Source: "GitHub Actions"). A failed deploy fails the run.
   pages:
     needs: [changes, release]
     if: always() && !failure() && !cancelled() && needs.changes.outputs.site == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -507,14 +505,14 @@ jobs:
           echo "### Pages deployment failed" >> "$GITHUB_STEP_SUMMARY"
           gh api "repos/${GITHUB_REPOSITORY}/pages/deployments/${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY" || true
 
-  # The Docker Hub page alone: runs when docs/DOCKERHUB.md changes without a new image. (A release
-  # updates the page too.) Like the release job, it needs the Docker Hub variable and secret.
+  # The Docker Hub page alone: runs when docs/DOCKERHUB.md changes without a new image, and on a
+  # manual run. (A release updates the page too.) Like the release job, it needs the Docker Hub
+  # variable and secret. A failed update fails the run.
   hub:
     needs: [changes, release]
-    if: always() && !failure() && !cancelled() && needs.changes.outputs.hub == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: always() && !failure() && !cancelled() && needs.changes.outputs.hub == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - name: Docker Hub description
