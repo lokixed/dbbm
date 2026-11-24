@@ -120,6 +120,8 @@ RUN set -eux; \
     apt-get purge -y --auto-remove gnupg; \
     rm -rf /var/lib/apt/lists/* /root/.gnupg /root/.config; \
     gcloud --version
+# gcloud's bundled Python does not need pip, which carries vulnerable vendored libraries.
+RUN rm -rf /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip         /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip-*.dist-info         /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/ensurepip/_bundled
 # Only mongodump and mongorestore are used; they replace the packaged builds.
 COPY --from=mongotools /out/ /usr/bin/
 RUN mongodump --version && mongorestore --version
@@ -140,11 +142,6 @@ RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin
     && mkdir -p /data /backups \
     && chown dbbm:dbbm /data /backups
 
-# Current pip and setuptools. The old wheels that ensurepip bundles (used only by "python -m venv")
-# contain libraries with known vulnerabilities, so they are removed.
-RUN pip install --root-user-action=ignore --upgrade pip setuptools \
-    && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled
-
 WORKDIR /app
 COPY backend/ ./
 # Install the dependencies only; the app itself runs from /app (it needs alembic/ beside it).
@@ -152,6 +149,10 @@ RUN pip install --root-user-action=ignore . \
     && pip uninstall -y dbbm \
     && rm -rf build ./*.egg-info \
     && python -c "from zoneinfo import ZoneInfo; ZoneInfo('Europe/Berlin'); ZoneInfo('Asia/Kolkata')"
+# pip is not needed at run time and bundles libraries (msgpack, urllib3, pkg_resources) with known
+# vulnerabilities, so it is removed together with the wheels ensurepip carries. setuptools stays
+# current. To install packages in a running container, bootstrap pip again with get-pip.py.
+RUN pip install --root-user-action=ignore --upgrade setuptools     && pip uninstall -y pip     && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled
 ENV PYTHONPATH=/app
 COPY --from=frontend /frontend/dist ./frontend/dist
 

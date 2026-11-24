@@ -53,7 +53,7 @@ test-integration-docker: build
 		-v $(CURDIR)/backend:/src:ro \
 		--entrypoint sh dbbm:local -c \
 		'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
-		&& cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'
+		&& cd /tmp/backend && curl -fsSL https://bootstrap.pypa.io/get-pip.py | python - -q && pip install -q ".[dev]" && pytest -m integration'
 
 # DEV ONLY sample databases on the "dbbm-dev" network (see dev/README.md).
 dev-dbs-up:
