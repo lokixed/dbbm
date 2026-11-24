@@ -6,7 +6,7 @@ export function VersionBadge() {
   const { data } = useVersion();
   if (!data) return null;
   return (
-    <footer className="pointer-events-none fixed bottom-2 right-3 z-10 select-none text-xs text-app-muted">
+    <footer className="pointer-events-none fixed bottom-2 left-3 z-10 select-none text-xs text-app-muted">
       DBBM v{data.version}
     </footer>
   );
