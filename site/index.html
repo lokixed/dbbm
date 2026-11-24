@@ -91,6 +91,7 @@
     pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
     .copy { position: absolute; top: 8px; right: 8px; background: var(--primary); color: var(--primary-text); border: 1px solid var(--primary); padding: 3px 10px; font-size: 13px; cursor: pointer; }
     .copy:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .table-scroll { overflow-x: auto; margin: 0 0 16px; } /* wide tables scroll inside themselves on a narrow screen */
     table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 15px; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { color: var(--muted); font-weight: 600; }
@@ -127,7 +128,7 @@
           <a class="btn secondary" href="https://hub.docker.com/r/lokixed/dbbm">Docker Hub</a>
           <a class="btn secondary" href="https://github.com/lokixed/dbbm">Source on GitHub</a>
         </div>
-        <p class="latest">Latest release: <a id="latest-link" href="https://github.com/lokixed/dbbm/releases"><strong>v<span class="ver">1.0.0-rc.1</span></strong></a>
+        <p class="latest">Latest release: <a class="release-link" href="https://github.com/lokixed/dbbm/releases"><strong>v<span class="ver">1.0.0-rc.1</span></strong></a>
           <span aria-hidden="true">&middot;</span> <code>docker pull lokixed/dbbm:<span class="ver">1.0.0-rc.1</span></code></p>
       </div>
 
@@ -197,7 +198,7 @@ curl http://127.0.0.1:8080/healthz</code></pre></div>
       <section id="tags" aria-labelledby="tags-title">
         <h2 id="tags-title">Image tags</h2>
         <p>The same image is on Docker Hub (<code>lokixed/dbbm</code>) and GitHub Container Registry (<code>ghcr.io/lokixed/dbbm</code>). It is signed with cosign (keyless) and carries an SBOM.</p>
-        <table>
+        <div class="table-scroll"><table>
           <thead><tr><th>Tag</th><th>Meaning</th></tr></thead>
           <tbody>
             <tr><td><code>X.Y.Z</code></td><td>One release. Pin one of these in production.</td></tr>
@@ -206,7 +207,7 @@ curl http://127.0.0.1:8080/healthz</code></pre></div>
             <tr><td><code>edge</code></td><td>The same image as <code>latest</code>, kept as an explicit name for "newest build".</td></tr>
             <tr><td><code>sha-&lt;commit&gt;</code></td><td>One exact commit.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <p>Releases are automatic: every time CI passes on <code>main</code>, the next version is calculated from the commit messages. See <a href="https://github.com/lokixed/dbbm/releases">Releases</a> and the <a href="https://github.com/lokixed/dbbm/blob/main/CHANGELOG.md">changelog</a>.</p>
         <h3>Upgrading</h3>
         <div class="code"><pre><code>docker compose pull
@@ -216,7 +217,7 @@ docker compose up -d</code></pre></div>
 
       <section id="configuration" aria-labelledby="configuration-title">
         <h2 id="configuration-title">Configuration</h2>
-        <table>
+        <div class="table-scroll"><table>
           <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td><code>APP_SECRET_KEY_FILE</code> or <code>APP_SECRET_KEY</code></td><td><strong>Yes, one of them</strong></td><td>none</td><td>Master key (at least 32 characters) for encrypting stored credentials. Set one, not both. Prefer the file. The app refuses to start without it.</td></tr>
@@ -232,7 +233,7 @@ docker compose up -d</code></pre></div>
             <tr><td><code>LOGIN_MAX_ATTEMPTS</code> / <code>LOGIN_LOCKOUT_SECONDS</code></td><td>No</td><td><code>5</code> / <code>900</code></td><td>Sign-in rate limiting.</td></tr>
             <tr><td><code>ENABLE_DOCS</code></td><td>No</td><td><code>false</code></td><td>Serve the API docs at <code>/api/docs</code>.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <p>Only the master key is truly required. <code>COOKIE_SECURE</code> has a default, but the default expects HTTPS, so set it to <code>false</code> when you open the app over plain <code>http://</code>.</p>
 
         <h3>Google Drive and Firestore</h3>
@@ -260,6 +261,7 @@ docker compose up -d</code></pre></div>
         <a href="https://github.com/lokixed/dbbm/issues">Issues</a>
         <a href="https://github.com/lokixed/dbbm/blob/main/LICENSE">MIT license</a>
       </p>
+      <p>DBBM <a class="release-link" href="https://github.com/lokixed/dbbm/releases" title="Release notes">v<span class="ver">1.0.0-rc.1</span></a> &middot; the image tag <code>latest</code> follows <code>main</code></p>
     </div>
   </footer>
 
@@ -317,8 +319,9 @@ docker compose up -d</code></pre></div>
           document.querySelectorAll(".ver").forEach(function (el) {
             el.textContent = tag.replace(/^v/, "");
           });
-          var link = document.getElementById("latest-link");
-          if (link) link.href = "https://github.com/lokixed/dbbm/releases/tag/" + tag;
+          document.querySelectorAll(".release-link").forEach(function (link) {
+            link.href = "https://github.com/lokixed/dbbm/releases/tag/" + tag;
+          });
         })
         .catch(function () {});
     })();

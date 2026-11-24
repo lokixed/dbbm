@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { useVersion } from "@/api/auth";
+import { releaseNotesUrl } from "@/lib/version";
 
 // The bottom line of the sign-in and setup cards: a link to the docs on the left, the app version
-// on the right. The version comes from the backend, so it matches the running image.
+// on the right (linked to that version's release notes). The version comes from the backend, so it
+// matches the running image.
 export function AuthFooter() {
   const { data } = useVersion();
   return (
@@ -10,7 +12,17 @@ export function AuthFooter() {
       <Link to="/docs" className="hover:text-app-text hover:underline">
         Docs
       </Link>
-      {data && <span>DBBM v{data.version}</span>}
+      {data && (
+        <a
+          href={releaseNotesUrl(data.version)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Release notes"
+          className="hover:text-app-text hover:underline"
+        >
+          DBBM v{data.version}
+        </a>
+      )}
     </div>
   );
 }

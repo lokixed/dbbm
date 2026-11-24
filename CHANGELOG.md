@@ -11,6 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver]
   changelog, tags `vX.Y.Z` and publishes the image and the GitHub release.
 - The version is shown on every page of the web UI, placed in the page layout (sidebar footer, and
   the sign-in, setup and Docs pages), and `/healthz` reports it in every response.
+- The version in the web UI (sidebar footer, sign-in and setup cards) and on the landing page links to
+  that version's release notes on GitHub.
 - The in-app About page is now the Docs page at `/docs`; `/about` redirects to it. The sign-in and
   setup pages end with a footer line inside the card: a Docs link on the left, `DBBM vX.Y.Z` on the right.
 - A landing page for the image (`site/`), published to GitHub Pages by the CI/CD workflow.
