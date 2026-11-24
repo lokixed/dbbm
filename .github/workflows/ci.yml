@@ -134,6 +134,9 @@ jobs:
             --entrypoint sh dbbm:ci -c \
             'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
             && cd /tmp/backend && pip install -q ".[dev]" && pytest -m integration'
+      - name: TEMP find vulnerable python packages
+        run: |
+          docker run --rm --user root --entrypoint sh dbbm:ci -c "find / -xdev \( -name 'setuptools-70*' -o -name 'msgpack*' -o -name 'urllib3-2.7*' -o -name 'urllib3*.whl' -o -name '*.whl' \) -not -path '/proc/*' 2>/dev/null | head -50"
       # Scan the built image for known vulnerabilities in OS packages and Python libraries.
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@v0.36.0
