@@ -5,6 +5,11 @@ on:
     branches: [main, master]
   pull_request:
 
+# Read-only by default; the release job asks for more.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -143,3 +148,136 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+
+  # Publishes the image once every job above has passed. Pushes to main only; pull requests never
+  # publish. Every green push updates the `edge` and `sha-<commit>` tags. A new version (the
+  # version in backend/app/version.py has no git tag yet) also gets its version tags, a git tag
+  # and a GitHub release; stable versions (no `-rc.1` style suffix) also move `latest` and `X.Y`.
+  #
+  # One-time setup (repository Settings > Secrets and variables > Actions):
+  #   variable DOCKERHUB_USERNAME  Docker Hub user or organisation that owns the repository
+  #   secret   DOCKERHUB_TOKEN     Docker Hub access token with Read & Write scope
+  release:
+    needs: [backend, frontend, security, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write # create the tag and the GitHub release
+      packages: write # push to ghcr.io
+      id-token: write # keyless image signing
+      attestations: write
+    env:
+      GHCR_IMAGE: ghcr.io/${{ github.repository }}
+      DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/dbbm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Docker Hub is configured
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "Set the DOCKERHUB_USERNAME variable and the DOCKERHUB_TOKEN secret" >&2; exit 1
+          fi
+
+      - name: Work out the version and the tags
+        id: tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(grep '^__version__' backend/app/version.py | cut -d'"' -f2)"
+          short="${GITHUB_SHA::7}"
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v${version}" > /dev/null 2>&1; then
+            release=false
+          else
+            release=true
+            grep -qF "## [${version}]" CHANGELOG.md || { echo "CHANGELOG.md has no section for ${version}" >&2; exit 1; }
+          fi
+          case "$version" in *-*) stable=false ;; *) stable=true ;; esac
+          {
+            echo "version=${version}"
+            echo "release=${release}"
+            echo "stable=${stable}"
+            echo "tags<<TAGS_END"
+            for image in "${GHCR_IMAGE,,}" "${DOCKERHUB_IMAGE,,}"; do
+              echo "${image}:edge"
+              echo "${image}:sha-${short}"
+              if [ "$release" = true ]; then echo "${image}:${version}"; fi
+              if [ "$release" = true ] && [ "$stable" = true ]; then
+                echo "${image}:latest"
+                echo "${image}:${version%.*}"
+              fi
+            done
+            echo "TAGS_END"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # The same Dockerfile and context the `docker` job built and scanned, so the layers come
+      # from its cache.
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64 # MySQL's apt repository has no arm64 packages for Debian
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=DBBM
+            org.opencontainers.image.description=Self-hosted backups for MySQL, PostgreSQL, MongoDB and Firestore to local disk and Google Drive
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+          sbom: true # SBOM attached to the image
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: sigstore/cosign-installer@v4.1.3
+      - name: Sign the image (keyless)
+        run: |
+          cosign sign --yes "${GHCR_IMAGE,,}@${{ steps.build.outputs.digest }}"
+          cosign sign --yes "${DOCKERHUB_IMAGE,,}@${{ steps.build.outputs.digest }}"
+
+      - name: GitHub release
+        if: steps.tags.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.tags.outputs.version }}
+          STABLE: ${{ steps.tags.outputs.stable }}
+        run: |
+          cat > /tmp/notes.md <<NOTES
+          ## Docker image
+
+          docker pull ${DOCKERHUB_IMAGE,,}:${VERSION}
+          docker pull ${GHCR_IMAGE,,}:${VERSION}
+          NOTES
+          flags=""
+          if [ "$STABLE" != true ]; then flags="--prerelease"; fi
+          gh release create "v${VERSION}" --target "$GITHUB_SHA" --title "v${VERSION}" --notes-file /tmp/notes.md --generate-notes $flags
+
+      # The page on hub.docker.com shows docs/DOCKERHUB.md. Editing it needs a token with enough
+      # rights; if the token cannot, the image is already published, so this only warns.
+      - name: Docker Hub description
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_USERNAME }}/dbbm
+          short-description: Self-hosted backups for MySQL, PostgreSQL, MongoDB and Firestore to local disk and Google Drive.
+          readme-filepath: docs/DOCKERHUB.md

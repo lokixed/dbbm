@@ -31,6 +31,13 @@ cd frontend && yarn lint && yarn typecheck && yarn build
 
 ## Releases
 
-1. Update `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`.
-2. Add a section to `CHANGELOG.md`.
-3. Tag `vX.Y.Z` and push the tag. The release workflow builds and publishes the image.
+Releases are automatic: when every CI job passes on `main`, the `release` job in
+`.github/workflows/ci.yml` publishes the image to Docker Hub and GHCR.
+
+- Every green push updates the `edge` and `sha-<commit>` tags.
+- To cut a release, update `backend/app/version.py`, `backend/pyproject.toml` and
+  `frontend/package.json`, add a section for the version to `CHANGELOG.md`, and merge to `main`. When
+  CI passes, the job tags `vX.Y.Z`, publishes the version tags and creates the GitHub release. A
+  stable version (no `-rc.1` style suffix) also moves `latest` and `X.Y`.
+- Do not push version tags by hand. A version that already has a tag is not released again.
+- The Docker Hub page shows `docs/DOCKERHUB.md`; it is updated on every release job.

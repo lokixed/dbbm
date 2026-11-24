@@ -68,7 +68,7 @@ The code and docs are done (version 1.0.0-rc.1). What is left:
 - [ ] Load and endurance test: many jobs on schedules over several days, watching memory, open files, and leftover work directories
 
 ### Upgrades and releases
-- [ ] Run the release workflow on a tag (amd64 only; arm64 needs another MySQL client, see DESIGN.md section 17)
+- [ ] Cut a stable `1.0.0` release through the automatic release job (amd64 only; arm64 needs another MySQL client, see DESIGN.md section 17)
 - [ ] Optional "update available" hint in the UI
 
 ### Documentation

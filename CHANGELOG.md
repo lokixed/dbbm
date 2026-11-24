@@ -31,6 +31,11 @@ failure-injection suite, CI release run) are still open.
 - `age`, `mongodump` and `mongorestore` are built from source with a current Go toolchain, and pip
   is removed from the final image.
 
+### Release process
+- The release job is part of the CI workflow: when CI passes on `main` it publishes the image to
+  Docker Hub and GHCR (`edge`, `sha-<commit>`, and the version tags for a new version) and creates
+  the GitHub release. The Docker Hub page shows `docs/DOCKERHUB.md`.
+
 ### Known limits
 - The image is for linux/amd64 only. MySQL's apt repository has no arm64 packages for Debian.
 
