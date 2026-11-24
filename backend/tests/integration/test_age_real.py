@@ -72,13 +72,18 @@ def test_a_wrong_key_is_reported_and_leaves_no_file(plain: Path, tmp_path: Path)
     assert not (tmp_path / "out").exists() and not (tmp_path / "out.partial").exists()
 
 
+def _flip(data: bytes, index: int) -> bytes:
+    return data[:index] + bytes([data[index] ^ 255]) + data[index + 1 :]
+
+
 @pytest.mark.parametrize(
     ("damage", "message"),
     [
         (lambda d: d[: len(d) // 2], "truncated, corrupted or has been tampered with"),
         (lambda d: d[:-16], "truncated, corrupted or has been tampered with"),
         (lambda d: d[:100], "truncated or incomplete"),
-        (lambda d: d[:120] + bytes([d[120] ^ 255]) + d[121:], "damaged header"),
+        # The header length varies (age adds a random "grease" stanza), so find the MAC line.
+        (lambda d: _flip(d, d.index(b"\n--- ") + 1), "damaged header"),
         (
             lambda d: d[: len(d) // 2] + bytes([d[len(d) // 2] ^ 255]) + d[len(d) // 2 + 1 :],
             "tampered",
