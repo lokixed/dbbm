@@ -380,3 +380,31 @@ jobs:
           repository: ${{ vars.DOCKERHUB_USERNAME }}/dbbm
           short-description: Self-hosted backups for MySQL, PostgreSQL, MongoDB and Firestore to local disk and Google Drive.
           readme-filepath: docs/DOCKERHUB.md
+
+  # The landing page in site/ on GitHub Pages, https://lokixed.github.io/dbbm/. A repository admin
+  # must switch it on once (Settings > Pages > Source: "GitHub Actions"). Until then this job fails
+  # without failing the run.
+  pages:
+    needs: [backend, frontend, security, docker]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write # publish the site
+      id-token: write # lets deploy-pages verify the deployment is from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5

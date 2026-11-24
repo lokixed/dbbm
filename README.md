@@ -20,7 +20,7 @@ docker compose up --build -d
 
 Open <http://127.0.0.1:8080>, create the admin account, then sign in.
 
-A prebuilt image is on Docker Hub (`lokixed/dbbm`) and GHCR (`ghcr.io/lokixed/dbbm`); see [docs/DOCKERHUB.md](docs/DOCKERHUB.md) for the tags and a compose file that uses it instead of building.
+A prebuilt image is on Docker Hub (`lokixed/dbbm`) and GHCR (`ghcr.io/lokixed/dbbm`). The [landing page](https://lokixed.github.io/dbbm/) and [docs/DOCKERHUB.md](docs/DOCKERHUB.md) list the tags and a compose file that uses the image instead of building.
 
 - The port is bound to `127.0.0.1` only. Put Caddy or Traefik in front for HTTPS and set `COOKIE_SECURE=true` in `.env`.
 - Losing `app_key.txt` means re-entering every stored credential.

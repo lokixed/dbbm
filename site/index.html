@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DBBM - self-hosted database backups</title>
+  <meta name="description" content="Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, with a web UI. Pull the image and run it with docker compose.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f6fb;
+      --text: #14171f;
+      --muted: #4b5565;
+      --border: #d9dee8;
+      --accent: #1d4ed8;
+      --accent-text: #ffffff;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0f17;
+        --surface: #121826;
+        --text: #e6e9f0;
+        --muted: #a3adbf;
+        --border: #263044;
+        --accent: #7aa2ff;
+        --accent-text: #0b0f17;
+        --code-bg: #060912;
+        --code-text: #e2e8f0;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    a { color: var(--accent); }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+    header.top { border-bottom: 1px solid var(--border); }
+    header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; color: var(--text); text-decoration: none; }
+    .brand img { width: 30px; height: 30px; }
+    nav a { margin-left: 16px; font-size: 15px; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    .hero { padding: 56px 0 32px; }
+    h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 0 24px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--accent); }
+    .btn.primary { background: var(--accent); color: var(--accent-text); }
+    .btn.secondary { color: var(--accent); }
+    section { padding: 28px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 26px; margin: 0 0 12px; letter-spacing: -0.01em; }
+    h3 { font-size: 18px; margin: 24px 0 8px; }
+    p { margin: 0 0 14px; }
+    ul { padding-left: 22px; margin: 0 0 14px; }
+    li { margin: 4px 0; }
+    code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+    .code { position: relative; margin: 0 0 18px; }
+    pre { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px; overflow-x: auto; font-size: 14px; line-height: 1.55; }
+    pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+    .copy { position: absolute; top: 8px; right: 8px; background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 3px 10px; font-size: 13px; cursor: pointer; }
+    .copy:hover { background: #334155; }
+    table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 15px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .note { background: var(--surface); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 0 0 16px; }
+    footer { border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--muted); font-size: 14px; }
+    footer a { margin-right: 14px; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="favicon.svg" alt="" width="30" height="30">DBBM</a>
+      <nav aria-label="Page">
+        <a href="#quick-start">Quick start</a>
+        <a href="#tags">Tags</a>
+        <a href="#configuration">Configuration</a>
+        <a href="https://github.com/lokixed/dbbm">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <div class="hero">
+        <h1>Database backups you run yourself</h1>
+        <p class="lead">DBBM backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, on a schedule, with a web UI. One container, one <code>docker compose up</code>.</p>
+        <div class="actions">
+          <a class="btn primary" href="#quick-start">Run it in 2 minutes</a>
+          <a class="btn secondary" href="https://hub.docker.com/r/lokixed/dbbm">Docker Hub</a>
+          <a class="btn secondary" href="https://github.com/lokixed/dbbm">Source on GitHub</a>
+        </div>
+      </div>
+
+      <section aria-labelledby="features">
+        <h2 id="features">What you get</h2>
+        <div class="cards">
+          <div class="card"><h3>Four engines</h3><p>MySQL, PostgreSQL, MongoDB and Firestore, with per-database selection and connection tests.</p></div>
+          <div class="card"><h3>Two copies, verified</h3><p>A local volume and Google Drive. Every file is checked with SHA-256 and a manifest.</p></div>
+          <div class="card"><h3>Schedules and retention</h3><p>Cron-style schedules, missed-run catch-up, keep-last and keep-days retention.</p></div>
+          <div class="card"><h3>Restore wizard</h3><p>Restore into a registered source, choose some tables or collections, and watch a live log.</p></div>
+          <div class="card"><h3>Optional encryption</h3><p>Encrypt each backup with <code>age</code>. The server only ever holds public keys.</p></div>
+          <div class="card"><h3>Alerts and audit log</h3><p>Slack, email and webhook alerts, heartbeat URLs, and an audit log of every change.</p></div>
+        </div>
+      </section>
+
+      <section id="quick-start" aria-labelledby="quick-start-title">
+        <h2 id="quick-start-title">Quick start</h2>
+        <p>You need Docker with Compose. The image is built for <code>linux/amd64</code>.</p>
+
+        <h3>1. Create the master key and the folders</h3>
+        <p>The master key encrypts every stored credential. Keep a copy of it somewhere safe: losing it means re-entering all credentials.</p>
+        <div class="code"><pre><code>mkdir dbbm &amp;&amp; cd dbbm
+(umask 077; openssl rand -base64 32 &gt; app_key.txt)
+mkdir -p data backups</code></pre></div>
+
+        <h3>2. Create <code>docker-compose.yml</code></h3>
+        <p>Set <code>user</code> to your own user and group IDs (<code>id -u</code> and <code>id -g</code>) so the folders are readable and writable.</p>
+        <div class="code"><pre><code>services:
+  dbbm:
+    image: lokixed/dbbm:<span class="ver">1.0.0-rc.1</span>
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      APP_SECRET_KEY_FILE: /run/secrets/app_key
+      TZ: UTC
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - app_key
+
+secrets:
+  app_key:
+    file: ./app_key.txt</code></pre></div>
+
+        <h3>3. Start it</h3>
+        <div class="code"><pre><code>docker compose up -d
+curl http://127.0.0.1:8080/healthz</code></pre></div>
+        <p>Open <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>, create the admin account, then add a <strong>source</strong>, a <strong>destination</strong> and a <strong>job</strong>, and press <strong>Run now</strong>.</p>
+
+        <p class="note">The port is bound to <code>127.0.0.1</code> on purpose. To use it from other machines, put Caddy or Traefik in front for HTTPS and set <code>COOKIE_SECURE=true</code>. Run only one container per <code>./data</code> folder: the container owns the scheduler.</p>
+
+        <h3>Reaching your databases</h3>
+        <p>Put the container on the same Docker network as your databases and use the service name as the host. For a database on the Docker host, use <code>host.docker.internal</code> (add <code>extra_hosts: ["host.docker.internal:host-gateway"]</code> on Linux) and make sure the database allows the connection. Use a read-only database user for backups.</p>
+      </section>
+
+      <section id="tags" aria-labelledby="tags-title">
+        <h2 id="tags-title">Image tags</h2>
+        <p>The same image is on Docker Hub (<code>lokixed/dbbm</code>) and GitHub Container Registry (<code>ghcr.io/lokixed/dbbm</code>). It is signed with cosign (keyless) and carries an SBOM.</p>
+        <table>
+          <thead><tr><th>Tag</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>X.Y.Z</code></td><td>One release. Pin one of these in production.</td></tr>
+            <tr><td><code>X.Y</code></td><td>The newest patch of that minor version.</td></tr>
+            <tr><td><code>latest</code></td><td>The newest release.</td></tr>
+            <tr><td><code>edge</code></td><td>The latest commit on <code>main</code> that passed CI. May change at any time.</td></tr>
+            <tr><td><code>sha-&lt;commit&gt;</code></td><td>One exact commit.</td></tr>
+          </tbody>
+        </table>
+        <p>Releases are automatic: every time CI passes on <code>main</code>, the next version is calculated from the commit messages. See <a href="https://github.com/lokixed/dbbm/releases">Releases</a> and the <a href="https://github.com/lokixed/dbbm/blob/main/CHANGELOG.md">changelog</a>.</p>
+        <h3>Upgrading</h3>
+        <div class="code"><pre><code>docker compose pull
+docker compose up -d</code></pre></div>
+        <p>Back up <code>./data</code> first. The app migrates its own database when it starts, and running backups are marked as interrupted when the container stops.</p>
+      </section>
+
+      <section id="configuration" aria-labelledby="configuration-title">
+        <h2 id="configuration-title">Configuration</h2>
+        <table>
+          <thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>APP_SECRET_KEY_FILE</code> / <code>APP_SECRET_KEY</code></td><td>Master key for encrypting stored credentials. Prefer the file.</td></tr>
+            <tr><td><code>DATA_DIR</code></td><td>Metadata database and run logs. Default <code>/data</code>.</td></tr>
+            <tr><td><code>BACKUP_DIR</code></td><td>Where backup files go. Default <code>/backups</code>.</td></tr>
+            <tr><td><code>TZ</code></td><td>Container time zone. Each job has its own schedule time zone.</td></tr>
+            <tr><td><code>MAX_CONCURRENT_RUNS</code></td><td>Backup runs at the same time. Default 2.</td></tr>
+            <tr><td><code>COOKIE_SECURE</code></td><td>Set <code>true</code> when served over HTTPS.</td></tr>
+            <tr><td><code>PUBLIC_BASE_URL</code></td><td>Base URL used in notification links.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Google Drive and Firestore</h3>
+        <ul>
+          <li><strong>Google Drive</strong> uses <code>rclone</code> inside the image. Create an OAuth client, publish the consent screen (apps left in Testing get tokens that expire after 7 days), then paste the token in <em>Destinations</em>.</li>
+          <li><strong>Firestore</strong> needs the Cloud Firestore API enabled, a Cloud Storage staging bucket, and a service account with <code>roles/datastore.importExportAdmin</code> plus read and write on the bucket. The app calls Google's REST APIs directly, so no extra tool is installed.</li>
+        </ul>
+        <p>The full guide is in the <a href="https://github.com/lokixed/dbbm#readme">README</a> and <a href="https://github.com/lokixed/dbbm/blob/main/docs/OPERATIONS.md">operations guide</a>.</p>
+      </section>
+
+      <section aria-labelledby="inside">
+        <h2 id="inside">What is inside the image</h2>
+        <p><code>mysqldump</code> (MySQL 8.4 client), <code>pg_dump</code> 18, <code>mongodump</code> and <code>mongorestore</code>, <code>rclone</code> and <code>age</code>, with a Python (FastAPI) backend and a React web UI. It runs as a non-root user with a read-only root file system and no extra Linux capabilities.</p>
+        <p>Credentials are encrypted at rest and are never returned by the API. Read the <a href="https://github.com/lokixed/dbbm/blob/main/docs/SECURITY.md">security notes</a> for what is and is not protected.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>
+        <a href="https://github.com/lokixed/dbbm">GitHub</a>
+        <a href="https://hub.docker.com/r/lokixed/dbbm">Docker Hub</a>
+        <a href="https://github.com/lokixed/dbbm/pkgs/container/dbbm">GHCR</a>
+        <a href="https://github.com/lokixed/dbbm/issues">Issues</a>
+        <a href="https://github.com/lokixed/dbbm/blob/main/LICENSE">MIT license</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      // Copy buttons on every code block.
+      document.querySelectorAll(".code").forEach(function (block) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy";
+        button.textContent = "Copy";
+        button.addEventListener("click", function () {
+          var text = block.querySelector("code").textContent;
+          if (!navigator.clipboard) return;
+          navigator.clipboard.writeText(text).then(function () {
+            button.textContent = "Copied";
+            setTimeout(function () { button.textContent = "Copy"; }, 1500);
+          });
+        });
+        block.appendChild(button);
+      });
+
+      // Use the newest release in the examples. The page works without this: it falls back to
+      // the version written in the HTML.
+      fetch("https://api.github.com/repos/lokixed/dbbm/releases?per_page=1", {
+        headers: { Accept: "application/vnd.github+json" }
+      })
+        .then(function (response) { return response.ok ? response.json() : []; })
+        .then(function (releases) {
+          var tag = releases[0] && releases[0].tag_name;
+          if (!tag || !/^v\d+\.\d+\.\d+/.test(tag)) return;
+          document.querySelectorAll(".ver").forEach(function (el) {
+            el.textContent = tag.replace(/^v/, "");
+          });
+        })
+        .catch(function () {});
+    })();
+  </script>
+</body>
+</html>

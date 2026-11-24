@@ -8,7 +8,7 @@ Drive, with a web UI. One container, one `docker compose up`.
 - Optional `age` encryption of every backup, so a leaked Drive account or disk exposes nothing.
 - Stored credentials are encrypted with a master key that never touches the database.
 
-Source code, full documentation and issues: <https://github.com/lokixed/dbbm>
+Source code, full documentation and issues: <https://github.com/lokixed/dbbm>. Landing page: <https://lokixed.github.io/dbbm/>
 
 ## Tags
 

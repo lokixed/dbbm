@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver]
   `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`, rotates this
   changelog, tags `vX.Y.Z` and publishes the image and the GitHub release.
 - The version is shown on every page of the web UI, including sign-in, setup and About.
+- A landing page for the image (`site/`), published to GitHub Pages by the CI workflow.
 
 ## [1.0.0-rc.1]
 

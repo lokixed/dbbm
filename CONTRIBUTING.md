@@ -64,5 +64,7 @@ Releases are automatic and nobody types a version number. When every CI job pass
   publishes it.
 - Write release notes by hand under `## [Unreleased]` in `CHANGELOG.md` when the commit subjects are
   not enough.
+- The landing page is the static `site/index.html`, deployed to GitHub Pages by the `pages` job of the
+  same workflow. Keep its tags and compose example in step with `docs/DOCKERHUB.md`.
 - Do not create version tags by hand. The Docker Hub page shows `docs/DOCKERHUB.md`; it is updated
   on every release job.
