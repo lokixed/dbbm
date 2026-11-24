@@ -6,30 +6,47 @@
   <title>DBBM - self-hosted database backups</title>
   <meta name="description" content="Self-hosted Docker app that backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, with a web UI. Pull the image and run it with docker compose.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <style>
-    :root {
-      --bg: #ffffff;
-      --surface: #f4f6fb;
-      --text: #14171f;
-      --muted: #4b5565;
-      --border: #d9dee8;
-      --accent: #1d4ed8;
-      --accent-text: #ffffff;
-      --code-bg: #0f172a;
-      --code-text: #e2e8f0;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0b0f17;
-        --surface: #121826;
-        --text: #e6e9f0;
-        --muted: #a3adbf;
-        --border: #263044;
-        --accent: #7aa2ff;
-        --accent-text: #0b0f17;
-        --code-bg: #060912;
-        --code-text: #e2e8f0;
+  <script>
+    // Apply a saved light choice before the first paint, so the page does not flash dark.
+    try {
+      if (localStorage.getItem("dbbm-theme") === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
       }
+    } catch (e) {}
+  </script>
+  <style>
+    /* The web UI's palette (frontend/src/index.css). Dark is the default; the toggle in the header
+       switches to light and remembers the choice. Links use a lighter blue in the dark theme
+       because the UI's accent blue is too dim on a dark background to read as text. */
+    :root {
+      color-scheme: dark;
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --border: #424242;
+      --text: #ffffff;
+      --muted: #b0b0b0;
+      --soft: #e0e0e0;
+      --link: #7aa2ff;
+      --primary: #1d3fb8;
+      --primary-hover: #173293;
+      --primary-text: #ffffff;
+      --code-bg: #1e1e1e;
+      --code-text: #e0e0e0;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --border: #e0e0e0;
+      --text: #212121;
+      --muted: #646464;
+      --soft: #424242;
+      --link: #1d3fb8;
+      --primary: #1d3fb8;
+      --primary-hover: #173293;
+      --primary-text: #ffffff;
+      --code-bg: #212121;
+      --code-text: #fafafa;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -39,8 +56,8 @@
       color: var(--text);
       font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-    a { color: var(--accent); }
-    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    a { color: var(--link); }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
     header.top { border-bottom: 1px solid var(--border); }
     header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; flex-wrap: wrap; }
@@ -48,33 +65,38 @@
     .brand img { width: 30px; height: 30px; }
     nav a { margin-left: 16px; font-size: 15px; text-decoration: none; }
     nav a:hover { text-decoration: underline; }
+    nav { display: flex; align-items: center; flex-wrap: wrap; }
+    .theme { margin-left: 16px; padding: 4px 12px; background: transparent; color: var(--text); border: 1px solid var(--border); font: inherit; font-size: 14px; cursor: pointer; }
+    .theme:hover { background: var(--surface); }
     .hero { padding: 56px 0 32px; }
     h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
-    .lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 0 24px; }
+    .lead { font-size: 19px; color: var(--soft); max-width: 640px; margin: 0 0 24px; }
     .actions { display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--accent); }
-    .btn.primary { background: var(--accent); color: var(--accent-text); }
-    .btn.secondary { color: var(--accent); }
+    .btn { display: inline-block; padding: 10px 18px; font-weight: 600; text-decoration: none; border: 1px solid var(--primary); }
+    .btn.primary { background: var(--primary); color: var(--primary-text); }
+    .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn.secondary { color: var(--link); border-color: var(--border); }
+    .btn.secondary:hover { background: var(--surface); }
     section { padding: 28px 0; border-top: 1px solid var(--border); }
     h2 { font-size: 26px; margin: 0 0 12px; letter-spacing: -0.01em; }
     h3 { font-size: 18px; margin: 24px 0 8px; }
     p { margin: 0 0 14px; }
     ul { padding-left: 22px; margin: 0 0 14px; }
     li { margin: 4px 0; }
-    code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+    code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; }
     .code { position: relative; margin: 0 0 18px; }
-    pre { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px; overflow-x: auto; font-size: 14px; line-height: 1.55; }
+    pre { margin: 0; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--border); padding: 16px; overflow-x: auto; font-size: 14px; line-height: 1.55; }
     pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
-    .copy { position: absolute; top: 8px; right: 8px; background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 3px 10px; font-size: 13px; cursor: pointer; }
-    .copy:hover { background: #334155; }
+    .copy { position: absolute; top: 8px; right: 8px; background: var(--primary); color: var(--primary-text); border: 1px solid var(--primary); padding: 3px 10px; font-size: 13px; cursor: pointer; }
+    .copy:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
     table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 15px; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { color: var(--muted); font-weight: 600; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 8px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); padding: 14px 16px; }
     .card h3 { margin: 0 0 6px; font-size: 16px; }
     .card p { margin: 0; color: var(--muted); font-size: 15px; }
-    .note { background: var(--surface); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 0 0 16px; }
+    .note { background: var(--surface); border: 1px solid var(--border); padding: 10px 14px; margin: 0 0 16px; }
     footer { border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--muted); font-size: 14px; }
     footer a { margin-right: 14px; }
   </style>
@@ -82,12 +104,13 @@
 <body>
   <header class="top">
     <div class="wrap">
-      <a class="brand" href="./"><img src="favicon.svg" alt="" width="30" height="30">DBBM</a>
+      <a class="brand" href="./"><svg width="30" height="30" viewBox="16.5 16.5 87 87" aria-hidden="true" focusable="false"><rect x="30" y="30" width="60" height="60" fill="#1d3fb8" transform="rotate(45 60 60)"/><rect x="30" y="28" width="36" height="36" fill="#2563eb" transform="rotate(45 48 46)"/><rect x="58" y="60" width="32" height="32" fill="#e0f2fe" transform="rotate(45 74 76)"/></svg>DBBM</a>
       <nav aria-label="Page">
         <a href="#quick-start">Quick start</a>
         <a href="#tags">Tags</a>
         <a href="#configuration">Configuration</a>
         <a href="https://github.com/lokixed/dbbm">GitHub</a>
+        <button type="button" class="theme" id="theme-toggle" aria-label="Switch theme">Light</button>
       </nav>
     </div>
   </header>
@@ -95,7 +118,7 @@
   <main>
     <div class="wrap">
       <div class="hero">
-        <h1>Database backups you run yourself</h1>
+        <h1>Database Backup Manager</h1>
         <p class="lead">DBBM backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, on a schedule, with a web UI. One container, one <code>docker compose up</code>.</p>
         <div class="actions">
           <a class="btn primary" href="#quick-start">Run it in 2 minutes</a>
@@ -231,6 +254,29 @@ docker compose up -d</code></pre></div>
 
   <script>
     (function () {
+      // Theme toggle: dark by default, light on request, remembered in the browser.
+      var root = document.documentElement;
+      var toggle = document.getElementById("theme-toggle");
+      function showLabel() {
+        // The label names the theme the button switches to.
+        var light = root.getAttribute("data-theme") === "light";
+        toggle.textContent = light ? "Dark" : "Light";
+        toggle.setAttribute("aria-label", light ? "Switch to the dark theme" : "Switch to the light theme");
+      }
+      showLabel();
+      toggle.addEventListener("click", function () {
+        var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+        if (next === "light") {
+          root.setAttribute("data-theme", "light");
+        } else {
+          root.removeAttribute("data-theme");
+        }
+        showLabel();
+        try {
+          localStorage.setItem("dbbm-theme", next);
+        } catch (e) {}
+      });
+
       // Copy buttons on every code block.
       document.querySelectorAll(".code").forEach(function (block) {
         var button = document.createElement("button");
