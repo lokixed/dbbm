@@ -99,7 +99,7 @@ Run uvicorn with **one worker**. The scheduler, run queue and lock table live in
 | Frontend | React, Vite, TypeScript, TanStack Query, React Router, Tailwind CSS, shadcn/ui |
 | Node package manager | Yarn 4 (Berry) via Corepack, `nodeLinker: node-modules`, committed `yarn.lock` and pinned `packageManager` field |
 | API client | Generated from FastAPI's OpenAPI schema (`openapi-typescript`) |
-| Tests | pytest, Testcontainers (MySQL, Postgres, Mongo), Playwright for UI smoke tests |
+| Tests | pytest (with pytest-timeout), Testcontainers (MySQL, Postgres, Mongo), Playwright for UI smoke tests |
 | Lint / format | Ruff, mypy, ESLint, Prettier |
 | CI | GitHub Actions: lint, test, build and push image |
 

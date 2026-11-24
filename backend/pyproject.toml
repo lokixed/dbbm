@@ -27,6 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
+    "pytest-timeout>=2.3",
     "ruff>=0.6",
     "mypy>=1.11",
     "testcontainers[mysql,postgres,mongodb]>=4.8",
@@ -38,6 +39,8 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# A hung test fails with a stack trace instead of stalling CI (container start-up is the slowest).
+timeout = 300
 markers = [
     "integration: needs Docker (Testcontainers); skipped automatically without Docker",
     "firestore_fake: Firestore flow against a fake gcloud executable (no Google Cloud access)",
