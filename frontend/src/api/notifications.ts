@@ -55,6 +55,18 @@ export function useTestChannel() {
   });
 }
 
+/** Sends a test message with the settings in a form, without saving them. `id` is the saved channel
+ * being edited, if any: its stored secrets fill in any secret the form leaves unchanged. */
+export function useTestChannelDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: ChannelInput }) =>
+      api<ChannelTestResult>(`/api/notifications/test${id ? `?channel_id=${encodeURIComponent(id)}` : ""}`, {
+        method: "POST",
+        body: input,
+      }),
+  });
+}
+
 export function useChannelEvents(id: string | null, page: number) {
   return useQuery({
     queryKey: channelKeys.events(id ?? "", page),

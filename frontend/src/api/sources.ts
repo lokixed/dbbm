@@ -30,6 +30,18 @@ export function useDeleteSource() {
   });
 }
 
+/** Tests the settings in a form without saving them. `id` is the saved source being edited, if any:
+ * its stored secrets fill in any secret the form leaves unchanged. */
+export function useTestSourceDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: SourceInput }) =>
+      api<TestResult>(`/api/sources/test${id ? `?source_id=${encodeURIComponent(id)}` : ""}`, {
+        method: "POST",
+        body: input,
+      }),
+  });
+}
+
 export function useTestSource() {
   const queryClient = useQueryClient();
   return useMutation({

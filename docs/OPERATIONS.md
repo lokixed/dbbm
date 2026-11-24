@@ -90,7 +90,7 @@ Practise this at least twice a year, on a scratch machine:
 1. Install Docker and the compose file on a new server.
 2. Restore `app_key.txt` and the `data/` directory (the `app.db` copy, renamed to `app.db`).
 3. `docker compose up -d`. Open the UI and sign in.
-4. Check `/healthz` shows the scheduler `running`. Open **Destinations** and **Save and test** each
+4. Check `/healthz` shows the scheduler `running`. Open **Destinations** and run **Test connection** on each
    one. Google Drive tokens may need re-authorizing.
 5. Open **Backups**, pick a recent backup and restore it into a scratch database (README, Restoring).
 6. Without the config export or `app.db`, rebuild sources, destinations and jobs by hand from the

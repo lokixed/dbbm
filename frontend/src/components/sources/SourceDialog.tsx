@@ -11,7 +11,7 @@ import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
 import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
-import { useSaveSource, useTestSource } from "@/api/sources";
+import { useSaveSource, useTestSourceDraft } from "@/api/sources";
 import type { SourceRecord, SourceType, TestResult } from "@/api/types";
 import { DatabaseMultiSelect } from "@/components/DatabaseMultiSelect";
 import { SecretField } from "@/components/SecretField";
@@ -74,7 +74,7 @@ interface SourceFormProps {
 function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   const { toast } = useToast();
   const save = useSaveSource();
-  const test = useTestSource();
+  const test = useTestSourceDraft();
 
   const [record, setRecord] = useState<SourceRecord | null>(source);
   const [secrets, setSecrets] = useState(() => initialSecrets(source));
@@ -124,11 +124,15 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
     return Object.keys(found).length === 0;
   };
 
-  const runTest = async (id: string) => {
+  // Tests the values in the form as they are now, saved or not.
+  const runTest = async (values: SourceFormValues) => {
     setTestError(null);
     setTestResult(null);
     try {
-      const result = await test.mutateAsync(id);
+      const result = await test.mutateAsync({
+        id: record?.id ?? null,
+        input: toSourceInput(type, values, secrets),
+      });
       setTestResult(result);
       if (result.databases) setDiscovered(result.databases);
       toast({
@@ -141,8 +145,13 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
     }
   };
 
-  const submit = (andTest: boolean) =>
-    form.handleSubmit(async (values) => {
+  const checkConnection = form.handleSubmit(async (values) => {
+    setFormError(null);
+    if (!validateSecrets()) return;
+    await runTest(values);
+  });
+
+  const submit = form.handleSubmit(async (values) => {
       setFormError(null);
       if (!validateSecrets()) return;
       try {
@@ -153,8 +162,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
         setRecord(saved);
         setSecrets(initialSecrets(saved));
         toast({ title: "Source saved", description: saved.name, variant: "success" });
-        if (andTest) await runTest(saved.id);
-        else onClose();
+        onClose();
       } catch (error) {
         setFormError(error instanceof ApiError || error instanceof Error ? error.message : "Save failed");
       }
@@ -352,15 +360,19 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
       <TestResultPanel pending={test.isPending} result={testResult} error={testError} />
 
       <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
-          {record && testResult ? "Close" : "Cancel"}
-        </Button>
-        <Button type="button" variant="secondary" onClick={submit(false)} disabled={busy}>
-          Save
-        </Button>
-        <Button type="button" onClick={submit(true)} disabled={busy}>
-          Save and test
-        </Button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="secondary" onClick={checkConnection} disabled={busy}>
+            {test.isPending ? "Testing..." : "Test connection"}
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={submit} disabled={busy}>
+              Save
+            </Button>
+          </div>
+        </div>
       </DialogFooter>
     </form>
   );

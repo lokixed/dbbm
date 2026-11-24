@@ -68,7 +68,7 @@ Open http://127.0.0.1:8080, create the admin account, then sign in.
     label: "First backup",
     body: `## First backup
 
-1. Open **Sources**, click **Add source**, pick a type, fill in the connection details and click **Save and test**. The result shows the server version and the databases the user can see.
+1. Open **Sources**, click **Add source**, pick a type, fill in the connection details, click **Test connection** to check them, then **Save**. The result shows the server version and the databases the user can see.
 2. Open **Destinations** and add a local path such as \`daily\` (relative to \`/backups\`) or a Google Drive folder. Paths that escape the backup directory are rejected.
 3. Open **Jobs**, click **Add job**, choose the source and one or more destinations, and save.
 4. Click **Run now**. The run page streams the log live; **Cancel run** stops the dump and removes its temporary files.
@@ -229,7 +229,7 @@ Practise this at least twice a year:
 1. Install Docker and the compose file on a new server.
 2. Restore \`app_key.txt\` and the \`data/\` directory.
 3. Run \`docker compose up -d\`, open the UI and sign in.
-4. Check \`/healthz\` shows the scheduler running, then Save and test each destination. Google Drive tokens may need re-authorizing.
+4. Check \`/healthz\` shows the scheduler running, then open each destination and run Test connection. Google Drive tokens may need re-authorizing.
 5. Restore a recent backup into a scratch database.
 
 ### Rotate the master key

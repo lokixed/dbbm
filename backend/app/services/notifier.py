@@ -197,6 +197,17 @@ class Notifier:
         await asyncio.to_thread(self._update, event_id, EventStatus.SENT, None, 1)
         return True, "Test message delivered.", event_id
 
+    async def send_draft_test(
+        self, channel_type: str, config: dict[str, Any], secrets: dict[str, str], message: Message
+    ) -> tuple[bool, str]:
+        """One immediate attempt with settings that are not saved. Nothing is recorded."""
+        try:
+            async with asyncio.timeout(DELIVERY_TIMEOUT):
+                await self._dispatch(channel_type, config, secrets, message)
+        except Exception as exc:
+            return False, describe_delivery_error(exc, list(secrets.values()))
+        return True, "Test message delivered."
+
     async def flush_summaries(self) -> None:
         """Send the suppressed-message summary of every channel whose window has ended."""
         now = self._clock.now()
@@ -291,16 +302,20 @@ class Notifier:
 
     async def _send(self, channel_id: uuid.UUID, message: Message) -> None:
         target = await asyncio.to_thread(self._load_target, channel_id)
+        await self._dispatch(target.type, target.config, target.secrets, message)
+
+    async def _dispatch(
+        self, channel_type: str, config: dict[str, Any], secrets: dict[str, str], message: Message
+    ) -> None:
         now = self._clock.now()
-        if target.type == ChannelType.SLACK:
-            await send_slack(self.policy, target.secrets, message, now)
-        elif target.type == ChannelType.WEBHOOK:
-            await send_webhook(self.policy, target.secrets, message, now)
-        elif target.type == ChannelType.EMAIL:
-            config = EmailConfig.model_validate(target.config)
-            await send_email(self.policy, config, target.secrets, message, now)
+        if channel_type == ChannelType.SLACK:
+            await send_slack(self.policy, secrets, message, now)
+        elif channel_type == ChannelType.WEBHOOK:
+            await send_webhook(self.policy, secrets, message, now)
+        elif channel_type == ChannelType.EMAIL:
+            await send_email(self.policy, EmailConfig.model_validate(config), secrets, message, now)
         else:
-            raise ChannelUnavailable(f"Unsupported channel type: {target.type}")
+            raise ChannelUnavailable(f"Unsupported channel type: {channel_type}")
 
     # ---------- database (blocking; always called through to_thread) ----------
 

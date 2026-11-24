@@ -40,6 +40,18 @@ export function useDeleteDestination() {
   });
 }
 
+/** Tests the settings in a form without saving them. `id` is the saved destination being edited,
+ * if any: its stored secrets fill in any secret the form leaves unchanged. */
+export function useTestDestinationDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: DestinationInput }) =>
+      api<TestResult>(`/api/destinations/test${id ? `?destination_id=${encodeURIComponent(id)}` : ""}`, {
+        method: "POST",
+        body: input,
+      }),
+  });
+}
+
 export function useTestDestination() {
   const queryClient = useQueryClient();
   return useMutation({

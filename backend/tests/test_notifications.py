@@ -450,3 +450,28 @@ def test_notification_routes_need_auth_and_csrf(authed: TestClient) -> None:
         json={"type": "slack", "name": "x", "secrets": {"webhook_url": SLACK_URL}},
     )
     assert response.status_code == 403
+
+
+def test_unsaved_test_sends_without_saving(m6_client: TestClient, outbound: Outbound) -> None:
+    body = {"type": "webhook", "name": "draft", "secrets": {"url": HOOK_URL}}
+    response = api_post(m6_client, "/api/notifications/test", body)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["ok"] is True and result["event"] is None
+    assert HOOK_URL not in response.text
+    assert len(outbound.requests) == 1
+    assert m6_client.get("/api/notifications").json() == []
+    with Session(get_engine()) as db:
+        assert db.exec(select(NotificationEvent)).all() == []
+
+
+def test_unsaved_test_of_an_edit_uses_the_stored_secret(
+    m6_client: TestClient, outbound: Outbound
+) -> None:
+    channel = _webhook(m6_client)
+    body = {"type": "webhook", "name": "echo", "secrets": {}}
+    result = api_post(m6_client, f"/api/notifications/test?channel_id={channel['id']}", body).json()
+    assert result["ok"] is True, result
+    assert outbound.requests[0].headers["authorization"] == HEADER_VALUE
+    after = m6_client.get(f"/api/notifications/{channel['id']}").json()
+    assert after["last_test"] is None

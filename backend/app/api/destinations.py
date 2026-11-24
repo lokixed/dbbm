@@ -265,6 +265,39 @@ def delete_destination(
     return Response(status_code=204)
 
 
+@router.post("/test")
+async def test_unsaved_destination(
+    body: DestinationIn,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    destination_id: uuid.UUID | None = None,
+) -> TestResultOut:
+    """Test the settings in a form without saving anything. With `destination_id` (editing a
+    saved destination) the stored secrets fill in any secret the form leaves unchanged. Nothing
+    is written back: a refreshed Drive token or a new auth status is not stored."""
+    existing: dict[str, str] = {}
+    if destination_id is not None:
+        row = _get_or_404(db, destination_id)
+        if body.type != row.type:
+            raise invalid_field(["type"], "Destination type cannot be changed.")
+        existing = _existing_secrets(row, body) if row.type == "gdrive" else {}
+    merged = _merged_secrets(existing, body)
+    context = StorageContext(timeout_seconds=TEST_TIMEOUT)
+    result = await get_storage(body.type, _normalised_config(body), merged, context).test()
+    write_audit(
+        db,
+        "destination.test",
+        user=user,
+        object_type="destination",
+        object_id=str(destination_id) if destination_id else None,
+        details={"name": body.name, "type": body.type, "ok": result.ok, "saved": False},
+        ip=client_ip(request),
+    )
+    db.commit()
+    return test_out(result)
+
+
 @router.post("/{destination_id}/test")
 async def test_destination(
     destination_id: uuid.UUID, request: Request, db: SessionDep, user: CurrentUser

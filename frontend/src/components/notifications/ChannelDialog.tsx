@@ -14,7 +14,7 @@ import PlusIcon from "xedonium/icons/Plus";
 import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
 import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
-import { useSaveChannel, useTestChannel } from "@/api/notifications";
+import { useSaveChannel, useTestChannelDraft } from "@/api/notifications";
 import type { ChannelRecord, ChannelTestResult } from "@/api/types";
 import { SecretField } from "@/components/SecretField";
 import { useToast } from "@/components/toast";
@@ -155,8 +155,8 @@ function HeadersEditor({
 function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onClose: () => void }) {
   const { toast } = useToast();
   const save = useSaveChannel();
-  const test = useTestChannel();
-  const [record, setRecord] = useState<ChannelRecord | null>(channel);
+  const test = useTestChannelDraft();
+  const record = channel;
   const [secrets, setSecrets] = useState(() => initialSecrets(channel));
   const [headers, setHeaders] = useState<HeadersState>(() => initialHeaders(channel));
   const [problems, setProblems] = useState<Record<string, string>>({});
@@ -217,10 +217,15 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
     return channelSecrets({ password }, null);
   };
 
-  const runTest = async (id: string) => {
+  const sendTest = form.handleSubmit(async (values) => {
+    setFormError(null);
     setTestResult(null);
+    if (!checkSecrets(values)) return;
     try {
-      const result = await test.mutateAsync(id);
+      const result = await test.mutateAsync({
+        id: record?.id ?? null,
+        input: toChannelInput(values, secretsInput(values)),
+      });
       setTestResult(result);
       toast({
         title: result.ok ? "Test message sent" : "Test message failed",
@@ -230,28 +235,22 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
     } catch (error) {
       setTestResult({ ok: false, message: error instanceof Error ? error.message : "Test failed", event: null });
     }
-  };
+  });
 
-  const submit = (andTest: boolean) =>
-    form.handleSubmit(async (values) => {
-      setFormError(null);
-      if (!checkSecrets(values)) return;
-      try {
-        const saved = await save.mutateAsync({
-          id: record?.id ?? null,
-          input: toChannelInput(values, secretsInput(values)),
-        });
-        setRecord(saved);
-        form.reset(channelToValues(saved));
-        setSecrets(initialSecrets(saved));
-        setHeaders(initialHeaders(saved));
-        toast({ title: "Channel saved", description: saved.name, variant: "success" });
-        if (andTest) await runTest(saved.id);
-        else onClose();
-      } catch (error) {
-        setFormError(error instanceof Error ? error.message : "Save failed");
-      }
-    });
+  const submit = form.handleSubmit(async (values) => {
+    setFormError(null);
+    if (!checkSecrets(values)) return;
+    try {
+      const saved = await save.mutateAsync({
+        id: record?.id ?? null,
+        input: toChannelInput(values, secretsInput(values)),
+      });
+      toast({ title: "Channel saved", description: saved.name, variant: "success" });
+      onClose();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Save failed");
+    }
+  });
 
   const text = (name: keyof ChannelFormValues) => ({
     ...bindText(form, name),
@@ -377,16 +376,20 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
       )}
 
       <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
-          {record && testResult ? "Close" : "Cancel"}
-        </Button>
-        <Button type="button" variant="secondary" onClick={submit(false)} disabled={busy}>
-          Save
-        </Button>
-        <Button type="button" onClick={submit(true)} disabled={busy}>
-          <SendIcon className="h-4 w-4" />
-          Save and send test
-        </Button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="secondary" onClick={sendTest} disabled={busy}>
+            <SendIcon className="h-4 w-4" />
+            Send Test
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={submit} disabled={busy}>
+              Save
+            </Button>
+          </div>
+        </div>
       </DialogFooter>
     </form>
   );

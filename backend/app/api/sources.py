@@ -193,6 +193,42 @@ def delete_source(
     return Response(status_code=204)
 
 
+@router.post("/test")
+def test_unsaved_source(
+    body: SourceIn,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    source_id: uuid.UUID | None = None,
+) -> TestResultOut:
+    """Test the settings in a form without saving anything. With `source_id` (editing a saved
+    source) the stored secrets fill in any secret the form leaves unchanged."""
+    existing: dict[str, str] = {}
+    if source_id is not None:
+        row = _get_or_404(db, source_id)
+        if body.type != row.type:
+            raise invalid_field(["type"], "Source type cannot be changed.")
+        try:
+            existing = load_secrets(row.secrets_enc)
+        except SecretsUnavailable:
+            if not set(body.config.secret_fields()) <= body.secrets.model_fields_set:
+                raise undecryptable() from None
+    merged = _merged_secrets(existing, body)
+    config: dict[str, Any] = body.config.model_dump(mode="json")
+    result = get_driver(body.type, config, merged).test_connection()
+    write_audit(
+        db,
+        "source.test",
+        user=user,
+        object_type="source",
+        object_id=str(source_id) if source_id else None,
+        details={"name": body.name, "type": body.type, "ok": result.ok, "saved": False},
+        ip=client_ip(request),
+    )
+    db.commit()
+    return test_out(result)
+
+
 @router.post("/{source_id}/test")
 def test_source(
     source_id: uuid.UUID, request: Request, db: SessionDep, user: CurrentUser

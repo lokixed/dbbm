@@ -276,6 +276,41 @@ def delete_channel(
     return Response(status_code=204)
 
 
+@router.post("/test")
+async def test_unsaved_channel(
+    body: ChannelIn,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    services: ServicesDep,
+    channel_id: uuid.UUID | None = None,
+) -> TestSendOut:
+    """Send a test message with the settings in a form, without saving anything. With
+    `channel_id` (editing a saved channel) the stored secrets fill in any secret the form leaves
+    unchanged. Nothing is recorded as a delivery event or on the channel."""
+    existing: dict[str, str] = {}
+    if channel_id is not None:
+        row = _get_or_404(db, channel_id)
+        if body.type != row.type:
+            raise invalid_field(["type"], "Channel type cannot be changed.")
+        existing = _existing(row, body)
+    merged = _merged(existing, body)
+    ok, message = await services.notifier.send_draft_test(
+        body.type, dump_channel_config(body.config), merged, channel_test_message(body.name)
+    )
+    write_audit(
+        db,
+        "notification.test",
+        user=user,
+        object_type="notification_channel",
+        object_id=str(channel_id) if channel_id else None,
+        details={"name": body.name, "type": body.type, "ok": ok, "saved": False},
+        ip=client_ip(request),
+    )
+    db.commit()
+    return TestSendOut(ok=ok, message=message, event=None)
+
+
 @router.post("/{channel_id}/test")
 async def test_channel(
     channel_id: uuid.UUID,

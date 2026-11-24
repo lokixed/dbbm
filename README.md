@@ -29,8 +29,8 @@ A prebuilt image is on Docker Hub (`lokixed/dbbm`) and GHCR (`ghcr.io/lokixed/db
 ## Add your first source and destination
 
 1. Open **Sources**, click **Add source**, pick a type and fill in the connection details.
-2. Click **Save and test**. The result shows the server version and the databases the user can see; for MySQL, PostgreSQL and MongoDB you can then choose "Selected databases" and tick the ones to back up. Firestore reports separately whether the database and the staging bucket are reachable.
-3. Open **Destinations**, click **Add destination** and enter a path such as `daily` (or add a Google Drive folder, see below). Paths are relative to `/backups`; `..`, absolute paths outside it, and symlinks that point outside it are rejected. **Save and test** confirms the folder is writable and shows free space.
+2. Click **Test connection** to check the details without saving. The result shows the server version and the databases the user can see; for MySQL, PostgreSQL and MongoDB you can then choose "Selected databases" and tick the ones to back up. Firestore reports separately whether the database and the staging bucket are reachable. Click **Save** when it looks right.
+3. Open **Destinations**, click **Add destination** and enter a path such as `daily` (or add a Google Drive folder, see below). Paths are relative to `/backups`; `..`, absolute paths outside it, and symlinks that point outside it are rejected. **Test connection** confirms the folder is writable and shows free space, without saving anything.
 
 Passwords, connection URIs and service-account keys are write-only: once saved they show as "Saved" and are never returned by the API. Leave a secret untouched when editing to keep it, or use **Change** / **Clear**. Secrets are encrypted with the master key, so changing the key makes stored credentials unreadable until you re-enter them.
 
@@ -119,7 +119,7 @@ Backups can also be copied to a folder in Google Drive (through [rclone](https:/
    ```
 
    The argument is base64url-encoded JSON of the scope (and client ID/secret), so the token matches the form. Sign in, then paste everything rclone prints between `--->` and `<---End paste` into **Token** (or upload it as a file).
-4. **Save and test** checks three things: the folder can be listed (it is created if missing), free space (not reported for some shared drives, which is not an error), and a write probe that uploads a tiny file, reads its MD5 back and deletes it permanently.
+4. **Test connection** checks three things: the folder can be listed (it is created if missing), free space (not reported for some shared drives, which is not an error), and a write probe that uploads a tiny file, reads its MD5 back and deletes it permanently.
 
 **Scopes.** `drive.file` (default, recommended) lets rclone see only files and folders it created; a folder you created by hand in the Drive web UI is invisible to it, so rclone creates its own folder of the same name. `drive` grants full access to your whole Drive. For a shared drive, enter its ID (the last part of its URL).
 

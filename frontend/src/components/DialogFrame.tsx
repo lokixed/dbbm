@@ -17,7 +17,7 @@ export function DialogFrame({ children, ...modalProps }: Omit<ComponentProps<typ
   const [element, setElement] = useState<HTMLElement | null>(null);
   const [wanted, setWanted] = useState(false);
   return (
-    <Modal {...modalProps} footer={wanted ? <div ref={setElement} className="flex flex-wrap gap-2" /> : undefined}>
+    <Modal {...modalProps} footer={wanted ? <div ref={setElement} className="flex w-full flex-wrap justify-end gap-2" /> : undefined}>
       <FooterContext.Provider value={{ element: wanted ? element : null, setWanted }}>
         {children}
       </FooterContext.Provider>

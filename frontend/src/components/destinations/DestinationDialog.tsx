@@ -8,7 +8,7 @@ import HelperText from "xedonium/HelperText";
 import Select from "xedonium/Select";
 import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
-import { useRetentionPreview, useSaveDestination, useTestDestination } from "@/api/destinations";
+import { useRetentionPreview, useSaveDestination, useTestDestinationDraft } from "@/api/destinations";
 import type { DestinationRecord, RetentionPreview, TestResult } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GdriveFields } from "@/components/destinations/GdriveFields";
@@ -54,7 +54,7 @@ function DestinationForm({
 }) {
   const { toast } = useToast();
   const save = useSaveDestination();
-  const test = useTestDestination();
+  const test = useTestDestinationDraft();
   const [record, setRecord] = useState<DestinationRecord | null>(destination);
   const [formError, setFormError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -64,7 +64,6 @@ function DestinationForm({
   const retentionPreview = useRetentionPreview();
   const [confirm, setConfirm] = useState<{
     values: DestinationFormValues;
-    andTest: boolean;
     preview: RetentionPreview;
   } | null>(null);
 
@@ -112,11 +111,15 @@ function DestinationForm({
     return buildSecrets({ token: secrets.token, client_secret: clientSecret });
   };
 
-  const runTest = async (id: string) => {
+  // Tests the values in the form as they are now, saved or not.
+  const runTest = async (values: DestinationFormValues) => {
     setTestError(null);
     setTestResult(null);
     try {
-      const result = await test.mutateAsync(id);
+      const result = await test.mutateAsync({
+        id: record?.id ?? null,
+        input: toDestinationInput(values, secretsInput(values)),
+      });
       setTestResult(result);
       toast({
         title: result.ok ? "Destination OK" : "Destination check failed",
@@ -128,7 +131,7 @@ function DestinationForm({
     }
   };
 
-  const persist = async (values: DestinationFormValues, andTest: boolean) => {
+  const persist = async (values: DestinationFormValues) => {
       try {
         const saved = await save.mutateAsync({
           id: record?.id ?? null,
@@ -138,15 +141,19 @@ function DestinationForm({
         form.reset(recordToValues(saved));
         setSecrets(initialDriveSecrets(saved, false));
         toast({ title: "Destination saved", description: saved.name, variant: "success" });
-        if (andTest) await runTest(saved.id);
-        else onClose();
+        onClose();
       } catch (error) {
         setFormError(error instanceof ApiError || error instanceof Error ? error.message : "Save failed");
       }
   };
 
-  const submit = (andTest: boolean) =>
-    form.handleSubmit(async (values) => {
+  const checkConnection = form.handleSubmit(async (values) => {
+    setFormError(null);
+    if (!validateSecrets(values)) return;
+    await runTest(values);
+  });
+
+  const submit = form.handleSubmit(async (values) => {
       setFormError(null);
       if (!validateSecrets(values)) return;
       const keepLastValue = parsePolicyValue(values.keepLast);
@@ -159,7 +166,7 @@ function DestinationForm({
             keepDays: keepDaysValue,
           });
           if (preview.delete_runs > 0) {
-            setConfirm({ values, andTest, preview });
+            setConfirm({ values, preview });
             return;
           }
         } catch (error) {
@@ -167,7 +174,7 @@ function DestinationForm({
           return;
         }
       }
-      await persist(values, andTest);
+      await persist(values);
     });
 
   return (
@@ -237,24 +244,28 @@ function DestinationForm({
         pending={save.isPending}
         onConfirm={() => {
           if (!confirm) return;
-          const { values, andTest } = confirm;
+          const { values } = confirm;
           setConfirm(null);
-          void persist(values, andTest);
+          void persist(values);
         }}
         onCancel={() => setConfirm(null)}
       />
       {confirm && <PreviewSummary preview={confirm.preview} />}
 
       <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
-          {record && testResult ? "Close" : "Cancel"}
-        </Button>
-        <Button type="button" variant="secondary" onClick={submit(false)} disabled={busy}>
-          Save
-        </Button>
-        <Button type="button" onClick={submit(true)} disabled={busy}>
-          Save and test
-        </Button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="secondary" onClick={checkConnection} disabled={busy}>
+            {test.isPending ? "Testing..." : "Test connection"}
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={submit} disabled={busy}>
+              Save
+            </Button>
+          </div>
+        </div>
       </DialogFooter>
     </form>
   );

@@ -51,7 +51,7 @@ export function DatabaseMultiSelect({
         <div className="space-y-2 border border-app-border p-3">
           {discovered === null && (
             <HelperText>
-              Use "Save and test" to discover the databases this user can see, or add names by hand.
+              Use "Test connection" to discover the databases this user can see, or add names by hand.
             </HelperText>
           )}
           {options.length > 0 && (
