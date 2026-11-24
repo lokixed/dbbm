@@ -95,7 +95,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.3
       - name: Sign the image (keyless)
         run: |
           cosign sign --yes "${GHCR_IMAGE}@${{ steps.build.outputs.digest }}"
