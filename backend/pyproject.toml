@@ -43,7 +43,6 @@ addopts = "-ra"
 timeout = 300
 markers = [
     "integration: needs Docker (Testcontainers); skipped automatically without Docker",
-    "firestore_fake: Firestore flow against a fake gcloud executable (no Google Cloud access)",
 ]
 
 [tool.ruff]
@@ -72,5 +71,5 @@ module = ["alembic.*", "testcontainers.*", "pymysql.*", "docker.*", "apscheduler
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["app.drivers.firestore"]
+module = ["app.drivers.firestore", "app.drivers.firestore_api", "tests.fake_google"]
 disallow_untyped_calls = false

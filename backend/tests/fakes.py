@@ -246,78 +246,6 @@ echo "fake age: unhandled: $*" >&2
 exit 2
 """
 
-_GCLOUD = """#!/bin/sh
-dir=$(dirname "$0")
-mode() { cat "$dir/gcloud_$1.mode" 2>/dev/null || echo ok; }
-fail() { cat "$dir/gcloud_stderr" >&2 2>/dev/null || echo "ERROR: simulated failure" >&2; exit 1; }
-echo "$*" >> "$dir/gcloud.calls"
-case "$1" in
-  --version) echo "Google Cloud SDK 999.0.0"; echo "bq 2.1.0"; exit 0;;
-esac
-for last; do :; done
-case "$1 $2" in
-  "auth activate-service-account")
-    key="${3#--key-file=}"
-    cp "$key" "$dir/gcloud.key"
-    stat -c %a "$key" > "$dir/gcloud.key.mode"
-    echo "$key" > "$dir/gcloud.key.path"
-    echo "$CLOUDSDK_CONFIG|$HOME|$CLOUDSDK_CORE_DISABLE_PROMPTS|$CLOUDSDK_CORE_DISABLE_USAGE_REPORTING|$CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK" > "$dir/gcloud.env"
-    [ "$(mode auth)" = fail ] && fail
-    echo "credentials" > "$CLOUDSDK_CONFIG/credentials.db"
-    exit 0;;
-  "storage ls") [ "$(mode ls)" = fail ] && fail; exit 0;;
-  "firestore export")
-    echo "$*" > "$dir/gcloud.export.args"
-    [ "$(mode export)" = fail ] && fail
-    echo '{"name": "projects/p1/databases/(default)/operations/OP123"}'
-    exit 0;;
-  "firestore operations")
-    case "$3" in
-      describe)
-        n=$(cat "$dir/describe.count" 2>/dev/null || echo 0)
-        n=$((n + 1)); echo "$n" > "$dir/describe.count"
-        case "$(mode describe)" in
-          forever) echo '{"done": false, "metadata": {"operationState": "PROCESSING"}}'; exit 0;;
-          broken) fail;;
-          error) echo '{"done": true, "metadata": {"operationState": "FAILED"}, "error": {"code": 7, "message": "PERMISSION_DENIED token=ya29.secretvalue"}}'; exit 0;;
-        esac
-        if [ "$n" -le 1 ]; then
-          echo '{"done": false, "metadata": {"operationState": "PROCESSING", "progressDocuments": {"completedWork": "5", "estimatedWork": "10"}}}'
-        else
-          echo '{"done": true, "metadata": {"operationState": "SUCCESSFUL"}}'
-        fi
-        exit 0;;
-      cancel) echo "$*" > "$dir/cancel.called"; [ "$(mode cancel)" = fail ] && fail; exit 0;;
-    esac;;
-  "firestore import")
-    echo "$*" > "$dir/gcloud.import.args"
-    [ "$(mode import)" = fail ] && fail
-    echo '{"name": "projects/p1/databases/(default)/operations/IMP456"}'
-    exit 0;;
-  "storage cp")
-    echo "$*" > "$dir/gcloud.cp.args"
-    case "$last" in
-      gs://*)
-        # An upload to the staging bucket: record what would be copied.
-        echo "$*" > "$dir/gcloud.upload.args"
-        [ "$(mode upload)" = fail ] && fail
-        find "$4" -type f | sed "s#^$4/##" | sort > "$dir/gcloud.upload.files"
-        exit 0;;
-    esac
-    [ "$(mode cp)" = fail ] && fail
-    mkdir -p "$last/ts/all_namespaces/kind_items"
-    echo "data" > "$last/ts/all_namespaces/kind_items/output-0"
-    [ "$(mode cp)" = nometa ] || echo "meta" > "$last/ts/ts.overall_export_metadata"
-    exit 0;;
-  "storage rm")
-    echo "$*" > "$dir/gcloud.rm.args"
-    [ "$(mode rm)" = fail ] && fail
-    exit 0;;
-esac
-echo "fake gcloud: unhandled: $*" >&2
-exit 2
-"""
-
 
 class FakeBins:
     def __init__(self, directory: Path) -> None:
@@ -349,7 +277,6 @@ def fake_bins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeBins:
         ("mysql", _MYSQL_CLIENT),
         ("pg_restore", _PG_RESTORE),
         ("age", _AGE),
-        ("gcloud", _GCLOUD),
     ):
         path = directory / name
         path.write_text(script)

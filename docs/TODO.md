@@ -49,7 +49,7 @@ Copilot reports deviations from `DESIGN.md` at the end of each milestone. Apply 
 
 ## Milestone 7 - Backups browser, download and restore
 
-- [ ] Manual end-to-end Firestore restore check on the throwaway project (the fake `gcloud` tests are done)
+- [ ] Manual end-to-end Firestore backup and restore check on the throwaway project (the fake Google REST tests are done; the driver calls the REST APIs directly, so run both flows once against a real project)
 - [ ] MySQL restore has no tool-version compatibility check (PostgreSQL and MongoDB do)
 
 ---

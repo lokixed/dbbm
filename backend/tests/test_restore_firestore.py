@@ -1,4 +1,4 @@
-"""Firestore restore: unpack, stage, import, clean up (fake gcloud, no Google Cloud)."""
+"""Firestore restore: unpack, stage, import, clean up (fake Google REST, no Google Cloud)."""
 
 import io
 import json
@@ -17,7 +17,7 @@ from app.drivers import firestore
 from app.models import Artifact
 from app.services.hashing import sha256_file
 from tests.conftest import api_post
-from tests.fakes import FakeBins
+from tests.fake_google import IMPORT_OPERATION, FakeGoogle
 from tests.runs_helpers import (
     make_destination,
     make_job,
@@ -30,9 +30,10 @@ from tests.test_restore_api import restore, restore_body
 from tests.test_runs_m4 import make_firestore
 from tests.test_sources_api import SA_KEY, firestore_body
 
-pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers")
+pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers", "fake_google")
 
 SECRET_PARTS = ("TOPSECRETKEYMATERIAL", "BEGIN PRIVATE KEY", "ya29.")
+BUCKET = "my-bucket"
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +87,7 @@ def tarball(members: dict[str, bytes]) -> bytes:
 
 
 def test_firestore_restore_stages_imports_and_cleans_up(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
@@ -95,21 +96,15 @@ def test_firestore_restore_stages_imports_and_cleans_up(
     assert run["status"] == "success", run["error"]
     assert run["kind"] == "restore"
     assert run["step_results"]["restore"]["target_database"] == "default"
-    upload = fake_bins.read("gcloud.upload.args").split()
-    assert upload[:3] == ["storage", "cp", "-r"] and upload[4].startswith("gs://my-bucket/restore/")
-    assert fake_bins.read("gcloud.upload.files").split() == [
-        "all_namespaces/kind_items/output-0",
-        "ts.overall_export_metadata",
-    ]
-    imported = fake_bins.read("gcloud.import.args").split()
-    assert imported[:2] == ["firestore", "import"]
-    assert imported[2].startswith("gs://my-bucket/restore/")
-    assert imported[2].endswith("/ts/ts.overall_export_metadata")
-    assert {"--project=my-project-1", "--database=(default)", "--async"} <= set(imported)
-    assert fake_bins.read("gcloud.rm.args").split()[:3] == ["storage", "rm", "-r"]
-    assert fake_bins.read("gcloud.rm.args").split()[3] == upload[4].rstrip("/")
-    assert fake_bins.read("gcloud.key.mode").strip() == "600"
-    assert not __import__("pathlib").Path(fake_bins.read("gcloud.key.path").strip()).exists()
+    uploaded = fake_google.uploaded
+    assert len(uploaded) == 2 and all(n.startswith("restore/") for n in uploaded)
+    assert any(n.endswith("/all_namespaces/kind_items/output-0") for n in uploaded)
+    [body] = fake_google.import_bodies
+    uri = body["inputUriPrefix"]
+    assert uri.startswith(f"gs://{BUCKET}/restore/") and uri.endswith(".overall_export_metadata")
+    assert uri.removeprefix(f"gs://{BUCKET}/") in uploaded  # the import reads what was uploaded
+    assert set(uploaded) <= set(fake_google.deleted)  # then the staging copy is removed
+    assert fake_google.objects_under(BUCKET, "restore/") == []
     log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
     assert "Import operation" in log and "Import state" in log
     assert not any(p in log + json.dumps(run) for p in (*SECRET_PARTS, SA_KEY[:20]))
@@ -126,12 +121,12 @@ def test_the_import_database_is_fixed_by_the_target_source(authed: TestClient) -
 
 
 def test_importing_into_the_original_source_needs_extra_confirmation(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     source, backup = firestore_backup(authed)
     refused = restore(authed, backup, restore_body(source, "default"))
     assert refused.status_code == 409 and "overwrite the original" in refused.json()["detail"]
-    assert not fake_bins.exists("gcloud.import.args")
+    assert fake_google.import_bodies == []
     accepted = restore(
         authed, backup, restore_body(source, "default", confirm_overwrite_original=True)
     )
@@ -140,33 +135,33 @@ def test_importing_into_the_original_source_needs_extra_confirmation(
 
 
 @pytest.mark.parametrize(
-    ("tool", "mode", "message"),
+    ("kind", "mode", "message"),
     [
-        ("gcloud_import", "fail", "Starting the Firestore import failed"),
-        ("gcloud_upload", "fail", "Uploading the backup to the staging bucket failed"),
-        ("gcloud_describe", "error", "The Firestore import failed"),
+        ("import", "fail", "Starting the Firestore import failed"),
+        ("upload", "fail", "Uploading the backup to the staging bucket failed"),
+        ("describe", "error", "The Firestore import failed"),
     ],
 )
 def test_failures_are_reported_and_the_staging_copy_is_removed(
-    authed: TestClient, fake_bins: FakeBins, tool: str, mode: str, message: str
+    authed: TestClient, fake_google: FakeGoogle, kind: str, mode: str, message: str
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
-    fake_bins.set_text(f"{tool}.mode", mode)
+    fake_google.modes[kind] = mode
 
     run = wait_final(authed, start(authed, backup, target))
 
     assert run["status"] == "failed" and message in run["error"]
-    assert fake_bins.exists("gcloud.rm.args")  # nothing is left behind in the bucket
+    assert fake_google.objects_under(BUCKET, "restore/") == []  # nothing is left in the bucket
     assert not any(p in json.dumps(run) for p in SECRET_PARTS) and work_entries() == []
 
 
 def test_a_failed_staging_cleanup_is_a_warning_not_a_failure(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
-    fake_bins.set_text("gcloud_rm.mode", "fail")
+    fake_google.modes["delete"] = "fail"
     run = wait_final(authed, start(authed, backup, target))
     assert run["status"] == "success"
     log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
@@ -174,34 +169,34 @@ def test_a_failed_staging_cleanup_is_a_warning_not_a_failure(
 
 
 def test_cancelling_during_the_import_cancels_the_operation(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
-    fake_bins.set_text("gcloud_describe.mode", "forever")
-    polls_before = int(fake_bins.read("describe.count"))  # left by the backup run
+    fake_google.modes["describe"] = "forever"
+    polls_before = fake_google.describe_count  # left by the backup run
     run_id = start(authed, backup, target)
-    wait_until(lambda: int(fake_bins.read("describe.count")) > polls_before)
+    wait_until(lambda: fake_google.describe_count > polls_before)
 
     assert api_post(authed, f"/api/runs/{run_id}/cancel").status_code == 200
     assert wait_final(authed, run_id)["status"] == "cancelled"
-    assert fake_bins.exists("cancel.called") and "IMP456" in fake_bins.read("cancel.called")
-    assert fake_bins.exists("gcloud.rm.args") and work_entries() == []
+    assert fake_google.cancelled == [IMPORT_OPERATION]
+    assert fake_google.objects_under(BUCKET, "restore/") == [] and work_entries() == []
 
 
 def test_an_archive_without_export_metadata_is_refused(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
     replace_artifact(backup, tarball({"ts/all_namespaces/kind_items/output-0": b"data"}))
     run = wait_final(authed, start(authed, backup, target))
     assert run["status"] == "failed" and "not a complete export" in run["error"]
-    assert not fake_bins.exists("gcloud.upload.args") and work_entries() == []
+    assert fake_google.uploaded == [] and work_entries() == []
 
 
 def test_an_archive_cannot_write_outside_the_work_directory(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     _, backup = firestore_backup(authed)
     target = make_target(authed)
@@ -211,4 +206,4 @@ def test_an_archive_cannot_write_outside_the_work_directory(
     )
     run = wait_final(authed, start(authed, backup, target))
     assert run["status"] == "failed" and "Cannot unpack" in run["error"]
-    assert not escaped.exists() and not fake_bins.exists("gcloud.upload.args")
+    assert not escaped.exists() and fake_google.uploaded == []

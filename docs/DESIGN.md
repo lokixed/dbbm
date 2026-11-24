@@ -37,7 +37,7 @@ A self-hosted, Docker-installed tool with a web UI that schedules and runs backu
 | Metadata store | SQLite (WAL mode) on a volume | The backup tool should not depend on a database server |
 | Offsite transfer | `rclone` | Mature Google Drive support, checksums, retries |
 | Live logs | Server-Sent Events | One-way streaming, simpler than WebSockets |
-| Firestore | `gcloud firestore export` to a GCS staging bucket, then download | Firestore has no dump-over-connection; export goes to Cloud Storage |
+| Firestore | Firestore REST `exportDocuments` to a GCS staging bucket, then download through the Cloud Storage JSON API | Firestore has no dump-over-connection; export goes to Cloud Storage. Plain HTTPS calls need no CLI in the image (the Google Cloud CLI was about 1 GB) |
 | Google Drive auth (MVP) | Paste an rclone token | Avoids OAuth redirect setup; in-app OAuth comes later |
 | Backup type | Logical dumps | Portable, simple, adequate for small and medium databases |
 
@@ -59,7 +59,7 @@ A self-hosted, Docker-installed tool with a web UI that schedules and runs backu
 │                                  │                               │
 │                                  ▼                               │
 │        Bundled CLI tools: mysqldump · pg_dump · mongodump ·      │
-│                           gcloud · rclone · age                  │
+│                           rclone · age (Firestore: REST only)    │
 └───────┬───────────────────────────┬───────────────────┬──────────┘
         ▼                           ▼                   ▼
   Your databases              Local volume          Google Drive
@@ -95,6 +95,7 @@ Run uvicorn with **one worker**. The scheduler, run queue and lock table live in
 | Subprocesses | `asyncio.create_subprocess_exec` with process groups for clean cancellation |
 | Password hashing | `argon2-cffi` |
 | Secrets encryption | `cryptography` (Fernet, or AES-GCM) |
+| Google APIs | `google-auth` (service-account token) and `httpx` (Firestore REST and Cloud Storage JSON API) |
 | Backup encryption (optional) | `age` |
 | Frontend | React, Vite, TypeScript, TanStack Query, React Router, Tailwind CSS, shadcn/ui |
 | Node package manager | Yarn 4 (Berry) via Corepack, `nodeLinker: node-modules`, committed `yarn.lock` and pinned `packageManager` field |
@@ -129,6 +130,7 @@ dbbm/
 │       │   ├── notifier.py
 │       │   └── logstream.py    # per-run log buffer + SSE
 │       ├── drivers/            # base.py mysql.py postgres.py mongo.py firestore.py
+│       │                       # firestore_api.py (Google REST client)
 │       └── storage/            # base.py local.py gdrive.py
 ├── frontend/
 │   ├── package.json
@@ -315,24 +317,33 @@ class Driver(Protocol):
 - Pass the URI via a config file or environment, not process arguments, so it doesn't appear in `ps`.
 
 ### 8.4 Firebase Firestore
-Firestore can't be dumped over a connection. The flow is:
+Firestore can't be dumped over a connection. The driver calls Google's REST APIs over HTTPS with
+`httpx`; no Google command-line tool is installed. The flow is:
 
-1. Authenticate with a service account: `gcloud auth activate-service-account --key-file=...`. Use an isolated `CLOUDSDK_CONFIG` directory per run so credentials never leak between jobs.
-2. Start the export:
-   ```
-   gcloud firestore export gs://STAGING_BUCKET/<job>/<timestamp> \
-          --project=PROJECT [--database=DB] [--collection-ids=a,b]
-   ```
-3. Poll the long-running operation (`gcloud firestore operations describe`) until done, respecting a long timeout.
-4. Download the export prefix: `gcloud storage cp -r gs://... <work dir>`.
+1. Authenticate with the service account. `google-auth` signs a JWT with the key and exchanges it
+   for a short-lived access token at the pinned token URL (`token_uri` in the file is ignored). The
+   key stays in memory: it is never written to disk. The token is refreshed when it expires.
+2. Start the export: `POST https://firestore.googleapis.com/v1/projects/P/databases/DB:exportDocuments`
+   with `outputUriPrefix` = `gs://STAGING_BUCKET/<base>/<job>/<run>/<timestamp>` and, if set,
+   `collectionIds`.
+3. Poll the long-running operation (`GET /v1/<operation name>`) until `done`, respecting the job's
+   timeout. A cancelled or timed-out run calls `POST /v1/<operation name>:cancel`.
+4. List the export prefix (Cloud Storage JSON API, `objects.list`) and download every object
+   (`objects.get?alt=media`) into the work directory, one at a time. Each size is checked against
+   the listing, and object names that could leave the work directory are refused.
 5. Pack it into a `.tar.gz` and treat it like any other artifact.
-6. Optionally delete the staging prefix, or rely on a bucket lifecycle rule.
+6. Optionally delete the staging objects (`objects.delete`), or rely on a bucket lifecycle rule.
+
+Calls are retried a few times on network errors, throttling (429) and server errors (5xx), except
+the calls that start an export or import (a retry could start it twice). Error messages from Google
+are redacted before they reach a log or the UI.
 
 Requirements:
+- The Cloud Firestore API enabled in the project.
 - A GCS staging bucket in a location compatible with the Firestore database.
-- Service account roles: `roles/datastore.importExportAdmin` plus read/write access to the staging bucket.
+- Service account roles: `roles/datastore.importExportAdmin` plus read/write access to the staging bucket (and `storage.objects.delete` to remove the staging copy).
 - Add a bucket lifecycle rule (e.g. delete after 1–7 days) so staging copies don't accumulate cost.
-- Restore uses `gcloud firestore import` and requires the export to be in a bucket again. The UI re-uploads the artifact to the staging bucket first. Importing can overwrite existing documents, so the restore screen must warn about this.
+- Restore uses `importDocuments` and requires the export to be in a bucket again. The driver re-uploads the artifact to the staging bucket first (one upload request per file) and deletes the copy afterwards. Importing can overwrite existing documents, so the restore screen must warn about this.
 - Optionally also enable Firestore's own scheduled backups / point-in-time recovery in Google Cloud as a second safety net.
 
 ---
@@ -503,7 +514,7 @@ UX rules:
 - MVP fallback: "download artifact + copy-paste restore command" before the full wizard is built.
 - A restore is a tracked run (`kind = restore`) with live log, cancel and timeout. It uses the copy the user picks (no silent fallback), verifies its SHA-256, then runs the driver's restore. A target source is never restored while a backup or restore runs on it.
 - The server enforces the typed database name and the extra confirmation for restoring over the original; the wizard only mirrors them. Restores are limited to 5 starts per minute per user.
-- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`), MySQL (the target database is created, or dropped and recreated with "replace existing"; the gunzipped dump is streamed into the `mysql` client with an options file) and PostgreSQL (`pg_restore --no-owner --no-privileges`, in one transaction where possible; "replace existing" adds `--clean --if-exists`). A `pg_restore` 17+ against a server before 17 cannot run in one transaction because it sets `transaction_timeout`, so that case runs without it and ignores only that error. The PostgreSQL roles file is refused. Firestore (the export is unpacked, copied to the staging bucket, imported with `gcloud firestore import` and the staging copy is deleted, also after a failure or cancel; the import goes into the target source's own database, overwrites documents with the same ID and never deletes, so "replace existing" is refused).
+- Implemented for MongoDB (`mongorestore`, credentials in a 0600 config file, `--nsFrom/--nsTo` renames, optional `--drop`), MySQL (the target database is created, or dropped and recreated with "replace existing"; the gunzipped dump is streamed into the `mysql` client with an options file) and PostgreSQL (`pg_restore --no-owner --no-privileges`, in one transaction where possible; "replace existing" adds `--clean --if-exists`). A `pg_restore` 17+ against a server before 17 cannot run in one transaction because it sets `transaction_timeout`, so that case runs without it and ignores only that error. The PostgreSQL roles file is refused. Firestore (the export is unpacked, copied to the staging bucket, imported with the Firestore `importDocuments` call and the staging copy is deleted, also after a failure or cancel; the import goes into the target source's own database, overwrites documents with the same ID and never deletes, so "replace existing" is refused).
 - Target database names must match `^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$`, so they are safe as command-line arguments.
 - A scheduled **restore test** is a good later feature: restore to a scratch container and run a sanity query.
 
@@ -527,16 +538,15 @@ Stage 1 (node):    corepack enable && yarn install --immutable && yarn build  �
 Stage 2 (python):  base image (Debian slim), then install:
                      - mysql/mariadb client (mysqldump)
                      - postgresql-client (pg_dump; latest major, add older if needed)
-                     - mongodb-database-tools (mongodump, mongorestore)
-                     - google-cloud-cli (gcloud)
-                     - rclone, age
+                     - mongodump, mongorestore (built from source in a Go stage)
+                     - rclone, age (age is built from source in a Go stage)
                    pip install backend; copy frontend/dist
                    create non-root user; EXPOSE 8080
                    CMD uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1
 ```
-Expect a large image (roughly 1 GB or more), mainly due to the Google Cloud CLI.
+Firestore uses Google's REST APIs, so the image holds no Google Cloud CLI. The Go tools are cross-compiled on the build machine, so a multi-architecture build does not compile under emulation.
 
-The tools are added to the image incrementally: `mysqldump` and `pg_dump` in milestone 3, `mongodump` and `gcloud` in milestone 4, `rclone` in milestone 5 (`age` when backup encryption is built).
+The tools are added to the image incrementally: `mysqldump` and `pg_dump` in milestone 3, `mongodump` in milestone 4, `rclone` in milestone 5 (`age` when backup encryption is built).
 
 ### docker-compose.yml (example)
 ```yaml
@@ -622,7 +632,7 @@ Milestones 1–3 produce something usable quickly; 4 and 5 hold the harder integ
 | Silent failure of the whole tool | Dead-man's-switch ping and failure notifications |
 | Credentials in logs or process lists | Config files/env for secrets, redaction filter, tests |
 | Staging-bucket cost for Firestore | Lifecycle rule on the bucket, optional delete after download |
-| Image size and build time | Multi-stage build, cache layers, accept the Google Cloud CLI cost |
+| Image size and build time | Multi-stage build, cache layers, no Google Cloud CLI (Firestore uses REST) |
 
 ---
 

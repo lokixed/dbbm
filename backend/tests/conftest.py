@@ -13,9 +13,10 @@ from app.main import create_app
 MASTER_KEY = "test-master-key-0123456789-abcdefghijklmnop"
 PASSWORD = "correct horse battery staple"
 
-# Fixtures `fake_bins`, `fake_drivers` (run lifecycle), `fake_rclone` (Google Drive) and
+# Fixtures `fake_bins`, `fake_drivers` (run lifecycle), `fake_rclone` (Google Drive),
+# `fake_google` (Firestore and Cloud Storage REST) and
 # `outbound`, `fake_clock`, `m6_client` (scheduler, notifications).
-pytest_plugins = ("tests.fakes", "tests.fake_rclone", "tests.m6")
+pytest_plugins = ("tests.fakes", "tests.fake_rclone", "tests.fake_google", "tests.m6")
 
 
 def _reset_caches() -> None:

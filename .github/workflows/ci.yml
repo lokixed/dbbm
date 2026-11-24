@@ -34,7 +34,7 @@ jobs:
           if docker info >/dev/null 2>&1; then echo "available=true" >> "$GITHUB_OUTPUT"; else echo "available=false" >> "$GITHUB_OUTPUT"; fi
       # The MySQL/PostgreSQL/MongoDB backup round trips skip themselves here (no client tools on PATH);
       # they run in the `docker` job below, inside the application image. Firestore is covered by
-      # the unit tests with a fake gcloud; CI never touches real Google Cloud.
+      # the unit tests with a fake Google REST service; CI never touches real Google Cloud.
       - name: Integration tests (database drivers via Testcontainers)
         if: steps.docker.outputs.available == 'true'
         run: pytest -m integration
@@ -123,12 +123,9 @@ jobs:
       # rclone must run as the app user on a read-only root filesystem (config and cache in /tmp).
       - name: rclone runs read-only
         run: docker run --rm --read-only --tmpfs /tmp --user 10001:10001 --entrypoint rclone dbbm:ci version
-      # gcloud must work on a read-only root filesystem with its config under a writable path.
-      - name: gcloud runs read-only
-        run: |
-          docker run --rm --read-only --tmpfs /tmp --user 10001:10001 \
-            -e CLOUDSDK_CONFIG=/tmp/gcloud -e HOME=/tmp \
-            --entrypoint sh dbbm:ci -c 'gcloud --version && gcloud firestore export --help >/dev/null'
+      # The Go tools (built from source) must run as the app user on a read-only root filesystem.
+      - name: Go tools run read-only
+        run: docker run --rm --read-only --tmpfs /tmp --user 10001:10001 --entrypoint sh dbbm:ci -c 'mongodump --version && mongorestore --version && age --version && age-keygen --version'
       - name: Time zone data is available
         run: |
           docker run --rm --entrypoint python dbbm:ci -c \
@@ -152,6 +149,9 @@ jobs:
             --entrypoint sh dbbm:ci -c \
             'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
             && cd /tmp/backend && curl -fsSL https://bootstrap.pypa.io/get-pip.py | python - -q && pip install -q ".[dev]" && pytest -m integration'
+      - name: Image size
+        run: docker image inspect dbbm:ci --format '{{.Size}}' | awk '{ printf "Image size: %.0f MB
+", $1 / 1000000 }'
       # Scan the built image for known vulnerabilities in OS packages and Python libraries.
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@v0.36.0

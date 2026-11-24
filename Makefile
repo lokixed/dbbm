@@ -7,7 +7,7 @@ UV := $(shell command -v uv 2>/dev/null)
 DEV_DIR := $(CURDIR)/.dev
 DEV_KEY ?= dev-only-master-key-change-me-0123456789
 
-.PHONY: install-backend dev-backend dev-frontend test test-unit test-firestore-fake test-integration test-integration-docker lint build up down dev-dbs-up dev-dbs-down up-dev dev-echo-logs smoke-tz
+.PHONY: install-backend dev-backend dev-frontend test test-unit test-firestore test-integration test-integration-docker lint build up down dev-dbs-up dev-dbs-down up-dev dev-echo-logs smoke-tz
 
 install-backend: $(STAMP)
 
@@ -36,9 +36,9 @@ test: test-unit
 test-unit: $(STAMP)
 	cd $(BACKEND) && .venv/bin/pytest -m "not integration"
 
-# Only the Firestore flow against a fake gcloud on PATH (no Google Cloud access); part of test-unit too.
-test-firestore-fake: $(STAMP)
-	cd $(BACKEND) && .venv/bin/pytest -m firestore_fake
+# Only the Firestore flow against a fake Google REST service (no Google Cloud access); part of test-unit too.
+test-firestore: $(STAMP)
+	cd $(BACKEND) && .venv/bin/pytest tests/test_firestore_driver.py tests/test_firestore_dump.py tests/test_restore_firestore.py
 
 # Real MySQL, PostgreSQL and MongoDB via Testcontainers; needs Docker. The MySQL/PostgreSQL backup
 # tests also need mysqldump, mysql, pg_dump and pg_restore, and the MongoDB backup tests need

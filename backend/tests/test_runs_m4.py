@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.drivers import firestore
 from tests.conftest import api_post
+from tests.fake_google import EXPORT_OPERATION, FakeGoogle
 from tests.fakes import FakeBins, FakeMongo
 from tests.runs_helpers import (
     PW,
@@ -25,7 +26,7 @@ from tests.runs_helpers import (
 )
 from tests.test_sources_api import SA_KEY, firestore_body
 
-pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers")
+pytestmark = pytest.mark.usefixtures("fake_bins", "fake_drivers", "fake_google")
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +124,7 @@ def test_mongo_wrong_password_fails_sanitized_without_artifacts(
 
 
 def test_firestore_run_reports_sub_steps_and_stores_a_tarball(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
     run = run_now(authed, make_job(authed, make_firestore(authed), [make_destination(authed)]))
     assert run["status"] == "success", run
@@ -142,21 +143,21 @@ def test_firestore_run_reports_sub_steps_and_stores_a_tarball(
         "collection_ids": None,
         "bucket": "my-bucket",
     }
-    assert manifest["tool_versions"] == {"gcloud": "Google Cloud SDK 999.0.0"}
+    assert set(manifest["tool_versions"]) == {"google-auth", "firestore-api"}
     log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
     for marker in ("== export ==", "== poll ==", "== download ==", "== pack ==", "poll ok after"):
         assert marker in log
-    assert fake_bins.exists("gcloud.rm.args")
-    blob = log + json.dumps(run) + json.dumps(manifest) + fake_bins.read("gcloud.calls")
+    assert len(fake_google.deleted) == 2  # the staging export was removed
+    calls = " ".join(f"{method} {url}" for method, url in fake_google.requests)
+    blob = log + json.dumps(run) + json.dumps(manifest) + calls
     assert not leaked(blob) and "bk@my-project-1" not in blob and SA_KEY.strip() not in blob
     assert work_entries() == []
 
 
 def test_firestore_staging_cleanup_failure_is_a_visible_warning(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
-    fake_bins.set_mode("gcloud_rm", "fail")
-    fake_bins.set_text("gcloud_stderr", "AccessDeniedException: 403 cannot delete")
+    fake_google.modes["delete"] = "fail"
     run = run_now(authed, make_job(authed, make_firestore(authed), [make_destination(authed)]))
     assert run["status"] == "success" and run["error"] is None
     [warning] = run["step_results"]["warnings"]
@@ -167,10 +168,10 @@ def test_firestore_staging_cleanup_failure_is_a_visible_warning(
 
 
 def test_firestore_invalid_service_account_fails_without_artifacts(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
-    fake_bins.set_mode("gcloud_auth", "fail")
-    fake_bins.set_text("gcloud_stderr", f"ERROR: bad key {SA_KEY} ya29.token-value")
+    fake_google.modes["auth"] = "fail"
+    fake_google.leak = f"bad key {SA_KEY} ya29.token-value"
     run = run_now(authed, make_job(authed, make_firestore(authed), [make_destination(authed)]))
     assert run["status"] == "failed" and "service account" in run["error"]
     log = authed.get(f"/api/runs/{run['id']}/logs?format=text").text
@@ -179,18 +180,18 @@ def test_firestore_invalid_service_account_fails_without_artifacts(
 
 
 def test_firestore_cancel_mid_export_stops_polling_and_cleans_up(
-    authed: TestClient, fake_bins: FakeBins
+    authed: TestClient, fake_google: FakeGoogle
 ) -> None:
-    fake_bins.set_mode("gcloud_describe", "forever")
+    fake_google.modes["describe"] = "forever"
     job = make_job(authed, make_firestore(authed), [make_destination(authed)])
     started = start(authed, job)
-    wait_until(lambda: fake_bins.exists("describe.count"))
+    wait_until(lambda: fake_google.describe_count > 0)
     cancelled = api_post(authed, f"/api/runs/{started['id']}/cancel")
     assert cancelled.status_code == 200 and cancelled.json()["status"] == "cancelled"
-    assert "OP123" in fake_bins.read("cancel.called")
     final = wait_final(authed, started["id"])
     assert final["status"] == "cancelled"
-    polls = fake_bins.read("describe.count")
-    assert fake_bins.read("describe.count") == polls
+    assert fake_google.cancelled == [EXPORT_OPERATION]
+    polls = fake_google.describe_count
+    assert fake_google.describe_count == polls  # polling stopped
     assert get_run(authed, started["id"])["artifacts"] == []
     assert backup_files() == [] and work_entries() == []

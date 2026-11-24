@@ -1,25 +1,20 @@
 import asyncio
-import json
+import importlib.metadata
 import os
-import re
-import shlex
 import shutil
 import tarfile
-import tempfile
 import threading
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, ClassVar
+from pathlib import Path, PurePosixPath
+from typing import Any, ClassVar, TypeVar
 from urllib.parse import quote
 
 import httpx
-from google.auth import exceptions as auth_exceptions
-from google.auth import transport as auth_transport
-from google.oauth2 import service_account
 
+from app.drivers import firestore_api
 from app.drivers.base import (
     CONNECT_TIMEOUT,
     BaseDriver,
@@ -33,29 +28,28 @@ from app.drivers.base import (
     RestoreOptions,
     StepHandle,
 )
-from app.drivers.dumping import capture_output, summarize_stderr, work_file, write_tar_gz
+from app.drivers.dumping import summarize_stderr, work_file, write_tar_gz
+from app.drivers.firestore_api import (
+    FIRESTORE_API,
+    STORAGE_API,
+    GoogleApiError,
+    GoogleClient,
+    SyncRequest,
+    service_account_credentials,
+)
 from app.schemas.source import FirestoreConfig, parse_service_account, split_staging_bucket
 from app.services.naming import database_label, format_timestamp, safe_component
-from app.services.proc import StderrTail, StepTimeoutError, clean_env, run_process
-from app.services.redact import describe_error, sanitize, scrub
-
-# Pinned so a crafted service-account file cannot redirect the token request elsewhere.
-TOKEN_URI = "https://oauth2.googleapis.com/token"  # noqa: S105
-SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
-FIRESTORE_API = "https://firestore.googleapis.com/v1"
-STORAGE_API = "https://storage.googleapis.com/storage/v1"
+from app.services.redact import describe_error, sanitize
 
 # Module-level so tests can shorten it.
 POLL_SECONDS = 10.0
 CANCEL_OPERATION_SECONDS = 60
 MAX_DESCRIBE_FAILURES = 3
 METADATA_GLOB = "*.overall_export_metadata"
-_OPERATION_RE = re.compile(
-    r"^projects/[A-Za-z0-9._:-]+/databases/(?:\(default\)|[a-z0-9-]+)/operations/[A-Za-z0-9_=.-]+$"
-)
 _FINAL_STATES = frozenset({"SUCCESSFUL", "FAILED", "CANCELLED"})
-# Dumps and restores share the gcloud helpers; both contexts carry a work dir, log and timeout.
+# Dumps and restores share the Google helpers; both contexts carry a work dir, log and timeout.
 Ctx = DumpContext | RestoreContext
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -64,18 +58,6 @@ class OperationStatus:
     state: str
     error: str | None
     progress: str | None
-
-
-def parse_operation_name(raw: str) -> str:
-    """The long-running operation name from `gcloud firestore export --async --format=json`."""
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        data = None
-    name = data.get("name") if isinstance(data, dict) else None
-    if not isinstance(name, str) or not _OPERATION_RE.match(name):
-        raise DumpError("gcloud did not return a valid Firestore operation name.")
-    return name
 
 
 def _progress(metadata: dict[str, Any]) -> str | None:
@@ -87,14 +69,10 @@ def _progress(metadata: dict[str, Any]) -> str | None:
     return ", ".join(parts) or None
 
 
-def parse_operation_status(raw: str) -> OperationStatus:
-    """Interpret `gcloud firestore operations describe --format=json`."""
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        data = None
+def parse_operation_status(data: Any) -> OperationStatus:
+    """Interpret a Firestore long-running operation resource."""
     if not isinstance(data, dict):
-        raise DumpError("Unexpected output from gcloud while checking the export operation.")
+        raise DumpError("Unexpected response while checking the export operation.")
     metadata = data.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
     done = data.get("done") is True
@@ -118,48 +96,7 @@ def parse_operation_status(raw: str) -> OperationStatus:
 @dataclass
 class _Session:
     root: Path
-    env: dict[str, str]
-
-
-class _Response(auth_transport.Response):
-    def __init__(self, response: httpx.Response) -> None:
-        self._response = response
-
-    @property
-    def status(self) -> int:
-        return self._response.status_code
-
-    @property
-    def headers(self) -> Mapping[str, str]:
-        return self._response.headers
-
-    @property
-    def data(self) -> bytes:
-        return self._response.content
-
-
-class _Request(auth_transport.Request):
-    """google-auth transport backed by httpx, so timeouts and redirects are ours to control."""
-
-    def __init__(self, client: httpx.Client) -> None:
-        self._client = client
-
-    def __call__(
-        self,
-        url: str,
-        method: str = "GET",
-        body: bytes | None = None,
-        headers: Mapping[str, str] | None = None,
-        timeout: float | None = None,
-        **kwargs: Any,
-    ) -> auth_transport.Response:
-        try:
-            response = self._client.request(
-                method, url, content=body, headers=headers, timeout=timeout or CONNECT_TIMEOUT
-            )
-        except httpx.HTTPError as exc:
-            raise auth_exceptions.TransportError(type(exc).__name__) from None
-        return _Response(response)
+    client: GoogleClient
 
 
 def _describe_status(status: int) -> str:
@@ -168,6 +105,14 @@ def _describe_status(status: int) -> str:
     if status == 404:
         return "not found (HTTP 404)"
     return f"unexpected response (HTTP {status})"
+
+
+def _safe_destination(root: Path, relative: str) -> Path:
+    """Where a bucket object goes under `root`; refuses names that could escape it."""
+    parts = relative.split("/")
+    if any(part in ("", ".", "..") or "\\" in part for part in parts):
+        raise DumpError("The export contains an object name that is not safe to download.")
+    return root.joinpath(*parts)
 
 
 class FirestoreDriver(BaseDriver):
@@ -216,18 +161,14 @@ class FirestoreDriver(BaseDriver):
 
     def _probe(self) -> ConnectionTestResult:
         config = FirestoreConfig.model_validate(self._config)
-        info = parse_service_account(self._secrets["service_account_json"])
-        info["token_uri"] = TOKEN_URI
         bucket, _ = split_staging_bucket(config.staging_bucket)
 
         with httpx.Client(
             timeout=CONNECT_TIMEOUT, follow_redirects=False, transport=self._transport
         ) as client:
             try:
-                credentials = service_account.Credentials.from_service_account_info(
-                    info, scopes=SCOPES
-                )
-                credentials.refresh(_Request(client))
+                credentials = service_account_credentials(self._secrets["service_account_json"])
+                credentials.refresh(SyncRequest(client))
                 token = str(credentials.token)
             except Exception as exc:
                 reason = describe_error(exc, self.sensitive_values())
@@ -242,10 +183,8 @@ class FirestoreDriver(BaseDriver):
                     ],
                 )
 
-            database_url = (
-                f"{FIRESTORE_API}/projects/{quote(config.project_id, safe='')}"
-                f"/databases/{quote(config.database_id, safe='()')}"
-            )
+            path = firestore_api.database_path(config.project_id, config.database_id)
+            database_url = f"{FIRESTORE_API}/{path}"
             bucket_url = f"{STORAGE_API}/b/{quote(bucket, safe='')}/o"
             checks = [
                 CheckResult("authentication", True, "Authenticated with the service account."),
@@ -263,7 +202,7 @@ class FirestoreDriver(BaseDriver):
         summary = "; ".join(c.message for c in checks[1:])
         return ConnectionTestResult(ok=ok, message=summary, checks=checks)
 
-    # ---------- dump ----------
+    # ---------- shared helpers ----------
 
     def _config_model(self) -> FirestoreConfig:
         return FirestoreConfig.model_validate(self._config)
@@ -280,114 +219,75 @@ class FirestoreDriver(BaseDriver):
     def select_databases(self, listed: list[str]) -> list[str]:
         return [database_label(self._config_model().database_id)]
 
-    @staticmethod
-    def _gcloud_env(root: Path) -> dict[str, str]:
-        return clean_env(
-            {
-                "CLOUDSDK_CONFIG": str(root / "gcloud-config"),
-                "CLOUDSDK_CORE_DISABLE_PROMPTS": "1",
-                "CLOUDSDK_CORE_DISABLE_USAGE_REPORTING": "true",
-                "CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK": "true",
-            },
-            root,
-        )
-
     async def tool_versions(self) -> dict[str, str]:
-        root = Path(tempfile.mkdtemp(prefix="gcloud-version-"))
-        try:
-            output = await capture_output(["gcloud", "--version"], self._gcloud_env(root))
-        finally:
-            shutil.rmtree(root, ignore_errors=True)
-        return {"gcloud": (output.strip().splitlines() or ["unknown"])[0]}
+        return {
+            "google-auth": importlib.metadata.version("google-auth"),
+            "firestore-api": "v1",
+        }
 
-    def _new_session(self, ctx: Ctx) -> _Session:
+    def _failure(self, what: str, error: GoogleApiError) -> DumpError:
+        reason = summarize_stderr(error.detail, self.sensitive_values())
+        status = f" (HTTP {error.status})" if error.status else ""
+        return DumpError(f"{what} failed{status}: {reason}")
+
+    async def _call(
+        self, what: str, ctx: Ctx, call: Awaitable[T], *, timeout: int | None = None
+    ) -> T:
+        """Await one API call under the step timeout; failures become sanitized DumpErrors."""
+        limit = timeout or ctx.timeout_seconds
+        try:
+            async with asyncio.timeout(limit):
+                return await call
+        except GoogleApiError as exc:
+            raise self._failure(what, exc) from None
+        except TimeoutError:
+            raise DumpError(f"{what} timed out after {limit} seconds.") from None
+
+    def _api(self) -> GoogleClient:
+        if self._session is None:
+            raise DumpError("Internal error: no Google session.")
+        return self._session.client
+
+    async def _open_session(self, ctx: Ctx) -> None:
+        """Create the private work folder and authenticate; the key never reaches the disk."""
         root = ctx.work_dir / f"firestore-{uuid.uuid4().hex[:8]}"
         try:
             root.mkdir(mode=0o700)
-            (root / "gcloud-config").mkdir(mode=0o700)
         except OSError as exc:
             raise DumpError(f"Cannot prepare the export: {exc.strerror}.") from None
-        return _Session(root=root, env=self._gcloud_env(root))
-
-    def _drop_session(self) -> None:
-        if self._session is not None:
-            shutil.rmtree(self._session.root, ignore_errors=True)
-            self._session = None
-
-    async def _gcloud(
-        self,
-        args: list[str],
-        ctx: Ctx,
-        *,
-        capture: bool = False,
-        timeout: int | None = None,
-    ) -> tuple[int, str, str]:
-        """Run gcloud in the session; returns (exit code, stdout, sanitized stderr tail)."""
-        if self._session is None:
-            raise DumpError("Internal error: no gcloud session.")
-        argv = ["gcloud", *args]
-        ctx.log.info("Running: " + " ".join(shlex.quote(a) for a in argv))
-        chunks: list[bytes] = []
-
-        async def collect(data: bytes) -> None:
-            chunks.append(data)
-
-        tail = StderrTail()
-        limit = timeout or ctx.timeout_seconds
+        client = GoogleClient(self._secrets.get("service_account_json", ""), self._transport)
+        self._session = _Session(root=root, client=client)
         try:
-            code = await run_process(
-                argv,
-                env=self._session.env,
-                timeout=limit,
-                tail=tail,
-                stdout_sink=collect if capture else None,
-            )
-        except FileNotFoundError:
-            raise DumpError("gcloud is not installed in this environment.") from None
-        except StepTimeoutError:
-            raise DumpError(f"gcloud {args[0]} timed out after {limit} seconds.") from None
-        stdout = b"".join(chunks).decode("utf-8", errors="replace")
-        return code, stdout, scrub(tail.text(), self.sensitive_values()).strip()
-
-    def _failure(self, what: str, code: int, stderr: str) -> DumpError:
-        reason = summarize_stderr(stderr, self.sensitive_values())
-        return DumpError(f"{what} failed (gcloud exit code {code}): {reason}")
-
-    async def _activate(self, ctx: Ctx) -> None:
-        assert self._session is not None  # noqa: S101
-        key_path = self._session.root / "sa-key.json"
-        try:
-            descriptor = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                handle.write(self._secrets["service_account_json"])
-        except (OSError, KeyError):
-            key_path.unlink(missing_ok=True)
-            raise DumpError("Cannot prepare the service account credentials.") from None
-        try:
-            code, _out, stderr = await self._gcloud(
-                ["auth", "activate-service-account", f"--key-file={key_path}"], ctx
-            )
-        finally:
-            key_path.unlink(missing_ok=True)
-        if code != 0:
-            ctx.log.info(f"gcloud stderr:\n{stderr}")
-            raise self._failure("Authenticating with the service account", code, stderr)
+            await client.authenticate()
+        except Exception as exc:
+            reason = describe_error(exc, self.sensitive_values())
+            await self._drop_session()
+            raise DumpError(f"Authenticating with the service account failed: {reason}") from None
         ctx.log.info("Authenticated with the service account.")
+
+    async def _drop_session(self) -> None:
+        session, self._session = self._session, None
+        if session is not None:
+            try:
+                await session.client.close()
+            finally:
+                shutil.rmtree(session.root, ignore_errors=True)
+
+    async def _check_bucket(self, bucket: str, ctx: Ctx) -> None:
+        await self._call(
+            f"Reaching the staging bucket gs://{bucket}", ctx, self._api().check_bucket(bucket)
+        )
+
+    # ---------- dump ----------
 
     async def preflight(self, ctx: DumpContext) -> None:
         config = self._config_model()
         bucket, _prefix = split_staging_bucket(config.staging_bucket)
-        self._session = self._new_session(ctx)
+        await self._open_session(ctx)
         try:
-            await self._activate(ctx)
-            code, _out, stderr = await self._gcloud(
-                ["storage", "ls", f"gs://{bucket}", f"--project={config.project_id}"], ctx
-            )
-            if code != 0:
-                ctx.log.info(f"gcloud stderr:\n{stderr}")
-                raise self._failure(f"Reaching the staging bucket gs://{bucket}", code, stderr)
+            await self._check_bucket(bucket, ctx)
         except BaseException:
-            self._drop_session()
+            await self._drop_session()
             raise
         ctx.log.info(f"Staging bucket gs://{bucket} is reachable.")
         ctx.log.info(
@@ -411,24 +311,24 @@ class FirestoreDriver(BaseDriver):
         staging_url = f"gs://{bucket}/{prefix}"
         try:
             if self._session is None:
-                self._session = self._new_session(ctx)
-                await self._activate(ctx)
+                await self._open_session(ctx)
             session = self._session
+            assert session is not None  # noqa: S101
             async with ctx.report.step("export") as step:
                 operation = await self._start_export(config, staging_url, ctx)
                 step.detail = "Export started."
             async with ctx.report.step("poll") as step:
-                await self._poll(operation, config, ctx, step)
+                await self._poll(operation, ctx, step)
             export_dir = session.root / "export"
             async with ctx.report.step("download") as step:
-                await self._download(staging_url, export_dir, ctx)
+                await self._download(bucket, prefix, export_dir, ctx)
                 step.detail = "Export downloaded."
             final = work_file(ctx, safe_component(database), "tar.gz")
             async with ctx.report.step("pack") as step:
                 size, digest = await self._pack(export_dir, final, ctx)
-            await self._cleanup_staging(config, staging_url, ctx)
+            await self._cleanup_staging(config, bucket, prefix, ctx)
         finally:
-            self._drop_session()
+            await self._drop_session()
         return DumpedArtifact(
             database=database,
             path=final,
@@ -442,91 +342,61 @@ class FirestoreDriver(BaseDriver):
     async def _start_export(
         self, config: FirestoreConfig, staging_url: str, ctx: DumpContext
     ) -> str:
-        args = [
-            "firestore",
-            "export",
-            staging_url,
-            f"--project={config.project_id}",
-            f"--database={config.database_id}",
-        ]
-        if config.collection_ids:
-            args.append(f"--collection-ids={','.join(config.collection_ids)}")
-        args += ["--async", "--format=json"]
-        code, out, stderr = await self._gcloud(args, ctx, capture=True)
-        if code != 0:
-            ctx.log.info(f"gcloud stderr:\n{stderr}")
-            raise self._failure("Starting the Firestore export", code, stderr)
-        operation = parse_operation_name(out)
+        ctx.log.info(f"Starting the Firestore export to {staging_url}")
+        operation = await self._call(
+            "Starting the Firestore export",
+            ctx,
+            self._api().start_export(
+                config.project_id, config.database_id, staging_url, config.collection_ids
+            ),
+        )
         ctx.log.info(f"Export operation: {operation}")
         return operation
 
-    def _operation_args(self, verb: str, operation: str, config: FirestoreConfig) -> list[str]:
-        return [
-            "firestore",
-            "operations",
-            verb,
-            operation,
-            f"--project={config.project_id}",
-            f"--database={config.database_id}",
-        ]
-
-    async def _cancel_operation(
-        self, operation: str, config: FirestoreConfig, ctx: Ctx, label: str = "export"
-    ) -> None:
+    async def _cancel_operation(self, operation: str, ctx: Ctx, label: str = "export") -> None:
         """Best effort; the outcome is only logged."""
         try:
-            code, _out, stderr = await self._gcloud(
-                self._operation_args("cancel", operation, config),
+            await self._call(
+                f"Cancelling the {label} operation",
                 ctx,
+                self._api().cancel_operation(operation),
                 timeout=CANCEL_OPERATION_SECONDS,
             )
         except DumpError as exc:
             ctx.log.warning(f"Could not cancel the Firestore {label} operation: {exc}")
             return
-        if code == 0:
-            ctx.log.info(f"Requested cancellation of the Firestore {label} operation.")
-        else:
-            ctx.log.warning(
-                f"Could not cancel the Firestore {label} operation: "
-                + summarize_stderr(stderr, self.sensitive_values())
-            )
+        ctx.log.info(f"Requested cancellation of the Firestore {label} operation.")
 
     async def _poll(
-        self,
-        operation: str,
-        config: FirestoreConfig,
-        ctx: Ctx,
-        step: StepHandle,
-        label: str = "export",
+        self, operation: str, ctx: Ctx, step: StepHandle, label: str = "export"
     ) -> None:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + ctx.timeout_seconds
         failures = 0
         last: tuple[str, str | None] | None = None
+        what = f"Checking the {label} operation"
         try:
             while True:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     raise TimeoutError
                 try:
-                    code, out, stderr = await self._gcloud(
-                        [*self._operation_args("describe", operation, config), "--format=json"],
+                    data = await self._call(
+                        what,
                         ctx,
-                        capture=True,
+                        self._api().get_operation(operation),
                         timeout=max(1, int(remaining)),
                     )
-                except DumpError:
+                except DumpError as exc:
                     if deadline - loop.time() <= 0:
                         raise TimeoutError from None
-                    raise
-                if code != 0:
                     failures += 1
-                    ctx.log.warning(f"Checking the {label} failed (attempt {failures}): {stderr}")
+                    ctx.log.warning(f"Checking the {label} failed (attempt {failures}): {exc}")
                     if failures >= MAX_DESCRIBE_FAILURES:
-                        raise self._failure(f"Checking the {label} operation", code, stderr)
+                        raise
                 else:
                     failures = 0
-                    status = parse_operation_status(out)
+                    status = parse_operation_status(data)
                     if (status.state, status.progress) != last:
                         last = (status.state, status.progress)
                         extra = f" ({status.progress})" if status.progress else ""
@@ -540,27 +410,40 @@ class FirestoreDriver(BaseDriver):
                 await asyncio.sleep(POLL_SECONDS)
         except asyncio.CancelledError:
             ctx.log.warning(f"Run cancelled while the {label} was running.")
-            await self._cancel_operation(operation, config, ctx, label)
+            await self._cancel_operation(operation, ctx, label)
             raise
         except TimeoutError:
             ctx.log.warning(f"Timed out waiting for the {label}; cancelling it.")
-            await self._cancel_operation(operation, config, ctx, label)
+            await self._cancel_operation(operation, ctx, label)
             raise DumpError(
                 f"The Firestore {label} did not finish within {ctx.timeout_seconds} seconds. "
                 "Increase the job's timeout for large databases."
             ) from None
 
-    async def _download(self, staging_url: str, export_dir: Path, ctx: DumpContext) -> None:
+    async def _fetch_export(self, bucket: str, prefix: str, root: Path) -> int:
+        """Download every object under the staging prefix into root; returns the file count."""
+        api = self._api()
+        count = 0
+        for name, size in await api.list_objects(bucket, prefix + "/"):
+            relative = name[len(prefix) + 1 :]
+            if not relative or relative.endswith("/"):
+                continue
+            target = _safe_destination(root, relative)
+            await asyncio.to_thread(target.parent.mkdir, parents=True, exist_ok=True)
+            await api.download_object(bucket, name, target, size)
+            count += 1
+        return count
+
+    async def _download(self, bucket: str, prefix: str, export_dir: Path, ctx: DumpContext) -> None:
         try:
             export_dir.mkdir(mode=0o700)
         except OSError as exc:
             raise DumpError(f"Cannot prepare the download: {exc.strerror}.") from None
-        code, _out, stderr = await self._gcloud(
-            ["storage", "cp", "-r", staging_url, str(export_dir)], ctx
+        root = export_dir / PurePosixPath(prefix).name
+        count = await self._call(
+            "Downloading the export", ctx, self._fetch_export(bucket, prefix, root)
         )
-        if code != 0:
-            ctx.log.info(f"gcloud stderr:\n{stderr}")
-            raise self._failure("Downloading the export", code, stderr)
+        ctx.log.info(f"Downloaded {count} files from gs://{bucket}/{prefix}.")
         found = await asyncio.to_thread(lambda: next(export_dir.rglob(METADATA_GLOB), None))
         if found is None:
             raise DumpError(
@@ -591,15 +474,20 @@ class FirestoreDriver(BaseDriver):
         return size, digest
 
     async def _cleanup_staging(
-        self, config: FirestoreConfig, staging_url: str, ctx: DumpContext
+        self, config: FirestoreConfig, bucket: str, prefix: str, ctx: DumpContext
     ) -> None:
+        staging_url = f"gs://{bucket}/{prefix}"
         if not config.delete_staging_after_download:
             ctx.log.info(f"Keeping the staging export at {staging_url} (deletion is turned off).")
             return
         async with ctx.report.step("cleanup-staging") as step:
             try:
-                code, _out, stderr = await self._gcloud(["storage", "rm", "-r", staging_url], ctx)
-                problem = None if code == 0 else summarize_stderr(stderr, self.sensitive_values())
+                await self._call(
+                    "Deleting the staging export",
+                    ctx,
+                    self._api().delete_prefix(bucket, prefix + "/"),
+                )
+                problem = None
             except DumpError as exc:
                 problem = str(exc)
             if problem is None:
@@ -616,10 +504,7 @@ class FirestoreDriver(BaseDriver):
     # ---------- restore ----------
 
     async def restore_tool_versions(self) -> dict[str, str]:
-        try:
-            return await self.tool_versions()
-        except DumpError as exc:
-            raise RestoreError(str(exc)) from None
+        return await self.tool_versions()
 
     async def restore_database(
         self, artifact: Path, options: RestoreOptions, ctx: RestoreContext
@@ -638,30 +523,25 @@ class FirestoreDriver(BaseDriver):
             )
         bucket, base = split_staging_bucket(config.staging_bucket)
         parts = ["restore", uuid.uuid4().hex[:12], format_timestamp(datetime.now(UTC))]
-        staging_url = f"gs://{bucket}/" + "/".join(([base] if base else []) + parts)
-        self._session = self._new_session(ctx)
+        prefix = "/".join(([base] if base else []) + parts)
+        await self._open_session(ctx)
         session = self._session
+        assert session is not None  # noqa: S101
         uploading = False
         try:
-            await self._activate(ctx)
-            code, _out, stderr = await self._gcloud(
-                ["storage", "ls", f"gs://{bucket}", f"--project={config.project_id}"], ctx
-            )
-            if code != 0:
-                ctx.log.info(f"gcloud stderr:\n{stderr}")
-                raise self._failure(f"Reaching the staging bucket gs://{bucket}", code, stderr)
+            await self._check_bucket(bucket, ctx)
             metadata = await self._unpack(artifact, session.root / "export", ctx)
             uploading = True
-            await self._upload(metadata.parent, staging_url, ctx)
-            uri = f"{staging_url}/{metadata.parent.name}/{metadata.name}"
+            await self._upload(metadata.parent, bucket, prefix, ctx)
+            uri = f"gs://{bucket}/{prefix}/{metadata.parent.name}/{metadata.name}"
             operation = await self._start_import(config, uri, ctx)
-            await self._poll(operation, config, ctx, StepHandle("import"), "import")
+            await self._poll(operation, ctx, StepHandle("import"), "import")
         finally:
             try:
                 if uploading:
-                    await self._remove_staging(staging_url, ctx)
+                    await self._remove_staging(bucket, prefix, ctx)
             finally:
-                self._drop_session()
+                await self._drop_session()
 
     async def _unpack(self, artifact: Path, export_dir: Path, ctx: RestoreContext) -> Path:
         """Extract the .tar.gz export; returns its .overall_export_metadata file."""
@@ -683,44 +563,44 @@ class FirestoreDriver(BaseDriver):
             detail = exc.strerror if isinstance(exc, OSError) else type(exc).__name__
             raise RestoreError(f"Cannot unpack the backup: {detail}.") from None
 
-    async def _upload(self, export_root: Path, staging_url: str, ctx: RestoreContext) -> None:
-        code, _out, stderr = await self._gcloud(
-            ["storage", "cp", "-r", str(export_root), staging_url + "/"], ctx
+    async def _send_tree(self, export_root: Path, bucket: str, prefix: str) -> None:
+        api = self._api()
+        files = await asyncio.to_thread(
+            lambda: sorted(p for p in export_root.rglob("*") if p.is_file() and not p.is_symlink())
         )
-        if code != 0:
-            ctx.log.info(f"gcloud stderr:\n{stderr}")
-            raise self._failure("Uploading the backup to the staging bucket", code, stderr)
-        ctx.log.info(f"Uploaded the export to {staging_url}.")
+        for path in files:
+            relative = path.relative_to(export_root).as_posix()
+            await api.upload_object(bucket, f"{prefix}/{export_root.name}/{relative}", path)
+
+    async def _upload(
+        self, export_root: Path, bucket: str, prefix: str, ctx: RestoreContext
+    ) -> None:
+        await self._call(
+            "Uploading the backup to the staging bucket",
+            ctx,
+            self._send_tree(export_root, bucket, prefix),
+        )
+        ctx.log.info(f"Uploaded the export to gs://{bucket}/{prefix}.")
 
     async def _start_import(self, config: FirestoreConfig, uri: str, ctx: RestoreContext) -> str:
-        args = [
-            "firestore",
-            "import",
-            uri,
-            f"--project={config.project_id}",
-            f"--database={config.database_id}",
-            "--async",
-            "--format=json",
-        ]
-        code, out, stderr = await self._gcloud(args, ctx, capture=True)
-        if code != 0:
-            ctx.log.info(f"gcloud stderr:\n{stderr}")
-            raise self._failure("Starting the Firestore import", code, stderr)
-        operation = parse_operation_name(out)
+        operation = await self._call(
+            "Starting the Firestore import",
+            ctx,
+            self._api().start_import(config.project_id, config.database_id, uri),
+        )
         ctx.log.info(f"Import operation: {operation}")
         return operation
 
-    async def _remove_staging(self, staging_url: str, ctx: RestoreContext) -> None:
+    async def _remove_staging(self, bucket: str, prefix: str, ctx: RestoreContext) -> None:
         """Delete the uploaded copy; failures are only logged (the restore itself has finished)."""
         try:
-            code, _out, stderr = await self._gcloud(["storage", "rm", "-r", staging_url], ctx)
-            problem = None if code == 0 else summarize_stderr(stderr, self.sensitive_values())
+            await self._call(
+                "Deleting the staging copy", ctx, self._api().delete_prefix(bucket, prefix + "/")
+            )
         except DumpError as exc:
-            problem = str(exc)
-        if problem is None:
-            ctx.log.info("Deleted the staging copy of the export.")
+            ctx.log.warning(
+                f"Could not delete the staging copy gs://{bucket}/{prefix}: {exc} Delete it by "
+                "hand or add a lifecycle rule to the bucket (for example delete after 1 day)."
+            )
             return
-        ctx.log.warning(
-            f"Could not delete the staging copy {staging_url}: {problem} Delete it by hand or "
-            "add a lifecycle rule to the bucket (for example delete after 1 day)."
-        )
+        ctx.log.info("Deleted the staging copy of the export.")

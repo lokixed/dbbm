@@ -17,6 +17,7 @@ from app.models import Artifact, AuditLog, JobRecipient
 from app.services.age import fingerprint
 from app.services.hashing import sha256_file
 from tests.conftest import api_delete, api_post, api_put
+from tests.fake_google import FakeGoogle
 from tests.fake_rclone import FakeRclone
 from tests.fakes import FakeBins
 from tests.runs_helpers import (
@@ -428,7 +429,10 @@ def test_encrypted_sql_backups_restore_too(
 
 
 def test_encrypted_firestore_backup_restores_too(
-    authed: TestClient, fake_bins: FakeBins, monkeypatch: pytest.MonkeyPatch
+    authed: TestClient,
+    fake_bins: FakeBins,
+    fake_google: FakeGoogle,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.drivers import firestore
     from tests.test_runs_m4 import make_firestore
@@ -448,7 +452,7 @@ def test_encrypted_firestore_backup_restores_too(
     run = wait_final(authed, started.json()["id"])
 
     assert run["status"] == "success", run["error"]
-    assert fake_bins.read("gcloud.upload.files").split() == [
-        "all_namespaces/kind_items/output-0",
-        "ts.overall_export_metadata",
-    ]  # the decrypted export was imported, not the ciphertext
+    # the decrypted export was imported, not the ciphertext
+    assert sorted(n.rsplit("/", 1)[-1] for n in fake_google.uploaded) == sorted(
+        ["output-0", fake_google.import_bodies[0]["inputUriPrefix"].rsplit("/", 1)[-1]]
+    )

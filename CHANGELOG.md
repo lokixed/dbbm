@@ -25,6 +25,11 @@ failure-injection suite, CI release run) are still open.
 
 ### Changed
 - The SQLite write-ahead log is checkpointed on clean shutdown.
+- Firestore backups and restores call Google's REST APIs (Firestore and Cloud Storage) instead of
+  the Google Cloud CLI, which is no longer in the image. The service-account key is no longer
+  written to disk.
+- `age`, `mongodump` and `mongorestore` are built from source with a current Go toolchain, and pip
+  is removed from the final image.
 
 ### Upgrade notes
 - No schema migration in this release. New setting `audit_retention_days` defaults to 365.

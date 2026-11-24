@@ -28,13 +28,15 @@ RUN go mod init dbbm-age \
 
 # ---- Stage 3: mongodump and mongorestore, built with patched dependencies ----
 # MongoDB's prebuilt release binaries embed golang.org/x/net v0.61.0 (CVE-2026-78661). Build the
-# same pinned release from source with the fixed x/net and a current Go toolchain.
+# same pinned release (the commit is checked) from source with the fixed x/net and a current Go
+# toolchain.
 FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie AS mongotools
 ARG TARGETOS
 ARG TARGETARCH
 ARG MONGO_TOOLS_VERSION=100.20.1
 ARG XNET_VERSION=v0.62.0
-RUN git clone --depth 1 --branch "${MONGO_TOOLS_VERSION}" https://github.com/mongodb/mongo-tools /src
+ARG MONGO_TOOLS_COMMIT=99fd6bc7140e31e0287a9b4ef7e03194d834c7f0
+RUN git clone --depth 1 --branch "${MONGO_TOOLS_VERSION}" https://github.com/mongodb/mongo-tools /src && test "$(git -C /src rev-parse HEAD)" = "${MONGO_TOOLS_COMMIT}"
 WORKDIR /src
 RUN go get "golang.org/x/net@${XNET_VERSION}" \
     && for tool in mongodump mongorestore; do \
@@ -101,42 +103,10 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/* /root/.gnupg; \
     mysqldump --version; mysql --version; pg_dump --version; pg_restore --version
 
-# ---- MongoDB tools and Google Cloud CLI (milestone 4) ----
-# mongodb-database-tools (mongodump, mongorestore) from MongoDB's official APT repo, and the core
-# google-cloud-cli (gcloud; no extra components) from Google's. Both signing keys are pinned by
-# fingerprint exactly like the keys above: a key set that lacks the pinned fingerprint fails the build.
-# Adds about 1.1 GB, almost all of it gcloud.
-ARG MONGO_SERIES=8.0
-ARG MONGO_SIGNER_FPR=4B0752C1BCA238C0B4EE14DC41DE058A4E7DCA05
-ARG GCLOUD_SIGNER_FPR=35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3
-RUN set -eux; \
-    export DEBIAN_FRONTEND=noninteractive; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends gnupg; \
-    . /etc/os-release; \
-    trust_key() { \
-        curl -fsSL "$1" -o /tmp/key.asc; \
-        if ! gpg --show-keys --with-colons /tmp/key.asc | awk -F: -v want="$2" '$1 == "fpr" && $10 == want { ok = 1 } END { exit !ok }'; then \
-            echo "Pinned signing key $2 not found in $1" >&2; exit 1; \
-        fi; \
-        if grep -q 'BEGIN PGP' /tmp/key.asc; then gpg --dearmor < /tmp/key.asc > "$3"; else cp /tmp/key.asc "$3"; fi; \
-        rm -f /tmp/key.asc; \
-    }; \
-    trust_key "https://pgp.mongodb.com/server-${MONGO_SERIES}.asc" "$MONGO_SIGNER_FPR" /usr/share/keyrings/mongodb.gpg; \
-    trust_key https://packages.cloud.google.com/apt/doc/apt-key.gpg "$GCLOUD_SIGNER_FPR" /usr/share/keyrings/gcloud.gpg; \
-    echo "deb [signed-by=/usr/share/keyrings/mongodb.gpg] https://repo.mongodb.org/apt/debian ${VERSION_CODENAME}/mongodb-org/${MONGO_SERIES} main" > /etc/apt/sources.list.d/mongodb.list; \
-    echo "deb [signed-by=/usr/share/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/gcloud.list; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends mongodb-database-tools google-cloud-cli; \
-    rm -f /usr/bin/bsondump /usr/bin/mongoexport /usr/bin/mongofiles /usr/bin/mongoimport \
-        /usr/bin/mongostat /usr/bin/mongotop /usr/lib/google-cloud-sdk/bin/gcloud-crc32c; \
-    apt-get purge -y --auto-remove gnupg; \
-    rm -rf /var/lib/apt/lists/* /root/.gnupg /root/.config; \
-    gcloud --version
-# gcloud's bundled Python does not need pip, which carries vulnerable vendored libraries.
-RUN rm -rf /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip         /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip-*.dist-info         /usr/lib/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/ensurepip/_bundled
-# Only mongodump and mongorestore are used; they replace the packaged builds.
-COPY --from=mongotools /out/ /usr/bin/
+# ---- MongoDB tools (milestone 4) ----
+# mongodump and mongorestore are built from source in the mongotools stage (no apt repository).
+# Firestore needs no command-line tool: the driver calls Google's REST APIs directly.
+COPY --from=mongotools /out/ /usr/local/bin/
 RUN mongodump --version && mongorestore --version
 
 # ---- rclone (milestone 5) ----

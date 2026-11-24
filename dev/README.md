@@ -129,7 +129,7 @@ docker rm -f scratch-mongo
 
 ## Firestore real-project test
 
-Firestore has no local stand-in for this flow (the emulator has no managed export), so it is tested against a real project. The unit tests cover the logic with a fake `gcloud`; CI never contacts Google Cloud.
+Firestore has no local stand-in for this flow (the emulator has no managed export), so it is tested against a real project. The unit tests cover the logic with a fake Google REST service; CI never contacts Google Cloud.
 
 Prerequisites in the Google Cloud project:
 
