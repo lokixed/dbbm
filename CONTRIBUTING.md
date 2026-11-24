@@ -29,6 +29,31 @@ cd frontend && yarn lint && yarn typecheck && yarn build
 - Ask before adding a dependency that is not in DESIGN.md.
 - Update the docs in the same change as the behavior they describe.
 
+## What CI/CD runs
+
+One workflow, `.github/workflows/ci-cd.yml` ("CI/CD"), runs as a single chain:
+
+```
+changes -> security -> backend + frontend -> docker -> release -> pages + hub
+```
+
+The first job (`changes`) lists the files a push or pull request touched. Each later stage runs
+only when its files changed and is skipped otherwise, and a failure stops every stage after it. Pull
+requests run the checks but never publish.
+
+| Changed files | Runs |
+|---|---|
+| `backend/`, `scripts/` | backend tests, image build and tests, security checks |
+| `frontend/` | frontend checks, image build and tests, security checks |
+| `Dockerfile`, `.dockerignore` | image build and tests, security checks |
+| `site/` | the GitHub Pages deploy only |
+| `docs/DOCKERHUB.md` | the Docker Hub description only |
+| other docs (`README.md`, `CHANGELOG.md`, ...) | nothing |
+| `.github/workflows/ci-cd.yml` | everything except publishing |
+
+Only changes to what goes into the image (`backend/`, `frontend/`, `Dockerfile`, `.dockerignore`,
+the install scripts) publish an image. A manual run, a new branch or a force push runs everything.
+
 ## Commit messages
 
 Use [Conventional Commits](https://www.conventionalcommits.org): `feat: ...`, `fix: ...`, `docs: ...`,
@@ -43,7 +68,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org): `feat: ...`, `f
 ## Releases
 
 Releases are automatic and nobody types a version number. When every CI job passes on `main`, the
-`release` job in `.github/workflows/ci.yml` publishes the image to Docker Hub and GHCR.
+`release` job in `.github/workflows/ci-cd.yml` publishes the image to Docker Hub and GHCR.
 
 - Every green push updates the `edge` and `sha-<commit>` tags.
 - It then calculates the next version with `scripts/release.py`: the latest stable `vX.Y.Z` tag plus
@@ -56,7 +81,7 @@ Releases are automatic and nobody types a version number. When every CI job pass
   tags it and creates the GitHub release.
 - The job refuses instead of guessing: a malformed version, a tag that already exists, or a version
   that is not greater than the latest one stops the run with an error.
-- **The first stable release is manual.** No stable tag exists yet, so run the CI workflow from the
+- **The first stable release is manual.** No stable tag exists yet, so run the CI/CD workflow from the
   Actions tab on `main` with `version` set (for example `1.0.0`). From then on it is automatic. The
   same form can force a `bump` (major, minor or patch) instead of reading the commit log.
 - The release commit is pushed to `main` by the workflow, so run `git pull --rebase` before you

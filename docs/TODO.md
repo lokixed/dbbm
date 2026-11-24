@@ -69,7 +69,7 @@ The code and docs are done (version 1.0.0-rc.1). What is left:
 
 ### Upgrades and releases
 - [ ] A repository admin turns on GitHub Pages (Settings > Pages > Source: GitHub Actions) so the `pages` job can publish `site/`
-- [ ] Cut the first stable release by running the CI workflow on `main` with version `1.0.0` (releases are automatic after that; amd64 only, arm64 needs another MySQL client, see DESIGN.md section 17)
+- [ ] Cut the first stable release by running the CI/CD workflow on `main` with version `1.0.0` (releases are automatic after that; amd64 only, arm64 needs another MySQL client, see DESIGN.md section 17)
 - [ ] Optional "update available" hint in the UI
 
 ### Documentation

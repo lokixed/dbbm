@@ -5,12 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver]
 ## [Unreleased]
 
 ### Added
-- The version is calculated from Conventional Commits when CI passes on `main`: a breaking change is
+- The version is calculated from Conventional Commits when the CI/CD run passes on `main`: a breaking change is
   a major, `feat` a minor, anything else a patch. The release job writes it into
   `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`, rotates this
   changelog, tags `vX.Y.Z` and publishes the image and the GitHub release.
 - The version is shown on every page of the web UI, including sign-in, setup and About.
-- A landing page for the image (`site/`), published to GitHub Pages by the CI workflow.
+- A landing page for the image (`site/`), published to GitHub Pages by the CI/CD workflow.
+- CI runs only the jobs whose files changed (backend, frontend, image, site, Docker Hub page), and
+  only changes to what goes into the image publish a release.
 
 ## [1.0.0-rc.1]
 
@@ -42,7 +44,7 @@ failure-injection suite, CI release run) are still open.
   is removed from the final image.
 
 ### Release process
-- The release job is part of the CI workflow: when CI passes on `main` it publishes the image to
+- The release job is part of the CI/CD workflow: when the CI/CD run passes on `main` it publishes the image to
   Docker Hub and GHCR (`edge`, `sha-<commit>`, and the version tags for a new release) and creates
   the GitHub release. The Docker Hub page shows `docs/DOCKERHUB.md`.
 
