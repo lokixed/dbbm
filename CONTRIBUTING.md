@@ -49,7 +49,7 @@ requests run the checks but never publish.
 | `site/` | the GitHub Pages deploy only |
 | `docs/DOCKERHUB.md` | the Docker Hub description only |
 | other docs (`README.md`, `CHANGELOG.md`, ...) | nothing |
-| `.github/workflows/ci-cd.yml` | everything except publishing |
+| `.github/workflows/ci-cd.yml` | everything except publishing an image (the Pages deploy and Docker Hub description run) |
 
 Only changes to what goes into the image (`backend/`, `frontend/`, `Dockerfile`, `.dockerignore`,
 the install scripts) publish an image. A manual run, a new branch or a force push runs everything.

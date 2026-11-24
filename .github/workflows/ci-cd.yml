@@ -72,7 +72,7 @@ jobs:
           check image "^(backend/|frontend/|scripts/|Dockerfile$|[.]dockerignore$|${workflow})"
           check publish "^(backend/|frontend/|scripts/install-|Dockerfile$|[.]dockerignore$)"
           check site "^(site/|${workflow})"
-          check hub "^docs/DOCKERHUB[.]md$"
+          check hub "^(docs/DOCKERHUB[.]md$|${workflow})"
 
   backend:
     needs: [changes, security]
@@ -505,7 +505,7 @@ jobs:
           echo "### Pages deployment failed" >> "$GITHUB_STEP_SUMMARY"
           gh api "repos/${GITHUB_REPOSITORY}/pages/deployments/${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY" || true
 
-  # The Docker Hub page alone: runs when docs/DOCKERHUB.md changes without a new image, and on a
+  # The Docker Hub page alone: runs when docs/DOCKERHUB.md or this workflow changes, and on a
   # manual run. (A release updates the page too.) Like the release job, it needs the Docker Hub
   # variable and secret. A failed update fails the run.
   hub:
