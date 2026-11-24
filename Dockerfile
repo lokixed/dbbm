@@ -20,7 +20,7 @@ ARG TARGETARCH
 ARG AGE_VERSION=v1.3.2
 WORKDIR /src
 RUN go mod init dbbm-age \
-    && go get "filippo.io/age@${AGE_VERSION}" \
+    && go get "filippo.io/age/cmd/age@${AGE_VERSION}" "filippo.io/age/cmd/age-keygen@${AGE_VERSION}" \
     && for tool in age age-keygen; do \
         CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -trimpath \
             -o "/out/${tool}" "filippo.io/age/cmd/${tool}" || exit 1; \
