@@ -15,7 +15,20 @@ FROM golang:1.27.3-trixie AS age
 ARG AGE_VERSION=v1.3.2
 RUN GOBIN=/out CGO_ENABLED=0 go install -trimpath     filippo.io/age/cmd/age@${AGE_VERSION} filippo.io/age/cmd/age-keygen@${AGE_VERSION}
 
-# ---- Stage 3: runtime ----
+# ---- Stage 3: mongodump and mongorestore, built with patched dependencies ----
+# MongoDB's prebuilt release binaries embed golang.org/x/net v0.61.0 (CVE-2026-78661). Build the
+# same pinned release from source with the fixed x/net and a current Go toolchain.
+FROM golang:1.27.3-trixie AS mongotools
+ARG MONGO_TOOLS_VERSION=100.20.1
+ARG XNET_VERSION=v0.62.0
+RUN git clone --depth 1 --branch "${MONGO_TOOLS_VERSION}" https://github.com/mongodb/mongo-tools /src
+WORKDIR /src
+RUN go get "golang.org/x/net@${XNET_VERSION}" \
+    && CGO_ENABLED=0 go build -mod=mod -trimpath \
+        -ldflags "-s -w -X main.VersionStr=${MONGO_TOOLS_VERSION} -X main.GitCommit=source" \
+        -o /out/ ./mongodump ./mongorestore
+
+# ---- Stage 4: runtime ----
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -100,9 +113,14 @@ RUN set -eux; \
     echo "deb [signed-by=/usr/share/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/gcloud.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends mongodb-database-tools google-cloud-cli; \
+    rm -f /usr/bin/bsondump /usr/bin/mongoexport /usr/bin/mongofiles /usr/bin/mongoimport \
+        /usr/bin/mongostat /usr/bin/mongotop /usr/lib/google-cloud-sdk/bin/gcloud-crc32c; \
     apt-get purge -y --auto-remove gnupg; \
     rm -rf /var/lib/apt/lists/* /root/.gnupg /root/.config; \
-    mongodump --version; mongorestore --version; gcloud --version
+    gcloud --version
+# Only mongodump and mongorestore are used; they replace the packaged builds.
+COPY --from=mongotools /out/ /usr/bin/
+RUN mongodump --version && mongorestore --version
 
 # ---- rclone (milestone 5) ----
 # Pinned release; the script checks the zip against a SHA-256 pinned in it and against SHA256SUMS.
