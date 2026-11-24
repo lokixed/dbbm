@@ -140,8 +140,10 @@ RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin
     && mkdir -p /data /backups \
     && chown dbbm:dbbm /data /backups
 
-# Current pip and setuptools (the base image's copies bundle libraries with known vulnerabilities).
-RUN pip install --root-user-action=ignore --upgrade pip setuptools
+# Current pip and setuptools. The old wheels that ensurepip bundles (used only by "python -m venv")
+# contain libraries with known vulnerabilities, so they are removed.
+RUN pip install --root-user-action=ignore --upgrade pip setuptools \
+    && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled
 
 WORKDIR /app
 COPY backend/ ./
