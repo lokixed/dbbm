@@ -202,8 +202,8 @@ curl http://127.0.0.1:8080/healthz</code></pre></div>
           <tbody>
             <tr><td><code>X.Y.Z</code></td><td>One release. Pin one of these in production.</td></tr>
             <tr><td><code>X.Y</code></td><td>The newest patch of that minor version.</td></tr>
-            <tr><td><code>latest</code></td><td>The newest release.</td></tr>
-            <tr><td><code>edge</code></td><td>The latest commit on <code>main</code> that passed CI. May change at any time.</td></tr>
+            <tr><td><code>latest</code></td><td>The newest image built from <code>main</code> that passed CI. It moves on every publish, so pin an <code>X.Y.Z</code> tag in production.</td></tr>
+            <tr><td><code>edge</code></td><td>The same image as <code>latest</code>, kept as an explicit name for "newest build".</td></tr>
             <tr><td><code>sha-&lt;commit&gt;</code></td><td>One exact commit.</td></tr>
           </tbody>
         </table>

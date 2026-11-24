@@ -323,12 +323,12 @@ jobs:
           {
             echo "tags<<TAGS_END"
             for image in "${GHCR_IMAGE,,}" "${DOCKERHUB_IMAGE,,}"; do
+              echo "${image}:latest"
               echo "${image}:edge"
               echo "${image}:sha-${short}"
               if [ "$RELEASE" = true ]; then
                 echo "${image}:${VERSION}"
                 echo "${image}:${VERSION%.*}"
-                echo "${image}:latest"
               fi
             done
             echo "TAGS_END"

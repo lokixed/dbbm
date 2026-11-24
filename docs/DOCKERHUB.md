@@ -16,8 +16,8 @@ Source code, full documentation and issues: <https://github.com/lokixed/dbbm>. L
 |---|---|
 | `X.Y.Z` (for example `1.0.0-rc.1`) | One release. Pin one of these in production |
 | `X.Y` | The newest patch of that minor version |
-| `latest` | The newest release |
-| `edge` | The latest commit on `main` that passed CI. May change at any time |
+| `latest` | The newest image built from `main` that passed CI. It moves on every publish, so pin an `X.Y.Z` tag in production |
+| `edge` | The same image as `latest`, kept as an explicit name for "newest build" |
 | `sha-<commit>` | One exact commit |
 
 The image is built for `linux/amd64` only. It is also published to `ghcr.io/lokixed/dbbm`, and

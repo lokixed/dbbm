@@ -45,7 +45,7 @@ failure-injection suite, CI release run) are still open.
 
 ### Release process
 - The release job is part of the CI/CD workflow: when the CI/CD run passes on `main` it publishes the image to
-  Docker Hub and GHCR (`edge`, `sha-<commit>`, and the version tags for a new release) and creates
+  Docker Hub and GHCR (`latest`, `edge`, `sha-<commit>`, and the version tags for a new release) and creates
   the GitHub release. The Docker Hub page shows `docs/DOCKERHUB.md`.
 
 ### Known limits

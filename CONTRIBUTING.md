@@ -70,14 +70,14 @@ Use [Conventional Commits](https://www.conventionalcommits.org): `feat: ...`, `f
 Releases are automatic and nobody types a version number. When every CI job passes on `main`, the
 `release` job in `.github/workflows/ci-cd.yml` publishes the image to Docker Hub and GHCR.
 
-- Every green push updates the `edge` and `sha-<commit>` tags.
+- Every green push that changes the image updates the `latest`, `edge` and `sha-<commit>` tags.
 - It then calculates the next version with `scripts/release.py`: the latest stable `vX.Y.Z` tag plus
   the bump the commits since that tag call for. If nothing qualifies (no new commits), only the
-  `edge` and `sha` tags change.
+  `latest`, `edge` and `sha` tags change.
 - A release writes the version into `backend/app/version.py`, `backend/pyproject.toml` and
   `frontend/package.json`, moves the notes under `## [Unreleased]` in `CHANGELOG.md` to a dated
   section (or writes them from the commit subjects if that section is empty), builds and smoke-tests
-  the image, pushes the image tags (`X.Y.Z`, `X.Y`, `latest`), commits `chore(release): vX.Y.Z`,
+  the image, pushes the image tags (`X.Y.Z` and `X.Y`, on top of `latest`, `edge` and `sha-<commit>`), commits `chore(release): vX.Y.Z`,
   tags it and creates the GitHub release.
 - The job refuses instead of guessing: a malformed version, a tag that already exists, or a version
   that is not greater than the latest one stops the run with an error.
