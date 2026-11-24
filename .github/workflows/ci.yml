@@ -150,7 +150,8 @@ jobs:
             'mkdir /tmp/backend && tar -C /src --exclude=.venv --exclude=__pycache__ -cf - . | tar -C /tmp/backend -xf - \
             && cd /tmp/backend && curl -fsSL https://bootstrap.pypa.io/get-pip.py | python - -q && pip install -q ".[dev]" && pytest -m integration'
       - name: Image size
-        run: docker image inspect dbbm:ci --format '{{.Size}}' | awk '{ printf "Image size: %.0f MB
+        run: |
+          docker image inspect dbbm:ci --format '{{.Size}}' | awk '{ printf "Image size: %.0f MB
 ", $1 / 1000000 }'
       # Scan the built image for known vulnerabilities in OS packages and Python libraries.
       - name: Trivy image scan
