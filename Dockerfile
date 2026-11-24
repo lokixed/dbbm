@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # ---- Stage 1: build the frontend ----
-FROM node:22-slim AS frontend
+# The build output is plain files, so it runs on the build machine and is not compiled per target.
+FROM --platform=$BUILDPLATFORM node:22-slim AS frontend
 WORKDIR /frontend
 RUN corepack enable
 # Manifests first so the dependency layer is cached until they change.
@@ -11,21 +12,33 @@ COPY frontend/ ./
 RUN yarn build
 
 # ---- Stage 2: age, built with a current Go toolchain ----
-FROM golang:1.27.3-trixie AS age
+# Runs on the build machine's own architecture and cross-compiles for the target, so the arm64 image
+# does not compile under emulation.
+FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie AS age
+ARG TARGETOS
+ARG TARGETARCH
 ARG AGE_VERSION=v1.3.2
-RUN GOBIN=/out CGO_ENABLED=0 go install -trimpath     filippo.io/age/cmd/age@${AGE_VERSION} filippo.io/age/cmd/age-keygen@${AGE_VERSION}
+WORKDIR /src
+RUN go mod init dbbm-age \
+    && go get "filippo.io/age@${AGE_VERSION}" \
+    && for tool in age age-keygen; do \
+        CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -trimpath \
+            -o "/out/${tool}" "filippo.io/age/cmd/${tool}" || exit 1; \
+    done
 
 # ---- Stage 3: mongodump and mongorestore, built with patched dependencies ----
 # MongoDB's prebuilt release binaries embed golang.org/x/net v0.61.0 (CVE-2026-78661). Build the
 # same pinned release from source with the fixed x/net and a current Go toolchain.
-FROM golang:1.27.3-trixie AS mongotools
+FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie AS mongotools
+ARG TARGETOS
+ARG TARGETARCH
 ARG MONGO_TOOLS_VERSION=100.20.1
 ARG XNET_VERSION=v0.62.0
 RUN git clone --depth 1 --branch "${MONGO_TOOLS_VERSION}" https://github.com/mongodb/mongo-tools /src
 WORKDIR /src
 RUN go get "golang.org/x/net@${XNET_VERSION}" \
     && for tool in mongodump mongorestore; do \
-        CGO_ENABLED=0 go build -mod=mod -trimpath \
+        CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -mod=mod -trimpath \
             -ldflags "-s -w -X main.VersionStr=${MONGO_TOOLS_VERSION} -X main.GitCommit=source" \
             -o "/out/${tool}" "./${tool}/main" || exit 1; \
     done
