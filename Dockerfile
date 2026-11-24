@@ -24,9 +24,11 @@ ARG XNET_VERSION=v0.62.0
 RUN git clone --depth 1 --branch "${MONGO_TOOLS_VERSION}" https://github.com/mongodb/mongo-tools /src
 WORKDIR /src
 RUN go get "golang.org/x/net@${XNET_VERSION}" \
-    && CGO_ENABLED=0 go build -mod=mod -trimpath \
-        -ldflags "-s -w -X main.VersionStr=${MONGO_TOOLS_VERSION} -X main.GitCommit=source" \
-        -o /out/ ./mongodump ./mongorestore
+    && for tool in mongodump mongorestore; do \
+        CGO_ENABLED=0 go build -mod=mod -trimpath \
+            -ldflags "-s -w -X main.VersionStr=${MONGO_TOOLS_VERSION} -X main.GitCommit=source" \
+            -o "/out/${tool}" "./${tool}/main" || exit 1; \
+    done
 
 # ---- Stage 4: runtime ----
 FROM python:3.12-slim AS runtime
