@@ -96,7 +96,7 @@ MongoDB: the connection string and password go to `mongodump` through a temporar
 
 Firestore needs, in your Google Cloud project: billing enabled; the Cloud Firestore API enabled; a Cloud Storage staging bucket in the same location as the database; a service account with `roles/datastore.importExportAdmin` plus read/write on the bucket (and delete permission if you let the app remove the staging export); and ideally a bucket lifecycle rule (for example delete after 1 to 7 days) so failed or cancelled exports do not accumulate cost. Exports can take a long time and incur read charges; raise the job timeout for large databases (it applies to each step). If deleting the staging export fails, the run still succeeds and shows a warning. The service-account key is used only to request a short-lived access token and is never written to disk. Large exports are downloaded and uploaded one file at a time, and failed calls are retried a few times.
 
-Image size: MongoDB tools plus the Google Cloud CLI add about 1.1 GB and rclone about 70 MB, so the image is roughly 1.9 GB.
+Image size: earlier builds carried the Google Cloud CLI, about 1.1 GB of a roughly 1.9 GB image. Firestore now uses Google's REST APIs and the CLI is gone, so the image is about that much smaller (check with `docker images dbbm`).
 
 The image bundles the official MySQL 8.4 client and the PostgreSQL 18 client. `pg_dump` must be at least as new as the server it backs up; otherwise the run fails early and tells you which version to build with (`docker build --build-arg PG_MAJOR=<n> .`). Backups are not encrypted yet. Restoring is done by hand for now; see [dev/README.md](dev/README.md).
 
