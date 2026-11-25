@@ -91,6 +91,19 @@ html[data-theme="dark"] {
   color: rgb(var(--color-app-primary-text));
 }
 
+/* Destructive buttons (the library's `danger` Button variant, which ConfirmDialog uses for delete
+   and log out) are solid red with white text in both themes, instead of the library's pale red
+   outline. The class pair below is unique to that variant; Alert and Chip use other red classes. */
+button.bg-red-500\/10.border-red-500\/30 {
+  background-color: theme("colors.red.600");
+  border-color: theme("colors.red.600");
+  color: #fff;
+}
+button.bg-red-500\/10.border-red-500\/30:hover:not(:disabled) {
+  background-color: theme("colors.red.700");
+  border-color: theme("colors.red.700");
+}
+
 /* A table inside a card would draw a second border next to the card's own, so drop it. */
 .bg-app-card.border .overflow-x-auto.border {
   border-width: 0;
