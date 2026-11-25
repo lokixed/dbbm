@@ -278,7 +278,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
         Need help setting up {CHANNEL_TYPE_NAME[type]}?{" "}
         <a
           className="underline"
-          href={`/docs#${type}`}
+          href={`/docs/notifications#${type}`}
           target="_blank"
           rel="noopener noreferrer"
         >

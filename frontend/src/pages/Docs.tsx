@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, type ElementType } from "react";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import AppBar from "xedonium/AppBar";
 import ButtonLink from "xedonium/ButtonLink";
 import Chip from "xedonium/Chip";
@@ -8,12 +8,36 @@ import Flex from "xedonium/Flex";
 import Markdown from "xedonium/Markdown";
 import Sidebar from "xedonium/Sidebar";
 import type { SidebarItem } from "xedonium/Sidebar";
+import DatabaseIcon from "xedonium/icons/Database";
+import DownloadIcon from "xedonium/icons/Download";
+import RocketIcon from "xedonium/icons/Rocket";
+import BellIcon from "xedonium/icons/Bell";
+import RotateCcwIcon from "xedonium/icons/RotateCcw";
+import KeyRoundIcon from "xedonium/icons/KeyRound";
+import ShieldCheckIcon from "xedonium/icons/ShieldCheck";
+import SettingsIcon from "xedonium/icons/Settings";
+import WrenchIcon from "xedonium/icons/Wrench";
 import { useMe } from "@/api/auth";
 import { AppVersion } from "@/components/AppVersion";
 import { Logo } from "@/components/Logo";
 
 // Public page: no sign-in required, and only xedonium components. The text mirrors README.md,
 // docs/OPERATIONS.md and docs/SECURITY.md; keep them in sync when those change.
+
+// One icon per section, all in the app blue. Tints use opacity so they work in both themes.
+type Accent = { icon: ElementType; banner: string; badge: string; heading: string };
+
+const ACCENTS: Record<string, Accent> = {
+  features: { icon: DatabaseIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  install: { icon: DownloadIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  "first-backup": { icon: RocketIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  notifications: { icon: BellIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  restore: { icon: RotateCcwIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  encryption: { icon: KeyRoundIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  security: { icon: ShieldCheckIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  operations: { icon: SettingsIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+  troubleshooting: { icon: WrenchIcon, banner: "bg-app-strong/10", badge: "bg-app-strong/20 text-app-strong", heading: "[&_h3]:text-app-strong" },
+};
 
 const SECTIONS: { id: string; label: string; body: string }[] = [
   {
@@ -387,22 +411,26 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   ...SECTIONS.map((section) => ({
     key: section.id,
     label: section.label,
-    href: `#${section.id}`,
+    href: `/docs/${section.id}`,
   })),
 ];
-
-function jumpTo(id: string) {
-  window.location.hash = id;
-}
 
 export default function DocsPage() {
   // Only the top-right button depends on this; a 401 here is expected and does not redirect.
   const me = useMe();
+  const { section: sectionId } = useParams();
   const { hash } = useLocation();
-  // The page's own content is rendered after load, so the browser cannot scroll to a #link by itself.
+  // The text is rendered after load, so the browser cannot scroll to a #heading link by itself.
   useEffect(() => {
     if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
-  }, [hash]);
+  }, [hash, sectionId]);
+  const index = SECTIONS.findIndex((section) => section.id === sectionId);
+  if (index < 0) return <Navigate to={`/docs/${SECTIONS[0].id}`} replace />;
+  const current = SECTIONS[index];
+  const accent = ACCENTS[current.id];
+  const AccentIcon = accent.icon;
+  const previous = SECTIONS[index - 1];
+  const next = SECTIONS[index + 1];
   return (
     <Flex direction="column" className="min-h-screen bg-app-bg text-app-text">
       <AppBar
@@ -425,7 +453,10 @@ export default function DocsPage() {
           <Container as="aside" className="sticky top-20 hidden shrink-0 !mx-0 !w-52 !px-0 lg:block">
             <Sidebar
               items={SIDEBAR_ITEMS}
-              label="On this page"
+              activeKey={current.id}
+              linkComponent={Link}
+              linkProp="to"
+              label="Docs"
               bordered={false}
               width="w-full"
               textCase="none"
@@ -433,19 +464,51 @@ export default function DocsPage() {
             />
           </Container>
           <Container as="main" className="min-w-0 flex-1 !mx-0 !w-auto !px-0">
-            <Markdown>{INTRO}</Markdown>
+            {index === 0 && (
+              <Container className="!mx-0 !w-auto bg-app-strong/10 !px-6 py-4">
+                <Markdown>{INTRO}</Markdown>
+              </Container>
+            )}
             <Flex wrap gap={2} className="py-4 lg:hidden">
               {SECTIONS.map((section) => (
-                <Chip key={section.id} onClick={() => jumpTo(section.id)}>
-                  {section.label}
-                </Chip>
+                <Link key={section.id} to={`/docs/${section.id}`}>
+                  <Chip>{section.label}</Chip>
+                </Link>
               ))}
             </Flex>
-            {SECTIONS.map((section) => (
-              <Container as="section" key={section.id} className="py-6 [&_h2]:scroll-mt-20">
-                <Markdown>{section.body}</Markdown>
-              </Container>
-            ))}
+            <Flex
+              align="center"
+              gap={3}
+              className={`mt-4 px-4 py-3 ${accent.banner}`}
+            >
+              <span className={`flex h-9 w-9 items-center justify-center ${accent.badge}`}>
+                <AccentIcon className="h-5 w-5" />
+              </span>
+              <span className="font-semibold">{current.label}</span>
+              <span className={`ml-auto px-2 py-0.5 text-xs font-medium ${accent.badge}`}>
+                {index + 1} / {SECTIONS.length}
+              </span>
+            </Flex>
+            <Container
+              as="section"
+              className={`py-6 [&_a]:text-app-strong [&_h2]:sr-only [&_h3]:scroll-mt-20 [&_strong]:text-app-text ${accent.heading}`}
+            >
+              <Markdown>{current.body}</Markdown>
+            </Container>
+            <Flex justify="between" gap={4} className="pb-6">
+              {previous ? (
+                <ButtonLink href={`/docs/${previous.id}`} linkComponent={Link} linkProp="to">
+                  {`← ${previous.label}`}
+                </ButtonLink>
+              ) : (
+                <span />
+              )}
+              {next && (
+                <ButtonLink href={`/docs/${next.id}`} linkComponent={Link} linkProp="to">
+                  {`${next.label} →`}
+                </ButtonLink>
+              )}
+            </Flex>
             <Markdown>{`---\n\n${FOOTER}`}</Markdown>
             <AppVersion className="block pb-4 text-app-muted" />
           </Container>

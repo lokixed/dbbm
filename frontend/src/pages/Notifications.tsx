@@ -69,6 +69,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
   return (
     <Card
       title={`Delivery events: ${channel.name}`}
+      padded={false}
       actions={
         <Button variant="flat" onClick={onClose}>
           Close

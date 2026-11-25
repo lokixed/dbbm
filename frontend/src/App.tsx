@@ -56,6 +56,7 @@ export default function App() {
             <RouteTitle />
             <Routes>
               <Route path="/docs" element={<DocsPage />} />
+              <Route path="/docs/:section" element={<DocsPage />} />
               <Route path="/about" element={<Navigate to="/docs" replace />} />
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/login" element={<LoginPage />} />
