@@ -37,22 +37,21 @@ One workflow, `.github/workflows/ci-cd.yml` ("CI/CD"), runs as a single chain:
 changes -> security -> backend + frontend -> docker -> release -> pages + hub
 ```
 
-The first job (`changes`) lists the files a push or pull request touched. Each later stage runs
-only when its files changed and is skipped otherwise, and a failure stops every stage after it. Pull
-requests run the checks but never publish.
+The first job (`changes`) lists the files a push or pull request touched. The checks and the image
+build run only when their files changed and are skipped otherwise. Release, pages and hub run on
+every push to `main`, whatever changed. A failure stops every stage after it. Pull requests run the
+checks but never publish.
 
 | Changed files | Runs |
 |---|---|
-| `backend/`, `scripts/` | backend tests, image build and tests, security checks |
-| `frontend/` | frontend checks, image build and tests, security checks |
-| `Dockerfile`, `.dockerignore` | image build and tests, security checks |
-| `site/` | the GitHub Pages deploy only |
-| `docs/DOCKERHUB.md` | the Docker Hub description only |
-| other docs (`README.md`, `CHANGELOG.md`, ...) | nothing |
-| `.github/workflows/ci-cd.yml` | everything except publishing an image (the Pages deploy and Docker Hub description run) |
+| `backend/`, `scripts/` | backend tests, image build and tests, security checks, then publish |
+| `frontend/` | frontend checks, image build and tests, security checks, then publish |
+| `Dockerfile`, `.dockerignore` | image build and tests, security checks, then publish |
+| anything else (`site/`, `docs/`, `README.md`, ...) | publish only |
+| `.github/workflows/ci-cd.yml` | everything |
 
-Only changes to what goes into the image (`backend/`, `frontend/`, `Dockerfile`, `.dockerignore`,
-the install scripts) publish an image. A manual run, a new branch or a force push runs everything.
+"Publish" is release (image tags and, when the commits call for it, a new version), the GitHub Pages
+deploy and the Docker Hub description. A manual run, a new branch or a force push runs everything.
 A failed GitHub Pages deploy or Docker Hub description update fails the run.
 
 ## Commit messages
