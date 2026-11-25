@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
-import Card from "xedonium/Card";
 import PageHeader from "xedonium/PageHeader";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
@@ -13,7 +12,7 @@ import type { SourceRecord } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SourceDialog } from "@/components/sources/SourceDialog";
-import { StatusBadge } from "@/components/StatusBadge";
+import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 import { SOURCE_TYPES } from "@/lib/sourceForm";
@@ -63,6 +62,7 @@ export default function SourcesPage() {
     { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
     { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => typeLabel(source.type) },
     { key: "status", sortable: true, accessor: (s) => (s.last_test ? (s.last_test.ok ? "OK" : "Failed") : "Never tested"), header: "Status", render: (source) => <StatusBadge lastTest={source.last_test} /> },
+    { key: "tested", sortable: true, accessor: (s) => s.last_test?.at ?? "", header: "Last tested", render: (s) => <LastTested lastTest={s.last_test} /> },
     {
       key: "actions",
       header: "Actions",
@@ -91,29 +91,29 @@ export default function SourcesPage() {
         </Button>
       </PageHeader>
 
-      <Card padded={false}>
-        {sources.isPending && <LogoLoader />}
-        {sources.isError && (
-          <Alert tone="danger">
-            <div className="flex items-center justify-between gap-4">
-              <span>Could not load sources: {sources.error.message}</span>
-              <Button variant="secondary" onClick={() => void sources.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        )}
-        {sources.isSuccess && (
-          <DataGrid
-            columns={columns}
-            density="compact"
-            pageSize={25}
-            hideFooterWhenSinglePage
-            rows={sources.data}
-            empty="No sources yet. Add a database to get started."
-          />
-        )}
-      </Card>
+      {sources.isPending && <LogoLoader />}
+      {sources.isError && (
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load sources: {sources.error.message}</span>
+            <Button variant="secondary" onClick={() => void sources.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {sources.isSuccess && (
+        <DataGrid
+          columns={columns}
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          searchable
+          hideFooterWhenSinglePage
+          rows={sources.data}
+          empty="No sources yet. Add a database to get started."
+        />
+      )}
 
       <SourceDialog open={editor.open} source={editor.source} onClose={closeEditor} />
       <ConfirmDialog

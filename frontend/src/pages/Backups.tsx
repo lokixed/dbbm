@@ -1,23 +1,27 @@
-import { useMemo, useState } from "react";
+import { DestinationLabel } from "@/components/DestinationIcon";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
+import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
+import Drawer from "xedonium/Drawer";
 import Input from "xedonium/Input";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
-import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
+import CopyIcon from "xedonium/icons/Copy";
 import DownloadIcon from "xedonium/icons/Download";
+import FilterIcon from "xedonium/icons/Filter";
+import SearchIcon from "xedonium/icons/Search";
 import RefreshCwIcon from "xedonium/icons/RefreshCw";
 import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import ShieldCheckIcon from "xedonium/icons/ShieldCheck";
 import Trash2Icon from "xedonium/icons/Trash2";
-import RelativeTime from "xedonium/RelativeTime";
+import RelativeTime, { formatRelative } from "xedonium/RelativeTime";
 import {
-  PAGE_SIZE,
   requestDownloadLink,
   useBackups,
   useDeleteBackup,
@@ -32,24 +36,20 @@ import { useSources } from "@/api/sources";
 import { RowMenu } from "@/components/RowMenu";
 import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { CopyHash } from "@/components/CopyHash";
 import { useToast } from "@/components/toast";
+import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
-import { formatBytes, formatTime } from "@/lib/format";
+import { formatBytes } from "@/lib/format";
 
 const EMPTY: BackupFilters = {
   jobId: "",
   sourceId: "",
   destinationId: "",
-  database: "",
+  search: "",
   status: "",
   from: "",
   to: "",
 };
-
-function monthOf(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long" });
-}
 
 function CopyStatus({ backup }: { backup: Backup }) {
   if (backup.missing) {
@@ -67,7 +67,7 @@ function CopyStatus({ backup }: { backup: Backup }) {
     </Tooltip>
   ) : null;
   const title = backup.verified_at
-    ? `Re-verified ${formatTime(backup.verified_at)}`
+    ? `Re-verified ${formatRelative(backup.verified_at)}`
     : "Checked against its checksum when it was stored.";
   return (
     <span className="flex flex-wrap gap-1">
@@ -82,10 +82,12 @@ function CopyStatus({ backup }: { backup: Backup }) {
 export default function BackupsPage() {
   const { toast } = useToast();
   const [filters, setFilters] = useState<BackupFilters>(EMPTY);
-  const [page, setPage] = useState(0);
+  const [draft, setDraft] = useState<BackupFilters>(EMPTY);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Backup | null>(null);
   const [restoring, setRestoring] = useState<Backup | null>(null);
-  const backups = useBackups(filters, page);
+  const backups = useBackups(filters);
   const jobs = useJobs();
   const sources = useSources();
   const destinations = useDestinations();
@@ -93,19 +95,46 @@ export default function BackupsPage() {
   const remove = useDeleteBackup();
   const rescan = useRescanDestination();
 
-  const setFilter = (patch: Partial<BackupFilters>) => {
-    setFilters({ ...filters, ...patch });
-    setPage(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setFilters((current) => (current.search === search ? current : { ...current, search }));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const countActive = (f: BackupFilters) =>
+    (Object.keys(EMPTY) as (keyof BackupFilters)[]).filter((k) => f[k] !== EMPTY[k]).length;
+  const activeCount = countActive({ ...filters, search: "" });
+  const filtersActive = activeCount > 0 || filters.search !== "";
+  const draftActive = countActive({ ...draft, search: "" }) > 0;
+
+  // A job belongs to exactly one source, so the two filters must agree: picking a job selects its
+  // source, picking a different source drops a job that does not belong to it, and the job list
+  // only offers the jobs of the chosen source.
+  const jobChoices = (jobs.data ?? []).filter((j) => !draft.sourceId || j.source.id === draft.sourceId);
+  const pickJob = (jobId: string) => {
+    const job = (jobs.data ?? []).find((j) => j.id === jobId);
+    setDraft({ ...draft, jobId, sourceId: job ? job.source.id : draft.sourceId });
+  };
+  const pickSource = (sourceId: string) => {
+    const job = (jobs.data ?? []).find((j) => j.id === draft.jobId);
+    const keepJob = job !== undefined && (sourceId === "" || job.source.id === sourceId);
+    setDraft({ ...draft, sourceId, jobId: keepJob ? draft.jobId : "" });
   };
 
-  const groups = useMemo(() => {
-    const byKey = new Map<string, Backup[]>();
-    for (const item of backups.data?.items ?? []) {
-      const key = `${item.job_name} · ${monthOf(item.created_at)}`;
-      byKey.set(key, [...(byKey.get(key) ?? []), item]);
-    }
-    return [...byKey.entries()];
-  }, [backups.data]);
+  const openFilters = () => {
+    setDraft(filters);
+    setFiltersOpen(true);
+  };
+  const applyFilters = () => {
+    setFilters(draft);
+    setFiltersOpen(false);
+  };
+  const clearFilters = () => {
+    setFilters(EMPTY);
+    setDraft(EMPTY);
+    setSearch("");
+  };
 
   const onVerify = (backup: Backup) =>
     verify.mutate(backup.id, {
@@ -118,6 +147,13 @@ export default function BackupsPage() {
       onError: (error) =>
         toast({ title: "Could not verify the backup", description: error.message, variant: "error" }),
     });
+
+  const onCopyHash = (backup: Backup) => {
+    navigator.clipboard.writeText(backup.sha256).then(
+      () => toast({ title: "SHA-256 copied", description: backup.sha256, variant: "success" }),
+      () => toast({ title: "Could not copy", description: "Clipboard access was denied.", variant: "error" }),
+    );
+  };
 
   const onDownload = (backup: Backup) => {
     requestDownloadLink(backup.id)
@@ -157,10 +193,12 @@ export default function BackupsPage() {
     });
   };
 
-  const columns: TableColumn<Backup>[] = [
+  const columns: DataGridColumn<Backup>[] = [
     {
       key: "database",
       header: "Database",
+      sortable: true,
+      accessor: (backup) => backup.source_database.toLowerCase(),
       render: (backup) => (
         <Tooltip text="Open the run">
           <Link to={`/runs/${backup.run_id}`} className="font-medium hover:underline">
@@ -170,23 +208,33 @@ export default function BackupsPage() {
       ),
     },
     {
+      key: "destination",
+      header: "Destination",
+      sortable: true,
+      accessor: (backup) => (backup.destination_name ?? "").toLowerCase(),
+      render: (backup) => (
+        <DestinationLabel type={backup.destination_type}>
+          {backup.destination_name ?? "(deleted destination)"}
+        </DestinationLabel>
+      ),
+    },
+    { key: "job", header: "Job", sortable: true, accessor: (backup) => backup.job_name.toLowerCase(), render: (backup) => backup.job_name },
+    {
       key: "created",
       header: "Created",
+      sortable: true,
+      accessor: (backup) => backup.created_at,
       render: (backup) => <span className="whitespace-nowrap"><RelativeTime date={backup.created_at} /></span>,
     },
     {
       key: "size",
       header: "Size",
       align: "right",
+      sortable: true,
+      accessor: (backup) => backup.size_bytes,
       render: (backup) => <span className="whitespace-nowrap">{formatBytes(backup.size_bytes)}</span>,
     },
-    {
-      key: "sha",
-      header: "SHA-256",
-      render: (backup) => <CopyHash value={backup.sha256} />,
-    },
-    { key: "destination", header: "Destination", render: (backup) => backup.destination_name ?? "(deleted)" },
-    { key: "copy", header: "Copy", render: (backup) => <CopyStatus backup={backup} /> },
+    { key: "copy", header: "Status", sortable: true, accessor: (backup) => (backup.missing ? 0 : 1), render: (backup) => <CopyStatus backup={backup} /> },
     {
       key: "actions",
       header: "Actions",
@@ -198,6 +246,7 @@ export default function BackupsPage() {
             { key: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => onDownload(backup) },
             { key: "restore", label: "Restore", icon: <RotateCcwIcon className="h-4 w-4" />, disabled: backup.missing, hasDialog: true, onClick: () => setRestoring(backup) },
             { key: "verify", label: "Verify now", icon: <ShieldCheckIcon className="h-4 w-4" />, disabled: verify.isPending && verify.variables === backup.id, onClick: () => onVerify(backup) },
+            { key: "copy-hash", label: "Copy SHA-256", icon: <CopyIcon className="h-4 w-4" />, onClick: () => onCopyHash(backup) },
             { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setPendingDelete(backup) },
           ]}
         />
@@ -206,7 +255,6 @@ export default function BackupsPage() {
   ];
 
   const total = backups.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
@@ -215,83 +263,126 @@ export default function BackupsPage() {
         subtitle="Every stored backup file, by job and month. Download, re-check or delete a copy."
       />
 
-      <div className="filter-bar flex flex-wrap items-end gap-3">
-        <div className="w-full sm:w-48">
-          <Select
-          aria-label="Filter by job"
-                    value={filters.jobId}
-          onChange={(jobId) => setFilter({ jobId })}
-          options={[{ value: "", label: "All jobs" }, ...(jobs.data ?? []).map((j) => ({ value: j.id, label: j.name }))]}
-        />
-        </div>
-        <div className="w-full sm:w-48">
-          <Select
-          aria-label="Filter by source"
-                    value={filters.sourceId}
-          onChange={(sourceId) => setFilter({ sourceId })}
-          options={[
-            { value: "", label: "All sources" },
-            ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name })),
-          ]}
-        />
-        </div>
-        <div className="w-full sm:w-48">
-          <Select
-          aria-label="Filter by destination"
-                    value={filters.destinationId}
-          onChange={(destinationId) => setFilter({ destinationId })}
-          options={[
-            { value: "", label: "All destinations" },
-            ...(destinations.data ?? []).map((d) => ({ value: d.id, label: d.name })),
-          ]}
-        />
-        </div>
-        <div className="w-full sm:w-44">
+      <div className="flex flex-wrap items-stretch gap-2">
+        <div className="w-full sm:w-64">
           <Input
-          aria-label="Filter by database"
-                    placeholder="Database name"
-          value={filters.database}
-          onChange={(database) => setFilter({ database })}
-        />
+            aria-label="Search backups by database, destination or job"
+            placeholder="Search database, destination or job"
+            value={search}
+            onChange={setSearch}
+            clearable
+            startAdornment={<SearchIcon className="h-4 w-4" />}
+          />
         </div>
-        <div className="w-full sm:w-40">
-          <Select
-          aria-label="Filter by status"
-                    value={filters.status}
-          onChange={(status) => setFilter({ status: status as BackupFilters["status"] })}
-          options={[
-            { value: "", label: "Any status" },
-            { value: "ok", label: "Present" },
-            { value: "missing", label: "Missing" },
-          ]}
-        />
+        <div className="flex flex-wrap items-stretch gap-2 sm:ml-auto">
+          <Button variant="secondary" className="!h-auto" onClick={openFilters}>
+            <FilterIcon className="mr-2 h-4 w-4" />
+            Filters
+            {activeCount > 0 && <Badge badgeContent={String(activeCount)} color="default" className="ml-2" />}
+          </Button>
+          {filtersActive && (
+            <Button variant="flat" className="!h-auto" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            className="!h-auto"
+            onClick={onRescan}
+            disabled={!filters.destinationId || rescan.isPending}
+            tooltip={
+              filters.destinationId
+                ? "Checks that every backup file recorded for this destination still exists there, and flags the ones that are gone as Missing. Nothing is deleted or downloaded."
+                : "Filter by a destination first. Rescan checks that its recorded backup files still exist and flags the missing ones."
+            }
+          >
+            <RefreshCwIcon className="mr-2 h-4 w-4" />
+            Rescan destination
+          </Button>
         </div>
-        <div className="w-full sm:w-40">
-          <Input
-          aria-label="From date"
-          type="date"
-                    value={filters.from}
-          onChange={(from) => setFilter({ from })}
-        />
-        </div>
-        <div className="w-full sm:w-40">
-          <Input
-          aria-label="To date"
-          type="date"
-                    value={filters.to}
-          onChange={(to) => setFilter({ to })}
-        />
-        </div>
-        <Button
-          variant="secondary"
-          onClick={onRescan}
-          disabled={!filters.destinationId || rescan.isPending}
-          tooltip={filters.destinationId ? undefined : "Choose a destination to rescan it"}
-        >
-          <RefreshCwIcon className="mr-2 h-4 w-4" />
-          Rescan destination
-        </Button>
       </div>
+
+      <Drawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filter backups"
+        side="right"
+        width="max-w-sm"
+        animated
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button variant="flat" onClick={() => setDraft({ ...EMPTY, search: draft.search })} disabled={!draftActive}>
+              Reset
+            </Button>
+            <Button onClick={applyFilters}>Apply</Button>
+          </div>
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyFilters();
+          }}
+        >
+          <FilterCell label="Job">
+            <Select
+              aria-label="Filter by job"
+              value={draft.jobId}
+              onChange={pickJob}
+              options={[
+                { value: "", label: "All jobs" },
+                ...jobChoices.map((j) => ({ value: j.id, label: j.name })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Source">
+            <Select
+              aria-label="Filter by source"
+              value={draft.sourceId}
+              onChange={pickSource}
+              options={[
+                { value: "", label: "All sources" },
+                ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Destination">
+            <Select
+              aria-label="Filter by destination"
+              value={draft.destinationId}
+              onChange={(destinationId) => setDraft({ ...draft, destinationId })}
+              options={[
+                { value: "", label: "All destinations" },
+                ...(destinations.data ?? []).map((d) => ({
+                  value: d.id,
+                  label: <DestinationLabel type={d.type}>{d.name}</DestinationLabel>,
+                })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Status">
+            <Select
+              aria-label="Filter by status"
+              value={draft.status}
+              onChange={(status) => setDraft({ ...draft, status: status as BackupFilters["status"] })}
+              options={[
+                { value: "", label: "Any status" },
+                { value: "ok", label: "Present" },
+                { value: "missing", label: "Missing" },
+              ]}
+            />
+          </FilterCell>
+          <div className="grid grid-cols-2 gap-3">
+            <FilterCell label="From">
+              <Input aria-label="From date" type="date" value={draft.from} onChange={(from) => setDraft({ ...draft, from })} />
+            </FilterCell>
+            <FilterCell label="To">
+              <Input aria-label="To date" type="date" value={draft.to} onChange={(to) => setDraft({ ...draft, to })} />
+            </FilterCell>
+          </div>
+        </form>
+      </Drawer>
 
       {backups.isPending && <LogoLoader />}
       {backups.isError && (
@@ -310,32 +401,17 @@ export default function BackupsPage() {
         </Card>
       )}
 
-      {groups.map(([title, items]) => (
-        <Card key={title} title={title} headingLevel={2} padded={false}>
-          <Table
-            compact
-            columns={columns}
-            rows={items}
-            rowProps={(backup) => ({ className: backup.missing ? "bg-red-500/5" : undefined })}
-          />
-        </Card>
-      ))}
-
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-app-muted">
-          <span>
-            Page {page + 1} of {pages} ({total} backups)
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              Previous
-            </Button>
-            <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>
-              Next
-            </Button>
-          </div>
-        </div>
+      {(backups.data?.items.length ?? 0) > 0 && (
+        <DataGrid
+          columns={columns}
+          rows={backups.data?.items ?? []}
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          hideFooterWhenSinglePage
+        />
       )}
+
 
       <RestoreWizard backup={restoring} onClose={() => setRestoring(null)} />
 

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import { fetchAllPages, MAX_API_PAGE } from "./fetchAll";
 import type {
   ChannelInput,
   ChannelRecord,
@@ -9,10 +10,8 @@ import type {
 
 export const channelKeys = {
   all: ["notifications"] as const,
-  events: (id: string, page: number) => ["notifications", "events", id, page] as const,
+  events: (id: string) => ["notifications", "events", id] as const,
 };
-
-export const EVENTS_PAGE_SIZE = 20;
 
 export function useChannels() {
   return useQuery({ queryKey: channelKeys.all, queryFn: () => api<ChannelRecord[]>("/api/notifications") });
@@ -67,12 +66,12 @@ export function useTestChannelDraft() {
   });
 }
 
-export function useChannelEvents(id: string | null, page: number) {
+export function useChannelEvents(id: string | null) {
   return useQuery({
-    queryKey: channelKeys.events(id ?? "", page),
+    queryKey: channelKeys.events(id ?? ""),
     queryFn: () =>
-      api<NotificationEventPage>(
-        `/api/notifications/${id}/events?limit=${EVENTS_PAGE_SIZE}&offset=${page * EVENTS_PAGE_SIZE}`,
+      fetchAllPages((offset) =>
+        api<NotificationEventPage>(`/api/notifications/${id}/events?limit=${MAX_API_PAGE}&offset=${offset}`),
       ),
     enabled: id !== null,
     placeholderData: keepPreviousData,

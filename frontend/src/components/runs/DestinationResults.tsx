@@ -1,3 +1,4 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import { Link } from "react-router-dom";
 import Badge, { type BadgeColor } from "xedonium/Badge";
 import Table, { type TableColumn } from "xedonium/Table";
@@ -30,14 +31,7 @@ const COLUMNS: TableColumn<Row>[] = [
     key: "destination",
     header: "Destination",
     render: ({ outcome }) => (
-      <>
-        {outcome.destination_name ?? "-"}
-        {outcome.type && (
-          <span className="ml-1 text-xs text-app-muted">
-            ({outcome.type === "gdrive" ? "Google Drive" : "local"})
-          </span>
-        )}
-      </>
+      <DestinationLabel type={outcome.type}>{outcome.destination_name ?? "-"}</DestinationLabel>
     ),
   },
   {

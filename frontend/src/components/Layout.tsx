@@ -6,6 +6,7 @@ import Sidebar, { type SidebarItem } from "xedonium/Sidebar";
 import { useTheme } from "xedonium/theme";
 import ArchiveIcon from "xedonium/icons/Archive";
 import BellIcon from "xedonium/icons/Bell";
+import BookOpenIcon from "xedonium/icons/BookOpen";
 import CalendarClockIcon from "xedonium/icons/CalendarClock";
 import DatabaseIcon from "xedonium/icons/Database";
 import HardDriveIcon from "xedonium/icons/HardDrive";
@@ -32,6 +33,7 @@ const NAV_ITEMS: SidebarItem[] = [
   { key: "/notifications", label: "Notifications", href: "/notifications", icon: <BellIcon className="h-4 w-4" /> },
   { key: "/audit", label: "Audit log", href: "/audit", icon: <FileTextIcon className="h-4 w-4" /> },
   { key: "/settings", label: "Settings", href: "/settings", icon: <SettingsIcon className="h-4 w-4" /> },
+  { key: "/docs", label: "Docs", href: "/docs", icon: <BookOpenIcon className="h-4 w-4" /> },
 ];
 
 function activeKey(pathname: string): string {

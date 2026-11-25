@@ -1,3 +1,4 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import Alert from "xedonium/Alert";
 import HelperText from "xedonium/HelperText";
 import AlertTriangleIcon from "xedonium/icons/AlertTriangle";
@@ -104,7 +105,9 @@ function Destination({ outcome }: { outcome: DestinationOutcome }) {
       <StatusIcon status={outcome.status} />
       <div className="min-w-0">
         <p>
-          <span className="font-medium">{outcome.destination_name ?? "Destination"}</span>
+          <DestinationLabel type={outcome.type} className="font-medium">
+            {outcome.destination_name ?? "Destination"}
+          </DestinationLabel>
           {outcome.status === "skipped" && !outcome.error && (
             <span className="ml-2 text-app-muted">skipped because the dump failed</span>
           )}

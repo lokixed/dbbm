@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
-import Card from "xedonium/Card";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -128,16 +127,27 @@ export default function JobsPage() {
         job.next_run_at ? <RelativeTime date={job.next_run_at} /> : <span className="text-app-muted">-</span>,
     },
     {
+      key: "last-status", sortable: true, accessor: (job) => job.last_run?.status ?? "",
+      header: "Last status",
+      render: (job) =>
+        job.last_run ? (
+          <Link to={`/runs/${job.last_run.id}`} className="inline-flex hover:opacity-80">
+            <RunStatusBadge status={job.last_run.status} />
+          </Link>
+        ) : (
+          <RunStatusBadge status={null} />
+        ),
+    },
+    {
       key: "last", sortable: true, accessor: (job) => job.last_run?.created_at ?? "",
       header: "Last run",
       render: (job) =>
         job.last_run ? (
-          <Link to={`/runs/${job.last_run.id}`} className="inline-flex items-center gap-2 hover:underline">
-            <RunStatusBadge status={job.last_run.status} />
-            <span className="whitespace-nowrap text-xs text-app-muted"><RelativeTime date={job.last_run.created_at} /></span>
+          <Link to={`/runs/${job.last_run.id}`} className="whitespace-nowrap hover:underline">
+            <RelativeTime date={job.last_run.created_at} />
           </Link>
         ) : (
-          <RunStatusBadge status={null} />
+          <span className="text-app-muted">-</span>
         ),
     },
     {
@@ -169,29 +179,29 @@ export default function JobsPage() {
         </Button>
       </PageHeader>
 
-      <Card padded={false}>
-        {jobs.isPending && <LogoLoader />}
-        {jobs.isError && (
-          <Alert tone="danger">
-            <div className="flex items-center justify-between gap-4">
-              <span>Could not load jobs: {jobs.error.message}</span>
-              <Button variant="secondary" onClick={() => void jobs.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        )}
-        {jobs.isSuccess && (
-          <DataGrid
-            density="compact"
-            pageSize={25}
-            hideFooterWhenSinglePage
-            columns={columns}
-            rows={jobs.data}
-            empty="No jobs yet. Add a source and a destination, then create a job to back them up."
-          />
-        )}
-      </Card>
+      {jobs.isPending && <LogoLoader />}
+      {jobs.isError && (
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load jobs: {jobs.error.message}</span>
+            <Button variant="secondary" onClick={() => void jobs.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {jobs.isSuccess && (
+        <DataGrid
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          searchable
+          hideFooterWhenSinglePage
+          columns={columns}
+          rows={jobs.data}
+          empty="No jobs yet. Add a source and a destination, then create a job to back them up."
+        />
+      )}
 
       <JobDialog
         open={editor.open}

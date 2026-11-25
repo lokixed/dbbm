@@ -12,7 +12,7 @@ interface TestResultPanelProps {
 }
 
 export function TestResultPanel({ pending, result, error }: TestResultPanelProps) {
-  if (pending) return <Loader variant="dots" label="Testing connection..." />;
+  if (pending) return <Loader variant="dots" label="Testing connection" />;
   if (error) return <Alert tone="danger">{error}</Alert>;
   if (!result) return null;
 

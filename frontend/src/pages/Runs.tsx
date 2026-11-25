@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
-import Card from "xedonium/Card";
-import HelperText from "xedonium/HelperText";
+import Badge from "xedonium/Badge";
+import Drawer from "xedonium/Drawer";
+import Input from "xedonium/Input";
+import FilterIcon from "xedonium/icons/Filter";
+import SearchIcon from "xedonium/icons/Search";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -12,6 +15,7 @@ import RelativeTime from "xedonium/RelativeTime";
 import { useJobs } from "@/api/jobs";
 import { useRuns, type RunFilters } from "@/api/runs";
 import type { RunSummary, RunStatus } from "@/api/types";
+import { FilterCell } from "@/components/FilterCell";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatDuration } from "@/lib/format";
@@ -73,19 +77,42 @@ const COLUMNS: DataGridColumn<RunSummary>[] = [
   },
 ];
 
+const EMPTY: RunFilters = { jobId: "", status: "", from: "", to: "" };
+
 export default function RunsPage() {
   const [params, setParams] = useSearchParams();
   const statusParam = params.get("status");
   const [filters, setFilters] = useState<RunFilters>({
-    jobId: "",
+    ...EMPTY,
     status: STATUSES.includes(statusParam as RunStatus) ? (statusParam as RunStatus) : "",
   });
-  const updateFilters = (next: RunFilters) => {
-    setFilters(next);
-    setParams(next.status ? { status: next.status } : {}, { replace: true });
-  };
+  const [draft, setDraft] = useState<RunFilters>(EMPTY);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const runs = useRuns(filters);
   const jobs = useJobs();
+
+  const applyFilters = (next: RunFilters) => {
+    setFilters(next);
+    setParams(next.status ? { status: next.status } : {}, { replace: true });
+    setFiltersOpen(false);
+  };
+  const activeCount = (["jobId", "status", "from", "to"] as const).filter((key) => filters[key] !== "").length;
+  const draftActive = (["jobId", "status", "from", "to"] as const).some((key) => draft[key] !== "");
+  const openFilters = () => {
+    setDraft(filters);
+    setFiltersOpen(true);
+  };
+
+  const needle = query.trim().toLowerCase();
+  const rows = useMemo(
+    () =>
+      (runs.data?.items ?? []).filter(
+        (run) =>
+          needle === "" || [run.job_name, run.trigger, run.status].some((text) => text.toLowerCase().includes(needle)),
+      ),
+    [runs.data, needle],
+  );
 
   return (
     <div className="space-y-6">
@@ -94,58 +121,115 @@ export default function RunsPage() {
         subtitle="History of every backup run. The list refreshes while a run is in progress."
       />
 
-      <div className="flex flex-wrap gap-3">
-        <div className="w-full sm:w-56">
-          <Select
-          aria-label="Filter by job"
-                    value={filters.jobId}
-          onChange={(jobId) => updateFilters({ ...filters, jobId })}
-          options={[
-            { value: "", label: "All jobs" },
-            ...(jobs.data ?? []).map((job) => ({ value: job.id, label: job.name })),
-          ]}
-        />
+      <div className="flex flex-wrap items-stretch gap-2">
+        <div className="w-full sm:w-72">
+          <Input
+            aria-label="Search runs"
+            placeholder="Search job, trigger or status"
+            value={query}
+            onChange={setQuery}
+            clearable
+            startAdornment={<SearchIcon className="h-4 w-4" />}
+          />
         </div>
-        <div className="w-full sm:w-48">
-          <Select
-          aria-label="Filter by status"
-                    value={filters.status}
-          onChange={(status) => updateFilters({ ...filters, status: status as RunStatus | "" })}
-          options={[
-            { value: "", label: "All statuses" },
-            ...STATUSES.map((status) => ({ value: status, label: status })),
-          ]}
-        />
+        <div className="flex flex-wrap items-stretch gap-2 sm:ml-auto">
+          {(activeCount > 0 || query !== "") && (
+            <Button
+              variant="flat"
+              className="!h-auto"
+              onClick={() => {
+                setQuery("");
+                applyFilters(EMPTY);
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+          <Button variant="secondary" className="!h-auto" onClick={openFilters}>
+            <FilterIcon className="mr-2 h-4 w-4" />
+            Filters
+            {activeCount > 0 && <Badge badgeContent={String(activeCount)} color="default" className="ml-2" />}
+          </Button>
         </div>
       </div>
 
-      <Card padded={false}>
-        {runs.isPending && <LogoLoader />}
-        {runs.isError && (
-          <Alert tone="danger">
-            <div className="flex items-center justify-between gap-4">
-              <span>Could not load runs: {runs.error.message}</span>
-              <Button variant="secondary" onClick={() => void runs.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        )}
-        {runs.isSuccess && (
-          <DataGrid
-            density="compact"
-            pageSize={25}
-            hideFooterWhenSinglePage
-            columns={COLUMNS}
-            rows={runs.data.items}
-            empty='No runs match. Start one with "Run now" on the Jobs page.'
-          />
-        )}
-      </Card>
-      {runs.isSuccess && runs.data.total > runs.data.items.length && (
-        <HelperText>
-          Showing the latest {runs.data.items.length} of {runs.data.total} runs.
-        </HelperText>
+      <Drawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filter runs"
+        side="right"
+        width="max-w-sm"
+        animated
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button variant="flat" onClick={() => setDraft(EMPTY)} disabled={!draftActive}>
+              Reset
+            </Button>
+            <Button onClick={() => applyFilters(draft)}>Apply</Button>
+          </div>
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyFilters(draft);
+          }}
+        >
+          <FilterCell label="Job">
+            <Select
+              aria-label="Filter by job"
+              value={draft.jobId}
+              onChange={(jobId) => setDraft({ ...draft, jobId })}
+              options={[
+                { value: "", label: "All jobs" },
+                ...(jobs.data ?? []).map((job) => ({ value: job.id, label: job.name })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Status">
+            <Select
+              aria-label="Filter by status"
+              value={draft.status}
+              onChange={(status) => setDraft({ ...draft, status: status as RunStatus | "" })}
+              options={[
+                { value: "", label: "All statuses" },
+                ...STATUSES.map((status) => ({ value: status, label: status })),
+              ]}
+            />
+          </FilterCell>
+          <div className="grid grid-cols-2 gap-3">
+            <FilterCell label="From">
+              <Input aria-label="From date" type="date" value={draft.from} onChange={(from) => setDraft({ ...draft, from })} />
+            </FilterCell>
+            <FilterCell label="To">
+              <Input aria-label="To date" type="date" value={draft.to} onChange={(to) => setDraft({ ...draft, to })} />
+            </FilterCell>
+          </div>
+        </form>
+      </Drawer>
+
+      {runs.isPending && <LogoLoader />}
+      {runs.isError && (
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load runs: {runs.error.message}</span>
+            <Button variant="secondary" onClick={() => void runs.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {runs.isSuccess && (
+        <DataGrid
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          hideFooterWhenSinglePage
+          columns={COLUMNS}
+          rows={rows}
+          empty='No runs match. Start one with "Run now" on the Jobs page.'
+        />
       )}
     </div>
   );

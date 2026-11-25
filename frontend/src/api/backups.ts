@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import { fetchAllPages, MAX_API_PAGE } from "./fetchAll";
 import type { RunSummary } from "./types";
 
 export interface Backup {
@@ -49,32 +50,31 @@ export interface BackupFilters {
   jobId: string;
   sourceId: string;
   destinationId: string;
-  database: string;
+  search: string;
   status: "" | "ok" | "missing";
   from: string;
   to: string;
 }
 
-export const PAGE_SIZE = 50;
-
 export const backupKeys = { all: ["backups"] as const };
 
-function toParams(filters: BackupFilters, page: number): URLSearchParams {
-  const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
+function toParams(filters: BackupFilters, offset: number): URLSearchParams {
+  const params = new URLSearchParams({ limit: String(MAX_API_PAGE), offset: String(offset) });
   if (filters.jobId) params.set("job_id", filters.jobId);
   if (filters.sourceId) params.set("source_id", filters.sourceId);
   if (filters.destinationId) params.set("destination_id", filters.destinationId);
-  if (filters.database) params.set("database", filters.database);
+  if (filters.search) params.set("q", filters.search);
   if (filters.status) params.set("status", filters.status);
   if (filters.from) params.set("from", new Date(`${filters.from}T00:00:00`).toISOString());
   if (filters.to) params.set("to", new Date(`${filters.to}T23:59:59`).toISOString());
   return params;
 }
 
-export function useBackups(filters: BackupFilters, page: number) {
+export function useBackups(filters: BackupFilters) {
   return useQuery({
-    queryKey: [...backupKeys.all, filters, page],
-    queryFn: () => api<BackupPage>(`/api/backups?${toParams(filters, page).toString()}`),
+    queryKey: [...backupKeys.all, filters],
+    queryFn: () =>
+      fetchAllPages((offset) => api<BackupPage>(`/api/backups?${toParams(filters, offset).toString()}`)),
     placeholderData: (previous) => previous,
   });
 }

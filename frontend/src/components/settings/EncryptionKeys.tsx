@@ -79,7 +79,7 @@ export function EncryptionKeys() {
           recovery key on a second key) somewhere safe before you turn encryption on.
         </Alert>
 
-        {recipients.isPending && <Loader variant="dots" label="Loading keys..." />}
+        {recipients.isPending && <Loader variant="dots" label="Loading keys" />}
         {recipients.isError && <Alert tone="danger">Could not load keys: {recipients.error.message}</Alert>}
         {recipients.isSuccess && (
           <DataGrid

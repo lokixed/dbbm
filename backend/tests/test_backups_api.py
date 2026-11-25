@@ -66,6 +66,10 @@ def test_list_shows_artifacts_with_filters(authed: TestClient) -> None:
 
     assert listing(authed, "?database=shop")["total"] == 1
     assert listing(authed, "?database=nope")["total"] == 0
+    assert listing(authed, "?q=SHO")["total"] == 1  # database, case-insensitive
+    assert listing(authed, "?q=nightly")["total"] == 2  # job name
+    assert listing(authed, "?q=local1")["total"] == 2  # destination name
+    assert listing(authed, "?q=zzz")["total"] == 0
     assert listing(authed, f"?job_id={run['job_id']}")["total"] == 2
     assert listing(authed, f"?destination_id={first['destination_id']}")["total"] == 2
     assert listing(authed, f"?source_id={first['source_id']}")["total"] == 2

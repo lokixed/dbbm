@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
+import { fetchAllPages, MAX_API_PAGE } from "./fetchAll";
 
 export interface AuditEntry {
   id: string;
@@ -27,13 +28,8 @@ export interface AuditFilters {
   to: string;
 }
 
-export const AUDIT_PAGE_SIZE = 50;
-
-function toParams(filters: AuditFilters, page: number): URLSearchParams {
-  const params = new URLSearchParams({
-    limit: String(AUDIT_PAGE_SIZE),
-    offset: String(page * AUDIT_PAGE_SIZE),
-  });
+function toParams(filters: AuditFilters, offset: number): URLSearchParams {
+  const params = new URLSearchParams({ limit: String(MAX_API_PAGE), offset: String(offset) });
   if (filters.action) params.set("action", filters.action);
   if (filters.username.trim()) params.set("username", filters.username.trim());
   if (filters.search.trim()) params.set("search", filters.search.trim());
@@ -42,10 +38,10 @@ function toParams(filters: AuditFilters, page: number): URLSearchParams {
   return params;
 }
 
-export function useAuditLog(filters: AuditFilters, page: number) {
+export function useAuditLog(filters: AuditFilters) {
   return useQuery({
-    queryKey: ["audit", filters, page],
-    queryFn: () => api<AuditPage>(`/api/audit?${toParams(filters, page).toString()}`),
+    queryKey: ["audit", filters],
+    queryFn: () => fetchAllPages((offset) => api<AuditPage>(`/api/audit?${toParams(filters, offset).toString()}`)),
     placeholderData: (previous) => previous,
   });
 }

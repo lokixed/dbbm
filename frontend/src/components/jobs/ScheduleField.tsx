@@ -6,7 +6,7 @@ import Field from "xedonium/Field";
 import Label from "xedonium/Label";
 import Loader from "xedonium/Loader";
 import Select from "xedonium/Select";
-import { formatTime } from "@/lib/format";
+import RelativeTime from "xedonium/RelativeTime";
 import { useDebounced } from "@/lib/useDebounced";
 
 const SCHEDULE_PRESETS = [
@@ -81,7 +81,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
         <div className="text-sm" aria-live="polite">
           <p className="mb-1 font-medium">Next 5 runs</p>
           {(preview.isFetching || debouncedCron !== cron.trim()) && !preview.isError && (
-            <Loader variant="dots" size="sm" label="Calculating..." />
+            <Loader variant="dots" size="sm" label="Calculating" />
           )}
           {preview.isError && !preview.isFetching && <Alert tone="danger">{previewError(preview.error)}</Alert>}
           {preview.isSuccess && !preview.isFetching && (
@@ -89,7 +89,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
               {preview.data.fires.map((fire) => (
                 <li key={fire.utc}>
                   {localWallTime(fire.local)}{" "}
-                  <span className="text-app-muted">- your time {formatTime(fire.utc)}</span>
+                  <span className="text-app-muted">- <RelativeTime date={fire.utc} tooltip /></span>
                 </li>
               ))}
             </ul>

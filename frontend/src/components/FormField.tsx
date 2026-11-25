@@ -11,7 +11,7 @@ interface FormFieldProps {
 
 export function FormField({ id, label, error, hint, children }: FormFieldProps) {
   return (
-    <div className="space-y-1.5">
+    <div className="flex flex-col gap-1">
       <Label htmlFor={id}>{label}</Label>
       {children}
       {hint && !error && <HelperText>{hint}</HelperText>}

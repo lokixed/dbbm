@@ -1,3 +1,4 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
@@ -10,7 +11,7 @@ import Progress from "xedonium/Progress";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import PlayIcon from "xedonium/icons/Play";
-import RelativeTime from "xedonium/RelativeTime";
+import RelativeTime, { formatRelative } from "xedonium/RelativeTime";
 import { useRunJob } from "@/api/jobs";
 import { useDashboard } from "@/api/runs";
 import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
@@ -19,11 +20,11 @@ import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 import { errorClassLabel } from "@/lib/errorClass";
-import { formatBytes, formatTime } from "@/lib/format";
+import { formatBytes } from "@/lib/format";
 
 const HEALTH_COLUMNS: DataGridColumn<DestinationHealth>[] = [
   { key: "name", sortable: true, accessor: (d) => d.name, header: "Destination", render: (d) => <span className="font-medium">{d.name}</span> },
-  { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
+  { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => <DestinationLabel type={d.type} /> },
   {
     key: "last", sortable: true, accessor: (d) => d.last_success_at ?? "",
     header: "Last stored backup",
@@ -47,7 +48,7 @@ function DestinationHealthCard({ destinations }: { destinations: DestinationHeal
   if (destinations.length === 0) return null;
   return (
     <Card title="Destination health" headingLevel={2} padded={false}>
-      <DataGrid density="compact"columns={HEALTH_COLUMNS} rows={destinations} hideFooterWhenSinglePage />
+      <DataGrid density="compact" columns={HEALTH_COLUMNS} rows={destinations} hideFooterWhenSinglePage />
     </Card>
   );
 }
@@ -208,7 +209,7 @@ export default function DashboardPage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex flex-wrap gap-1">
                     {entry.overdue && (
-                      <Tooltip text={entry.overdue_since ? `Since ${formatTime(entry.overdue_since)}` : "Overdue"}>
+                      <Tooltip text={entry.overdue_since ? `Since ${formatRelative(entry.overdue_since)}` : "Overdue"}>
                         <Badge badgeContent="Overdue" color="danger" />
                       </Tooltip>
                     )}

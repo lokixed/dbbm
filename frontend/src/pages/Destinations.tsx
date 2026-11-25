@@ -1,8 +1,8 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
-import Card from "xedonium/Card";
 import PageHeader from "xedonium/PageHeader";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
@@ -15,7 +15,7 @@ import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { DestinationDialog } from "@/components/destinations/DestinationDialog";
-import { StatusBadge } from "@/components/StatusBadge";
+import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 
@@ -93,7 +93,7 @@ export default function DestinationsPage() {
 
   const columns: DataGridColumn<DestinationRecord>[] = [
     { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <span className="font-medium">{d.name}</span> },
-    { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => (d.type === "gdrive" ? "Google Drive" : "Local drive") },
+    { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => <DestinationLabel type={d.type} /> },
     { key: "location", sortable: true, accessor: (d) => location(d), header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
     {
       key: "status", sortable: true, accessor: (d) => (d.last_test ? (d.last_test.ok ? "OK" : "Failed") : "Never tested"),
@@ -105,6 +105,7 @@ export default function DestinationsPage() {
         </div>
       ),
     },
+    { key: "tested", sortable: true, accessor: (d) => d.last_test?.at ?? "", header: "Last tested", render: (d) => <LastTested lastTest={d.last_test} /> },
     {
       key: "actions",
       header: "Actions",
@@ -135,29 +136,29 @@ export default function DestinationsPage() {
 
       <ReauthBanner destinations={needsReauth} onReconnect={reconnect} />
 
-      <Card padded={false}>
-        {destinations.isPending && <LogoLoader />}
-        {destinations.isError && (
-          <Alert tone="danger">
-            <div className="flex items-center justify-between gap-4">
-              <span>Could not load destinations: {destinations.error.message}</span>
-              <Button variant="secondary" onClick={() => void destinations.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        )}
-        {destinations.isSuccess && (
-          <DataGrid
-            columns={columns}
-            density="compact"
-            pageSize={25}
-            hideFooterWhenSinglePage
-            rows={destinations.data}
-            empty="No destinations yet. Add a local folder or a Google Drive folder to store backups."
-          />
-        )}
-      </Card>
+      {destinations.isPending && <LogoLoader />}
+      {destinations.isError && (
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load destinations: {destinations.error.message}</span>
+            <Button variant="secondary" onClick={() => void destinations.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {destinations.isSuccess && (
+        <DataGrid
+          columns={columns}
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          searchable
+          hideFooterWhenSinglePage
+          rows={destinations.data}
+          empty="No destinations yet. Add a local folder or a Google Drive folder to store backups."
+        />
+      )}
 
       <DestinationDialog
         key={`${current.destination?.id ?? "new"}-${current.focusToken}-${current.open}`}

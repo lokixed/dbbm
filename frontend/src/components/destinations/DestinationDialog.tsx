@@ -1,3 +1,4 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -183,8 +184,8 @@ function DestinationForm({
         label="Type"
         disabled={record !== null}
         options={[
-          { value: "local", label: "Local drive" },
-          { value: "gdrive", label: "Google Drive" },
+          { value: "local", label: <DestinationLabel type="local" /> },
+          { value: "gdrive", label: <DestinationLabel type="gdrive" /> },
         ]}
         {...bindText(form, "type")}
       />

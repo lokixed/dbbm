@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import AppBar from "xedonium/AppBar";
 import ButtonLink from "xedonium/ButtonLink";
 import Chip from "xedonium/Chip";
@@ -79,6 +80,92 @@ Passwords, connection URIs and service-account keys are write-only: once saved t
 
 - **MySQL:** \`SELECT\`, \`SHOW VIEW\`, \`TRIGGER\`, \`EVENT\` on the databases, and the global \`SHOW_ROUTINE\` privilege (8.0.20+) if they contain stored routines.
 - **PostgreSQL:** \`CONNECT\` and \`SELECT\` on everything, for example membership in \`pg_read_all_data\`.`,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    body: `## Notifications
+
+Channels tell you when something needs attention. Add them under **Notifications**, then pick the channels on each job (**Notifications** section of the job form). Choose when a job sends with **Notify**: on failure, always, or never; **Notify on recovery** also sends one message when a failing job succeeds again.
+
+Channels also receive system warnings, whichever jobs they are attached to: an overdue job, an expired Google Drive authorization, a failed retention run and low disk space.
+
+- **Send test** in the channel form sends one message with the values on screen, before you save. Nothing is stored for an unsaved test.
+- Each delivery is tried up to 3 times with a short pause. A channel sends at most 20 messages an hour; extra messages are counted and summarised in one later message. Open **Delivery events** on a channel to see every attempt and its error.
+- Webhook URLs, SMTP passwords, HMAC secrets and custom headers are write-only. Once saved they show as "Saved" and are never shown again.
+- Targets on loopback, link-local and private networks are refused. If your webhook or mail server is on a private network, set \`ALLOW_PRIVATE_NOTIFICATION_TARGETS=true\` in \`.env\`.
+
+### Slack
+
+1. In Slack open https://api.slack.com/apps, choose **Create New App > From scratch**, name it \`DBBM\` and pick your workspace.
+2. Open **Incoming Webhooks**, turn **Activate Incoming Webhooks** on, then click **Add New Webhook to Workspace** and choose the channel the messages should go to.
+3. Copy the webhook URL. It looks like \`https://hooks.slack.com/services/T000/B000/XXXX\`.
+4. In DBBM click **Add channel**, set **Type** to Slack, enter a name, paste the URL and click **Send test**, then **Save**.
+
+The URL must be \`https\`. Messages show the job, status, duration, size, any error and a link to the run. To change the destination channel, create a new webhook in Slack and replace the URL.
+
+### Email
+
+1. Get the SMTP details from your mail provider: host, port, security mode, and a username and password (many providers need an app password or an SMTP-only credential, not your normal password).
+2. In DBBM add a channel, set **Type** to Email and fill in **SMTP host**, **Security** and **Port**.
+3. Enter **Username** and **Password** if the server requires sign-in, a **From** address the server accepts, and one or more **To** addresses separated by commas (up to 20).
+4. Click **Send test**, check the mailbox, then **Save**.
+
+| Security | Port | Use it for |
+| --- | --- | --- |
+| STARTTLS | 587 | Most providers. The default. |
+| SSL/TLS | 465 | Providers that use implicit TLS. |
+| None | 25 | An internal relay only. Credentials and mail travel unencrypted, so DBBM shows a warning. |
+
+Choosing a security mode fills in its usual port. Messages are sent as HTML with a plain-text part and a subject starting with \`[DBBM]\`. If the test fails with an authentication error, check that the provider allows SMTP sign-in for that account and that the From address belongs to it.
+
+### Webhook
+
+A webhook posts one JSON document to a URL you control, for example a chat bridge, Zapier, n8n or your own service.
+
+1. Create an endpoint that accepts \`POST\` with \`Content-Type: application/json\` and answers with a \`2xx\` status.
+2. In DBBM add a channel, set **Type** to Webhook and paste the **Webhook URL** (\`http\` or \`https\`; use \`https\` for anything outside your network).
+3. Optional: set an **HMAC secret** so you can check that a request really came from DBBM (see below).
+4. Optional: add up to 10 custom **headers**, for example \`Authorization: Bearer ...\`. Header values are stored encrypted. \`Content-Type\`, \`Host\`, \`Content-Length\` and \`X-Signature-256\` are reserved.
+5. Click **Send test**, then **Save**.
+
+Example body for a finished run:
+
+\`\`\`json
+{
+  "event": "run_finished",
+  "timestamp": "2026-11-25T09:00:12Z",
+  "status": "failed",
+  "title": "Backup nightly failed",
+  "job": { "id": "...", "name": "nightly" },
+  "run": {
+    "id": "...",
+    "status": "failed",
+    "trigger": "schedule",
+    "started_at": "2026-11-25T09:00:00Z",
+    "finished_at": "2026-11-25T09:00:12Z",
+    "duration_seconds": 12,
+    "artifacts": { "count": 0, "total_bytes": 0 },
+    "destinations": [{ "name": "local", "type": "local", "status": "failed", "error": "..." }],
+    "error": "..."
+  },
+  "url": "https://dbbm.example.com/runs/..."
+}
+\`\`\`
+
+\`event\` is one of \`run_finished\`, \`recovery\`, \`overdue\`, \`auth_expired\`, \`retention_failed\`, \`low_disk\` or \`test\`. Other events carry their own fields next to \`event\`, \`timestamp\`, \`status\`, \`title\` and \`url\`.
+
+**Verifying the signature.** With an HMAC secret set, every request has an \`X-Signature-256\` header holding \`sha256=\` and the hex HMAC-SHA256 of the raw request body, keyed with your secret. Compute it over the exact bytes you received and compare in constant time:
+
+\`\`\`python
+import hashlib, hmac
+
+def valid(secret: str, body: bytes, header: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header)
+\`\`\`
+
+Respond within 10 seconds. A non-2xx answer or a timeout counts as a failed attempt and is retried.`,
   },
   {
     id: "restore",
@@ -311,6 +398,11 @@ function jumpTo(id: string) {
 export default function DocsPage() {
   // Only the top-right button depends on this; a 401 here is expected and does not redirect.
   const me = useMe();
+  const { hash } = useLocation();
+  // The page's own content is rendered after load, so the browser cannot scroll to a #link by itself.
+  useEffect(() => {
+    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
+  }, [hash]);
   return (
     <Flex direction="column" className="min-h-screen bg-app-bg text-app-text">
       <AppBar

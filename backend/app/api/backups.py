@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ColumnElement, func, or_
 from sqlmodel import Session, col, select
 from starlette.background import BackgroundTask
 
@@ -116,6 +116,7 @@ def list_backups(
     job_id: uuid.UUID | None = None,
     source_id: uuid.UUID | None = None,
     database: Annotated[str | None, Query(max_length=255)] = None,
+    q: Annotated[str | None, Query(max_length=255)] = None,
     destination_id: uuid.UUID | None = None,
     status: Annotated[str | None, Query(pattern="^(ok|missing)$")] = None,
     date_from: Annotated[datetime | None, Query(alias="from")] = None,
@@ -132,6 +133,15 @@ def list_backups(
         conditions.append(col(Job.source_id) == source_id)
     if database:
         conditions.append(col(Artifact.source_database) == database)
+    if q and q.strip():
+        term = q.strip()
+        conditions.append(
+            or_(
+                col(Artifact.source_database).icontains(term, autoescape=True),
+                col(Run.job_name).icontains(term, autoescape=True),
+                col(Destination.name).icontains(term, autoescape=True),
+            )
+        )
     if destination_id:
         conditions.append(col(Artifact.destination_id) == destination_id)
     if status == "missing":
@@ -146,6 +156,7 @@ def list_backups(
         select(Artifact)
         .join(Run, col(Run.id) == col(Artifact.run_id))
         .join(Job, col(Job.id) == col(Run.job_id), isouter=True)
+        .join(Destination, col(Destination.id) == col(Artifact.destination_id))
     )
     total = db.exec(select(func.count()).select_from(joined.where(*conditions).subquery())).one()
     rows = db.exec(

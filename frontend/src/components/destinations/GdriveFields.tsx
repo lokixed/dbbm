@@ -14,6 +14,7 @@ import {
 } from "@/lib/destinationForm";
 import { bindBool, bindText } from "@/lib/formBinding";
 import type { SecretState } from "@/lib/secrets";
+import { FieldAlign } from "@/components/FieldAlign";
 
 const SCOPE_HELP: Record<DriveScope, string> = {
   "drive.file":
@@ -164,13 +165,13 @@ export function GdriveFields({
           options={CHUNK_SIZES_MB.map((size) => ({ value: String(size), label: `${size} MiB` }))}
           {...bindText(form, "chunkSizeMb")}
         />
-        <div className="pt-6">
+        <FieldAlign align="start">
           <Checkbox
             label="Delete permanently"
             description="Off: deleted backups go to the Drive trash (and still count against your quota until it is emptied)."
             {...bindBool(form, "deletePermanently")}
           />
-        </div>
+        </FieldAlign>
       </div>
     </>
   );

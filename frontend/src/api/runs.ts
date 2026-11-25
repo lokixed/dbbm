@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "./client";
+import { fetchAllPages, MAX_API_PAGE } from "./fetchAll";
 import {
   ACTIVE_STATUSES,
   type Dashboard,
@@ -18,6 +19,8 @@ export const runKeys = {
 export interface RunFilters {
   jobId: string;
   status: RunStatus | "";
+  from: string;
+  to: string;
 }
 
 const REFRESH_MS = 3000;
@@ -26,13 +29,19 @@ function isActive(status: RunStatus): boolean {
   return ACTIVE_STATUSES.includes(status);
 }
 
-export function useRuns(filters: RunFilters) {
-  const params = new URLSearchParams({ limit: "100" });
+function runParams(filters: RunFilters, offset: number): URLSearchParams {
+  const params = new URLSearchParams({ limit: String(MAX_API_PAGE), offset: String(offset) });
   if (filters.jobId) params.set("job_id", filters.jobId);
   if (filters.status) params.set("status", filters.status);
+  if (filters.from) params.set("from", new Date(`${filters.from}T00:00:00`).toISOString());
+  if (filters.to) params.set("to", new Date(`${filters.to}T23:59:59`).toISOString());
+  return params;
+}
+
+export function useRuns(filters: RunFilters) {
   return useQuery({
     queryKey: runKeys.list(filters),
-    queryFn: () => api<RunPage>(`/api/runs?${params.toString()}`),
+    queryFn: () => fetchAllPages((offset) => api<RunPage>(`/api/runs?${runParams(filters, offset).toString()}`)),
     // Poll only while a run is queued or running.
     refetchInterval: (query) =>
       query.state.data?.items.some((r) => isActive(r.status)) ? REFRESH_MS : false,

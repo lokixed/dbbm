@@ -2,6 +2,7 @@ services:
   dbbm:
     build: .
     image: dbbm:local
+    container_name: dbbm
     restart: unless-stopped
     # Match the host user so the bind mounts and the key file are readable and writable.
     user: "${DBBM_UID:-10001}:${DBBM_GID:-10001}"

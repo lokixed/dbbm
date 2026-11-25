@@ -12,7 +12,7 @@ interface LogoLoaderProps {
   className?: string;
 }
 
-export function LogoLoader({ title, label = "Loading...", fullScreen = false, className = "" }: LogoLoaderProps) {
+export function LogoLoader({ title, label = "Loading", fullScreen = false, className = "" }: LogoLoaderProps) {
   const { pathname } = useLocation();
   const name = title ?? pageTitle(pathname);
   const size = fullScreen ? 72 : 56;
@@ -33,7 +33,14 @@ export function LogoLoader({ title, label = "Loading...", fullScreen = false, cl
       </svg>
       <div className="text-center">
         <p className={`font-medium ${fullScreen ? "text-lg" : "text-base"}`}>{name}</p>
-        <p className="text-sm text-app-muted">{label}</p>
+        <p className="text-sm text-app-muted">
+          {label}
+          <span aria-hidden="true" className="inline-flex">
+            <span className="xd-dot">.</span>
+            <span className="xd-dot">.</span>
+            <span className="xd-dot">.</span>
+          </span>
+        </p>
       </div>
     </div>
   );

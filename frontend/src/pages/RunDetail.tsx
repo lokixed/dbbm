@@ -23,6 +23,7 @@ import { RunTimeline } from "@/components/runs/RunTimeline";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatDuration } from "@/lib/format";
+import { CopyText } from "@/components/CopyText";
 import { hasRetryableFailures } from "@/lib/retry";
 
 /** Re-renders every second while `active`, so a running duration keeps counting. */
@@ -39,7 +40,7 @@ function useNow(active: boolean): number {
 const ARTIFACT_COLUMNS: TableColumn<ArtifactRecord>[] = [
   { key: "database", header: "Database", render: (a) => <span className="font-medium">{a.source_database}</span> },
   { key: "destination", header: "Destination", render: (a) => a.destination_name ?? "-" },
-  { key: "file", header: "File", render: (a) => <span className="break-all font-mono text-xs">{a.path}</span> },
+  { key: "file", header: "File", render: (a) => <CopyText value={a.path} head={14} tail={30} label="Copy file path" /> },
   {
     key: "size",
     header: "Size",
@@ -50,7 +51,7 @@ const ARTIFACT_COLUMNS: TableColumn<ArtifactRecord>[] = [
       </Tooltip>
     ),
   },
-  { key: "sha", header: "SHA-256", render: (a) => <span className="break-all font-mono text-xs">{a.sha256}</span> },
+  { key: "sha", header: "SHA-256", render: (a) => <CopyText value={a.sha256} head={12} tail={6} label="Copy SHA-256" /> },
 ];
 
 const NOTIFICATION_COLUMNS: TableColumn<RunNotification>[] = [

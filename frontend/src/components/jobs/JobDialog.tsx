@@ -1,3 +1,5 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
+import { destinationTypeName } from "@/lib/destinationType";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useId, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -33,8 +35,8 @@ import {
   type JobFormValues,
 } from "@/lib/jobForm";
 import { initialSecret, secretPayload, type SecretState } from "@/lib/secrets";
+import { FieldAlign } from "@/components/FieldAlign";
 
-const DESTINATION_TYPE_LABEL = { local: "Local", gdrive: "Google Drive" } as const;
 
 /** The first 422 message about `field`, if the server rejected it. */
 function fieldError(error: unknown, field: string): string | null {
@@ -140,7 +142,7 @@ function JobForm({
     <form id={formId} onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
       <Field label="Name" autoComplete="off" {...bindText(form, "name")} error={errors.name?.message} />
 
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-1">
         <Select
           label="Source"
           placeholder="Choose a source..."
@@ -187,8 +189,8 @@ function JobForm({
               key={destination.id}
               checked={selectedDestinations.includes(destination.id)}
               onChange={() => toggleDestination(destination.id)}
-              label={destination.name}
-              description={`${DESTINATION_TYPE_LABEL[destination.type]}${
+              label={<DestinationLabel type={destination.type}>{destination.name}</DestinationLabel>}
+              description={`${destinationTypeName(destination.type)}${
                 destination.type === "local" ? ` - ${destination.config.path}` : ""
               }`}
             />
@@ -208,12 +210,12 @@ function JobForm({
           {...bindText(form, "timeoutSeconds")}
           error={errors.timeoutSeconds?.message}
         />
-        <div className="flex items-end pb-2">
+        <FieldAlign>
           <Checkbox label="Compress with gzip" {...bindBool(form, "compress")} />
           {(sourceType === "mongo" || sourceType === "firestore") && (
             <span className="ml-2 text-xs text-app-muted">Always gzip for this source</span>
           )}
-        </div>
+        </FieldAlign>
       </div>
 
       <div className="space-y-3 border border-app-border p-3">
@@ -272,7 +274,7 @@ function JobForm({
 
       <div className="space-y-3 border border-app-border p-3">
         <Label>Notifications</Label>
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select
             label="Notify"
             options={[
@@ -282,14 +284,14 @@ function JobForm({
             ]}
             {...bindText(form, "notifyOn")}
           />
-          <div className="pb-2">
+          <FieldAlign>
             <Switch
               checked={notifyOnRecovery}
               disabled={notifyOn === "never"}
               onChange={(value) => setValue("notifyOnRecovery", value, { shouldDirty: true })}
               label="Notify on recovery"
             />
-          </div>
+          </FieldAlign>
         </div>
         <div className="space-y-1" role="group" aria-labelledby="job-channels-label">
           <p id="job-channels-label" className="text-sm text-app-text">
@@ -370,7 +372,7 @@ export function JobDialog({ open, job, onClose }: JobDialogProps) {
       {ready ? (
         <JobForm job={job} defaultTimezone={settings.data?.default_timezone ?? "UTC"} onClose={onClose} />
       ) : (
-        <Loader variant="dots" label="Loading..." />
+        <Loader variant="dots" label="Loading" />
       )}
       </div>
     </DialogFrame>

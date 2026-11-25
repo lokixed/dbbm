@@ -31,6 +31,8 @@ import {
 } from "@/lib/channelForm";
 import { bindText } from "@/lib/formBinding";
 import { initialSecret, secretPayload, type SecretState } from "@/lib/secrets";
+import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
+import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
 
 const INSECURE_EMAIL =
   "Security 'none' sends messages and the SMTP password unencrypted. Use it only on a trusted network.";
@@ -264,14 +266,26 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
           label="Type"
           disabled={record !== null}
           options={[
-            { value: "slack", label: "Slack (incoming webhook)" },
-            { value: "email", label: "Email (SMTP)" },
-            { value: "webhook", label: "Webhook (JSON POST)" },
+            { value: "slack", label: <ChannelTypeLabel type="slack">Slack (incoming webhook)</ChannelTypeLabel> },
+            { value: "email", label: <ChannelTypeLabel type="email">Email (SMTP)</ChannelTypeLabel> },
+            { value: "webhook", label: <ChannelTypeLabel type="webhook">Webhook (JSON POST)</ChannelTypeLabel> },
           ]}
           {...bindText(form, "type")}
         />
         <Field label="Name" autoComplete="off" {...text("name")} />
       </div>
+      <HelperText>
+        Need help setting up {CHANNEL_TYPE_NAME[type]}?{" "}
+        <a
+          className="underline"
+          href={`/docs#${type}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Read the {CHANNEL_TYPE_NAME[type]} setup guide
+        </a>
+        .
+      </HelperText>
       <Switch
         checked={enabled}
         onChange={(value) => setValue("enabled", value, { shouldDirty: true })}
@@ -367,7 +381,7 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
       )}
 
       {formError && <Alert tone="danger">{formError}</Alert>}
-      {test.isPending && <Loader variant="dots" label="Sending a test message..." />}
+      {test.isPending && <Loader variant="dots" label="Sending a test message" />}
       {testResult && (
         <Alert tone={testResult.ok ? "success" : "danger"}>
           {testResult.ok ? "Delivered: " : "Failed: "}

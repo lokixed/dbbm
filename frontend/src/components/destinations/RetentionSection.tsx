@@ -8,12 +8,13 @@ import HelperText from "xedonium/HelperText";
 import Label from "xedonium/Label";
 import PlayIcon from "xedonium/icons/Play";
 import SearchIcon from "xedonium/icons/Search";
+import RelativeTime from "xedonium/RelativeTime";
 import { useRetentionPreview, useRunRetention } from "@/api/destinations";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { RetentionPreview, RetentionRunResult } from "@/api/types";
 import { parsePolicyValue, type DestinationFormValues } from "@/lib/destinationForm";
 import { bindText } from "@/lib/formBinding";
-import { formatBytes, formatTime } from "@/lib/format";
+import { formatBytes } from "@/lib/format";
 
 export function PreviewSummary({ preview }: { preview: RetentionPreview }) {
   if (preview.delete_runs === 0) {
@@ -30,7 +31,7 @@ export function PreviewSummary({ preview }: { preview: RetentionPreview }) {
           {preview.delete.map((copy) => (
             <li key={copy.run_id}>
               <span className="text-app-muted">
-                {copy.job_name} - {formatTime(copy.started_at)} ({copy.status})
+                {copy.job_name} - <RelativeTime date={copy.started_at} tooltip /> ({copy.status})
               </span>
               {copy.artifacts.map((path) => (
                 <div key={path} className="pl-3">

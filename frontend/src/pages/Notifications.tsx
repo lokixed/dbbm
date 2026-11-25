@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import Alert from "xedonium/Alert";
-import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
 import HelperText from "xedonium/HelperText";
 import PageHeader from "xedonium/PageHeader";
 import Switch from "xedonium/Switch";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
-import Table, { type TableColumn } from "xedonium/Table";
-import Tooltip from "xedonium/Tooltip";
 import HistoryIcon from "xedonium/icons/History";
 import PencilIcon from "xedonium/icons/Pencil";
 import PlusIcon from "xedonium/icons/Plus";
@@ -17,7 +14,6 @@ import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
 import RelativeTime from "xedonium/RelativeTime";
 import {
-  EVENTS_PAGE_SIZE,
   useChannelEvents,
   useChannels,
   useDeleteChannel,
@@ -28,17 +24,21 @@ import type { ChannelRecord, NotificationEvent } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChannelDialog } from "@/components/notifications/ChannelDialog";
+import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
+import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
+import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
 
-const TYPE_LABEL = { slack: "Slack", email: "Email", webhook: "Webhook" } as const;
 
-const EVENT_COLUMNS: TableColumn<NotificationEvent>[] = [
+const EVENT_COLUMNS: DataGridColumn<NotificationEvent>[] = [
   {
     key: "time",
     header: "Time",
+    sortable: true,
+    accessor: (event) => event.created_at,
     render: (event) => <span className="whitespace-nowrap text-xs"><RelativeTime date={event.created_at} /></span>,
   },
   {
@@ -65,46 +65,29 @@ const EVENT_COLUMNS: TableColumn<NotificationEvent>[] = [
 ];
 
 function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () => void }) {
-  const [page, setPage] = useState(0);
-  const events = useChannelEvents(channel.id, page);
-  const pages = events.data ? Math.max(1, Math.ceil(events.data.total / EVENTS_PAGE_SIZE)) : 1;
+  const events = useChannelEvents(channel.id);
   return (
     <Card
       title={`Delivery events: ${channel.name}`}
-      padded={false}
       actions={
         <Button variant="flat" onClick={onClose}>
           Close
         </Button>
       }
     >
-      <div className="space-y-3 pb-4">
-        {events.isPending && <LogoLoader label="Loading events..." />}
-        {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
-        {events.isSuccess && (
-          <>
-            <Table
-              compact
-              columns={EVENT_COLUMNS}
-              rows={events.data.items}
-              empty="No messages sent through this channel yet."
-            />
-            {events.data.items.length > 0 && (
-              <div className="flex items-center justify-end gap-2 px-6 text-sm">
-                <span className="text-app-muted">
-                  Page {page + 1} of {pages} ({events.data.total} events)
-                </span>
-                <Button variant="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                  Previous
-                </Button>
-                <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>
-                  Next
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {events.isPending && <LogoLoader label="Loading events" />}
+      {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
+      {events.isSuccess && (
+        <DataGrid
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          hideFooterWhenSinglePage
+          columns={EVENT_COLUMNS}
+          rows={events.data.items}
+          empty="No messages sent through this channel yet."
+        />
+      )}
     </Card>
   );
 }
@@ -182,7 +165,7 @@ export default function NotificationsPage() {
         </div>
       ),
     },
-    { key: "type", sortable: true, accessor: (c) => TYPE_LABEL[c.type], header: "Type", render: (channel) => TYPE_LABEL[channel.type] },
+    { key: "type", sortable: true, accessor: (c) => CHANNEL_TYPE_NAME[c.type], header: "Type", render: (channel) => <ChannelTypeLabel type={channel.type} /> },
     {
       key: "enabled", sortable: true, accessor: (c) => (c.enabled ? 1 : 0),
       header: "Enabled",
@@ -196,7 +179,7 @@ export default function NotificationsPage() {
       ),
     },
     {
-      key: "test", sortable: true, accessor: (c) => c.last_test?.at ?? "",
+      key: "test", sortable: true, accessor: (c) => (c.last_test ? (c.last_test.ok ? "OK" : "Failed") : "Never tested"),
       header: "Last test",
       render: (channel) => {
         const inline = results[channel.id];
@@ -207,21 +190,10 @@ export default function NotificationsPage() {
             </span>
           );
         }
-        if (!channel.last_test) return <span className="text-app-muted">Never tested</span>;
-        const badge = (
-          <Badge
-            badgeContent={channel.last_test.ok ? "OK" : "Failed"}
-            color={channel.last_test.ok ? "success" : "danger"}
-          />
-        );
-        return (
-          <span className="inline-flex items-center gap-2 text-xs">
-            {channel.last_test.message ? <Tooltip text={channel.last_test.message}>{badge}</Tooltip> : badge}
-            <span className="text-app-muted"><RelativeTime date={channel.last_test.at} /></span>
-          </span>
-        );
+        return <StatusBadge lastTest={channel.last_test} />;
       },
     },
+    { key: "tested", sortable: true, accessor: (c) => c.last_test?.at ?? "", header: "Tested", render: (channel) => <LastTested lastTest={channel.last_test} /> },
     {
       key: "jobs", sortable: true, accessor: (c) => c.jobs.map((j) => j.name).join(", "),
       header: "Jobs",
@@ -259,29 +231,29 @@ export default function NotificationsPage() {
         </Button>
       </PageHeader>
 
-      <Card padded={false}>
-        {channels.isPending && <LogoLoader label="Loading channels..." />}
-        {channels.isError && (
-          <Alert tone="danger">
-            <div className="flex items-center justify-between gap-4">
-              <span>Could not load channels: {channels.error.message}</span>
-              <Button variant="secondary" onClick={() => void channels.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        )}
-        {channels.isSuccess && (
-          <DataGrid
-            density="compact"
-            pageSize={25}
-            hideFooterWhenSinglePage
-            columns={columns}
-            rows={channels.data}
-            empty="No channels yet. Add Slack, email or a webhook to be told when a backup fails."
-          />
-        )}
-      </Card>
+      {channels.isPending && <LogoLoader label="Loading channels" />}
+      {channels.isError && (
+        <Alert tone="danger">
+          <div className="flex items-center justify-between gap-4">
+            <span>Could not load channels: {channels.error.message}</span>
+            <Button variant="secondary" onClick={() => void channels.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {channels.isSuccess && (
+        <DataGrid
+          density="compact"
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          searchable
+          hideFooterWhenSinglePage
+          columns={columns}
+          rows={channels.data}
+          empty="No channels yet. Add Slack, email or a webhook to be told when a backup fails."
+        />
+      )}
 
       {eventsFor && <EventsCard key={eventsFor.id} channel={eventsFor} onClose={() => setEventsFor(null)} />}
 

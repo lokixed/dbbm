@@ -1,3 +1,4 @@
+import { DestinationLabel } from "@/components/DestinationIcon";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
@@ -165,7 +166,9 @@ function WizardBody({ backup, onClose }: { backup: Backup; onClose: () => void }
               value: copy.id,
               label: (
                 <span>
-                  <span className="font-medium">{copy.destination_name}</span> ({copy.destination_type})
+                  <DestinationLabel type={copy.destination_type} className="font-medium">
+                    {copy.destination_name}
+                  </DestinationLabel>
                   <br />
                   <span className="text-app-muted">
                     {copy.source_database}, {formatBytes(copy.size_bytes)}, <RelativeTime date={copy.created_at} />
