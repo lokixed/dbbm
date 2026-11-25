@@ -1,0 +1,13 @@
+# Extends the default rules. The two files below hold fake values on purpose: a made-up key
+# stub that the redaction test must strip, and a throwaway Testcontainers password.
+title = "DBBM gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake secrets used as test fixtures"
+paths = [
+  '''^backend/tests/test_redact\.py$''',
+  '''^backend/tests/integration/test_runs\.py$''',
+]
