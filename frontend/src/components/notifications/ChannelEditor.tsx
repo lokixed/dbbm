@@ -13,7 +13,7 @@ import HelperText from "xedonium/HelperText";
 import PlusIcon from "xedonium/icons/Plus";
 import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
-import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
+import { DialogFooter } from "@/components/DialogFrame";
 import { useSaveChannel, useTestChannelDraft } from "@/api/notifications";
 import type { ChannelRecord, ChannelTestResult } from "@/api/types";
 import { SecretField } from "@/components/SecretField";
@@ -154,7 +154,8 @@ function HeadersEditor({
   );
 }
 
-function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onClose: () => void }) {
+/** Add or edit a notification channel. `onClose` runs after a save or on Cancel. */
+export function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onClose: () => void }) {
   const { toast } = useToast();
   const save = useSaveChannel();
   const test = useTestChannelDraft();
@@ -406,29 +407,5 @@ function ChannelForm({ channel, onClose }: { channel: ChannelRecord | null; onCl
         </div>
       </DialogFooter>
     </form>
-  );
-}
-
-interface ChannelDialogProps {
-  open: boolean;
-  channel: ChannelRecord | null;
-  onClose: () => void;
-}
-
-export function ChannelDialog({ open, channel, onClose }: ChannelDialogProps) {
-  return (
-    <DialogFrame
-      open={open}
-      onClose={onClose}
-      title={channel ? "Edit notification channel" : "Add notification channel"}
-      maxWidth="max-w-2xl"
-    >
-      <div className="px-6 pb-6 pt-4">
-      <HelperText className="mb-4">
-        Secrets (webhook URLs, passwords, headers) are stored encrypted and never shown again.
-      </HelperText>
-      <ChannelForm channel={channel} onClose={onClose} />
-      </div>
-    </DialogFrame>
   );
 }

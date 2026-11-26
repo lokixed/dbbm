@@ -19,7 +19,6 @@ import { DestinationLabel } from "@/components/DestinationIcon";
 import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useDestinationType } from "@/lib/typeLookups";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
@@ -51,10 +50,6 @@ export default function JobsPage() {
   const run = useRunJob();
   const remove = useDeleteJob();
   const setEnabled = useSetJobEnabled();
-  const [editor, setEditor] = useState<{ open: boolean; job: JobRecord | null }>({
-    open: false,
-    job: null,
-  });
   const [deleting, setDeleting] = useState<JobRecord | null>(null);
 
   const runNow = (job: JobRecord) =>
@@ -171,7 +166,7 @@ export default function JobsPage() {
             label={`Actions for ${job.name}`}
             items={[
               { key: "run", label: "Run now", icon: <PlayIcon className="h-4 w-4" />, disabled: starting || active, onClick: () => runNow(job) },
-              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, job }) },
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => navigate(`/jobs/${encodeURIComponent(job.id)}`) },
               { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(job) },
             ]}
           />
@@ -183,7 +178,7 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Jobs" subtitle="What to back up, where it goes and when it runs.">
-        <Button onClick={() => setEditor({ open: true, job: null })}>
+        <Button onClick={() => navigate("/jobs/new")}>
           <PlusIcon className="h-4 w-4" /> Add job
         </Button>
       </PageHeader>
@@ -212,11 +207,6 @@ export default function JobsPage() {
         />
       )}
 
-      <JobDialog
-        open={editor.open}
-        job={editor.job}
-        onClose={() => setEditor({ open: false, job: null })}
-      />
       <ConfirmDialog
         open={deleting !== null}
         title="Delete job?"

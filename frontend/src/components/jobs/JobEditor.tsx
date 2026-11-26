@@ -16,7 +16,7 @@ import Label from "xedonium/Label";
 import Loader from "xedonium/Loader";
 import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
-import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
+import { DialogFooter } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useDestinations } from "@/api/destinations";
 import { useSaveJob } from "@/api/jobs";
@@ -304,7 +304,7 @@ function JobForm({
           {channels.isSuccess && channels.data.length === 0 && (
             <HelperText>
               No channels yet.{" "}
-              <Link className="underline" to="/notifications">
+              <Link className="underline" to="/notifications/new">
                 Add one
               </Link>
               .
@@ -355,30 +355,13 @@ function JobForm({
   );
 }
 
-interface JobDialogProps {
-  open: boolean;
-  job: JobRecord | null;
-  onClose: () => void;
-}
-
-export function JobDialog({ open, job, onClose }: JobDialogProps) {
+/** Add or edit a job. `onDone` runs after a save or on Cancel. */
+export function JobEditor({ job, onDone }: { job: JobRecord | null; onDone: () => void }) {
   const settings = useAppSettings();
   const sources = useSources();
   const destinations = useDestinations();
   // The form takes its defaults on mount, so wait until the lookups it depends on have loaded.
   const ready = !settings.isPending && !sources.isPending && !destinations.isPending;
-  return (
-    <DialogFrame open={open} onClose={onClose} title={job ? "Edit job" : "Add job"} maxWidth="max-w-2xl">
-      <div className="px-6 pb-6 pt-4">
-      <HelperText className="mb-4">
-        A job backs up every database of one source to one or more destinations.
-      </HelperText>
-      {ready ? (
-        <JobForm job={job} defaultTimezone={settings.data?.default_timezone ?? "UTC"} onClose={onClose} />
-      ) : (
-        <Loader variant="dots" label="Loading" />
-      )}
-      </div>
-    </DialogFrame>
-  );
+  if (!ready) return <Loader variant="dots" label="Loading" />;
+  return <JobForm job={job} defaultTimezone={settings.data?.default_timezone ?? "UTC"} onClose={onDone} />;
 }

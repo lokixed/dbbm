@@ -9,13 +9,16 @@ import { ToastProvider } from "@/components/toast";
 import { pageTitle } from "@/lib/pageTitle";
 import AuditPage from "@/pages/Audit";
 import BackupsPage from "@/pages/Backups";
+import RestoreBackupPage from "@/pages/RestoreBackup";
 import DashboardPage from "@/pages/Dashboard";
 import DestinationEditorPage from "@/pages/DestinationEditor";
 import DestinationsPage from "@/pages/Destinations";
 import DocsPage from "@/pages/Docs";
 import GdriveConnectDonePage from "@/pages/GdriveConnectDone";
+import JobEditorPage from "@/pages/JobEditor";
 import JobsPage from "@/pages/Jobs";
 import LoginPage from "@/pages/Login";
+import ChannelEditorPage from "@/pages/ChannelEditor";
 import NotificationsPage from "@/pages/Notifications";
 import RunDetailPage from "@/pages/RunDetail";
 import RunsPage from "@/pages/Runs";
@@ -74,10 +77,15 @@ export default function App() {
                   <Route path="destinations/new" element={<DestinationEditorPage />} />
                   <Route path="destinations/:id" element={<DestinationEditorPage />} />
                   <Route path="jobs" element={<JobsPage />} />
+                  <Route path="jobs/new" element={<JobEditorPage />} />
+                  <Route path="jobs/:id" element={<JobEditorPage />} />
                   <Route path="runs" element={<RunsPage />} />
                   <Route path="runs/:id" element={<RunDetailPage />} />
                   <Route path="backups" element={<BackupsPage />} />
+                  <Route path="backups/:id/restore" element={<RestoreBackupPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="notifications/new" element={<ChannelEditorPage />} />
+                  <Route path="notifications/:id" element={<ChannelEditorPage />} />
                   <Route path="audit" element={<AuditPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

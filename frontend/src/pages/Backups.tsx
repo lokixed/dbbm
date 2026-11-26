@@ -1,7 +1,7 @@
 import { DestinationLabel } from "@/components/DestinationIcon";
 import { SourceTypeIcon, SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
@@ -35,11 +35,11 @@ import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
 import { RowMenu } from "@/components/RowMenu";
-import { RestoreWizard } from "@/components/backups/RestoreWizard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/toast";
 import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
+import { restorePath } from "@/lib/backupPaths";
 import { formatBytes } from "@/lib/format";
 
 const EMPTY: BackupFilters = {
@@ -82,12 +82,12 @@ function CopyStatus({ backup }: { backup: Backup }) {
 
 export default function BackupsPage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<BackupFilters>(EMPTY);
   const [draft, setDraft] = useState<BackupFilters>(EMPTY);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Backup | null>(null);
-  const [restoring, setRestoring] = useState<Backup | null>(null);
   const backups = useBackups(filters);
   const jobs = useJobs();
   const sources = useSources();
@@ -246,7 +246,7 @@ export default function BackupsPage() {
           label={`Actions for ${backup.source_database}`}
           items={[
             { key: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => onDownload(backup) },
-            { key: "restore", label: "Restore", icon: <RotateCcwIcon className="h-4 w-4" />, disabled: backup.missing, hasDialog: true, onClick: () => setRestoring(backup) },
+            { key: "restore", label: "Restore", icon: <RotateCcwIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => navigate(restorePath(backup)) },
             { key: "verify", label: "Verify now", icon: <ShieldCheckIcon className="h-4 w-4" />, disabled: verify.isPending && verify.variables === backup.id, onClick: () => onVerify(backup) },
             { key: "copy-hash", label: "Copy SHA-256", icon: <CopyIcon className="h-4 w-4" />, onClick: () => onCopyHash(backup) },
             { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setPendingDelete(backup) },
@@ -415,7 +415,6 @@ export default function BackupsPage() {
       )}
 
 
-      <RestoreWizard backup={restoring} onClose={() => setRestoring(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

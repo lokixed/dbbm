@@ -554,10 +554,10 @@ OpenAPI docs are served at `/api/docs` (disable or protect in production).
 | Dashboard | Per-job last status, next scheduled run, failures in the last 24h, disk usage, destination health |
 | Sources | List; add and edit on their own pages (`/sources/new` with a type picker first, `/sources/:id`); form per DB type with a **Test connection** button; MySQL and PostgreSQL can fill their fields from a pasted connection URL (parsed in the browser, the URL itself is not stored, unlike MongoDB's URI mode); credentials are write-only (shown as "••••" after saving) |
 | Destinations | List with status; add and edit on their own pages (`/destinations/new`, `/destinations/:id`, `?reconnect=1` for a Drive reconnect; the old `/destinations?reconnect=<id>` links redirect there). Local path check; Google Drive Connect or token paste with **Test**; retention settings |
-| Jobs | Create/edit with source, destinations, cron picker with next-fire preview, options; **Run now**, enable/disable |
+| Jobs | Create/edit on their own pages (`/jobs/new`, `/jobs/:id`) with source, destinations, cron picker with next-fire preview, options; **Run now**, enable/disable |
 | Runs | History table with filters; run detail with step timeline, per-destination results and live log viewer; cancel and retry |
-| Backups | Browse artifacts by job/date; download, delete; **Restore** wizard |
-| Notifications | Add Slack/email/webhook channels with a test message |
+| Backups | Browse artifacts by job/date; download, delete; **Restore** wizard on its own page (`/backups/:id/restore?run=<run id>&db=<database>`; run and database let the page find the copies again after a reload) |
+| Notifications | List of channels; add and edit Slack/email/webhook channels on their own pages (`/notifications/new`, `/notifications/:id`) with a test message |
 | Settings | Admin password, timezone, backup-encryption public key, key status, version info |
 | Audit | Read-only log of sensitive actions |
 

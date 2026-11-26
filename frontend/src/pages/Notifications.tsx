@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
@@ -23,7 +23,6 @@ import {
 import type { ChannelRecord, NotificationEvent } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ChannelDialog } from "@/components/notifications/ChannelDialog";
 import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
 import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
@@ -99,10 +98,7 @@ export default function NotificationsPage() {
   const save = useSaveChannel();
   const test = useTestChannel();
   const remove = useDeleteChannel();
-  const [editor, setEditor] = useState<{ open: boolean; channel: ChannelRecord | null }>({
-    open: false,
-    channel: null,
-  });
+  const navigate = useNavigate();
   const [deleting, setDeleting] = useState<ChannelRecord | null>(null);
   const [eventsFor, setEventsFor] = useState<ChannelRecord | null>(null);
   const [results, setResults] = useState<Record<string, { ok: boolean; message: string }>>({});
@@ -212,7 +208,7 @@ export default function NotificationsPage() {
             items={[
               { key: "test", label: "Send test", icon: <SendIcon className="h-4 w-4" />, disabled: sending, onClick: () => sendTest(channel) },
               { key: "events", label: "Events", icon: <HistoryIcon className="h-4 w-4" />, onClick: () => setEventsFor(channel) },
-              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, channel }) },
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => navigate(`/notifications/${encodeURIComponent(channel.id)}`) },
               { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(channel) },
             ]}
           />
@@ -227,7 +223,7 @@ export default function NotificationsPage() {
         title="Notifications"
         subtitle="Where failures, recoveries, overdue jobs and system warnings are sent. Pick channels per job on the Jobs page; system warnings go to every enabled channel."
       >
-        <Button onClick={() => setEditor({ open: true, channel: null })}>
+        <Button onClick={() => navigate("/notifications/new")}>
           <PlusIcon className="h-4 w-4" /> Add channel
         </Button>
       </PageHeader>
@@ -258,11 +254,6 @@ export default function NotificationsPage() {
 
       {eventsFor && <EventsCard key={eventsFor.id} channel={eventsFor} onClose={() => setEventsFor(null)} />}
 
-      <ChannelDialog
-        open={editor.open}
-        channel={editor.channel}
-        onClose={() => setEditor({ open: false, channel: null })}
-      />
       <ConfirmDialog
         open={deleting !== null}
         title="Delete notification channel?"

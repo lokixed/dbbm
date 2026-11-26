@@ -11,7 +11,7 @@ import Select from "xedonium/Select";
 import TextArea from "xedonium/TextArea";
 import Stepper from "xedonium/Stepper";
 import RelativeTime from "xedonium/RelativeTime";
-import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
+import { DialogFooter } from "@/components/DialogFrame";
 import { useBackupCopies, useRestoreBackup, type Backup } from "@/api/backups";
 import { useSources } from "@/api/sources";
 import type { SourceType } from "@/api/types";
@@ -40,19 +40,9 @@ const DROP_TEXT: Record<string, string> = {
     "Drops the objects in the backup (tables, views, ...) before recreating them. Objects that are not in the backup are kept, and can stop their schema from being dropped. Without this, objects that already exist cause errors.",
 };
 
-interface Props {
-  backup: Backup | null;
-  onClose: () => void;
-}
-
-export function RestoreWizard({ backup, onClose }: Props) {
-  return (
-    <DialogFrame open={backup !== null} onClose={onClose} title="Restore a backup" maxWidth="max-w-xl">
-      <div className="px-6 pb-6 pt-4">
-      {backup && <WizardBody key={backup.id} backup={backup} onClose={onClose} />}
-      </div>
-    </DialogFrame>
-  );
+/** The restore steps for one backup. `onClose` runs on Cancel; a started restore opens its run. */
+export function RestoreWizard({ backup, onClose }: { backup: Backup; onClose: () => void }) {
+  return <WizardBody key={backup.id} backup={backup} onClose={onClose} />;
 }
 
 const ONLY_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,126}$/;
@@ -127,8 +117,7 @@ function WizardBody({ backup, onClose }: { backup: Backup; onClose: () => void }
             description: `${backup.source_database} into ${database}`,
             variant: "success",
           });
-          onClose();
-          navigate(`/runs/${run.id}`);
+          navigate(`/runs/${run.id}`, { replace: true });
         },
         onError: (error) =>
           toast({ title: "Could not start the restore", description: error.message, variant: "error" }),
