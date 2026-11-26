@@ -255,6 +255,7 @@ Rotating keys: add the new public key, add it to the jobs, then remove the old o
 - **Path escapes and tampering.** Destination paths and symlinks are checked. SHA-256 is verified before any download or restore, and downloads use one-use links that expire after 60 seconds.
 - **Abuse of the container.** Non-root user, read-only root file system, all capabilities dropped, no-new-privileges, memory and process limits.
 - **Vulnerable dependencies.** CI runs pip-audit, yarn npm audit, Trivy on the image and gitleaks on the repository.
+- **A tampered or logging OAuth relay page.** Connect Google Drive redirects through a static page on GitHub Pages. The code it sees is useless without the client secret and PKCE verifier, which stay on the server, and the callback only accepts a live, one-use request of the same session.
 
 ### What it does not protect against
 

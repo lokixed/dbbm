@@ -1,11 +1,14 @@
 import type { UseFormReturn } from "react-hook-form";
 import { AccordionSection } from "xedonium/Accordion";
+import Alert from "xedonium/Alert";
+import Button from "xedonium/Button";
 import Checkbox from "xedonium/Checkbox";
 import CodeDisplay from "xedonium/CodeDisplay";
 import Field from "xedonium/Field";
 import HelperText from "xedonium/HelperText";
 import Select from "xedonium/Select";
 import type { DriveScope } from "@/api/types";
+import { GdriveClientSetup } from "@/components/destinations/GdriveClientSetup";
 import { SecretField } from "@/components/SecretField";
 import {
   authorizeCommand,
@@ -13,6 +16,7 @@ import {
   type DestinationFormValues,
 } from "@/lib/destinationForm";
 import { bindBool, bindText } from "@/lib/formBinding";
+import type { ConnectState } from "@/lib/gdriveConnect";
 import type { SecretState } from "@/lib/secrets";
 import { FieldAlign } from "@/components/FieldAlign";
 
@@ -21,6 +25,16 @@ const SCOPE_HELP: Record<DriveScope, string> = {
     "Recommended. rclone can only see files and folders it created itself, so a folder you made by hand in Drive is invisible to it (it creates its own).",
   drive: "Full access to every file in your Drive. Use only if you need rclone to see existing folders.",
 };
+
+export interface GdriveConnectProps {
+  state: ConnectState;
+  /** The token from a finished Connect is the one that will be saved. */
+  connected: boolean;
+  /** Why Connect is not possible yet, or null when it is. */
+  blockedReason: string | null;
+  redirectUrl: string | null;
+  onConnect: () => void;
+}
 
 interface GdriveFieldsProps {
   form: UseFormReturn<DestinationFormValues>;
@@ -33,6 +47,7 @@ interface GdriveFieldsProps {
   onClientSecret: (state: SecretState) => void;
   secretErrors: Record<string, string>;
   focusToken: boolean;
+  connect: GdriveConnectProps;
 }
 
 function AuthorizeCommand({
@@ -56,19 +71,45 @@ function AuthorizeCommand({
   return <CodeDisplay code={command} language="bash" copyable wrap highlight={false} />;
 }
 
-function SetupSteps({ scope, clientId, clientSecret }: Pick<GdriveFieldsProps, "scope" | "clientId" | "clientSecret">) {
+function ConnectStatus({ state, connected }: { state: ConnectState; connected: boolean }) {
+  if (connected) {
+    return <Alert tone="info">Google Drive connected. Save the destination to keep this connection.</Alert>;
+  }
+  if (state.phase === "waiting" || state.phase === "starting") {
+    return <HelperText>Finish signing in to Google in the new tab. This form waits for it.</HelperText>;
+  }
+  if (state.phase === "failed") return <Alert tone="danger">{state.message}</Alert>;
+  return null;
+}
+
+function ConnectSection({ connect, hasToken }: { connect: GdriveConnectProps; hasToken: boolean }) {
+  const { state, connected, blockedReason, onConnect } = connect;
+  const busy = state.phase === "starting" || state.phase === "waiting";
   return (
-    <AccordionSection title="How to get a token" defaultOpen>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" onClick={onConnect} disabled={busy || blockedReason !== null}>
+          {busy ? "Waiting for Google..." : connected || hasToken ? "Reconnect Google Drive" : "Connect Google Drive"}
+        </Button>
+        {blockedReason && !busy && <HelperText>{blockedReason}</HelperText>}
+      </div>
+      <ConnectStatus state={state} connected={connected} />
+    </div>
+  );
+}
+
+function PasteTokenSteps({
+  scope,
+  clientId,
+  clientSecret,
+  open,
+}: Pick<GdriveFieldsProps, "scope" | "clientId" | "clientSecret"> & { open: boolean }) {
+  return (
+    <AccordionSection title="Or paste a token from rclone" defaultOpen={open}>
       <ol className="list-decimal space-y-2 pl-5 text-sm text-app-muted">
         <li>
-          Optional but recommended: in Google Cloud Console create an OAuth client of type{" "}
-          <strong>Desktop app</strong>, enable the Google Drive API, and enter its client ID and secret
-          above. Without one, rclone&apos;s shared default client is used (slower, rate limited).
-        </li>
-        <li>
-          On the OAuth consent screen, <strong>publish the app (&quot;In production&quot;)</strong>. Apps left
-          in &quot;Testing&quot; get refresh tokens that expire after 7 days. An unverified app is fine for
-          personal use.
+          Use this without an OAuth client of your own (rclone&apos;s shared default client: slower, rate
+          limited), or with a client of type <strong>Desktop app</strong>.
         </li>
         <li>
           On a computer with a browser and rclone installed, run this command (it matches the scope and
@@ -95,8 +136,11 @@ export function GdriveFields({
   onClientSecret,
   secretErrors,
   focusToken,
+  connect,
 }: GdriveFieldsProps) {
   const errors = form.formState.errors;
+  const hasClient = clientId.trim() !== "";
+  const hasToken = secretsSet.token ?? false;
   return (
     <>
       <Field
@@ -127,7 +171,8 @@ export function GdriveFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
-          label="OAuth client ID (optional)"
+          label="OAuth client ID"
+          helperText="Needed for Connect. Optional when pasting a token."
           autoComplete="off"
           {...bindText(form, "clientId")}
           error={errors.clientId?.message}
@@ -142,21 +187,32 @@ export function GdriveFields({
         />
       </div>
 
-      <SetupSteps scope={scope} clientId={clientId} clientSecret={clientSecret} />
+      <GdriveClientSetup redirectUrl={connect.redirectUrl} open={!hasClient && !hasToken} />
 
-      <SecretField
-        id="secret-token"
-        label="Token"
-        isSet={secretsSet.token ?? false}
-        state={token}
-        onChange={onToken}
-        required
-        multiline
-        allowFile
-        autoFocus={focusToken}
-        placeholder='{"access_token":"...","token_type":"Bearer","refresh_token":"...","expiry":"..."}'
-        error={secretErrors.token}
-      />
+      <ConnectSection connect={connect} hasToken={hasToken} />
+
+      {!connect.connected && (
+        <>
+          <PasteTokenSteps
+            scope={scope}
+            clientId={clientId}
+            clientSecret={clientSecret}
+            open={focusToken && !hasClient}
+          />
+          <SecretField
+            id="secret-token"
+            label="Token"
+            isSet={hasToken}
+            state={token}
+            onChange={onToken}
+            multiline
+            allowFile
+            autoFocus={focusToken && !hasClient}
+            placeholder='{"access_token":"...","token_type":"Bearer","refresh_token":"...","expiry":"..."}'
+            error={secretErrors.token}
+          />
+        </>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Select

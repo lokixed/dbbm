@@ -1,4 +1,5 @@
 import re
+import uuid
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Any, Literal
@@ -147,9 +148,48 @@ class GdriveDestinationIn(BaseModel):
     config: GdriveConfig = Field(default_factory=GdriveConfig)
     secrets: GdriveSecretsIn = Field(default_factory=GdriveSecretsIn)
     retention: Retention = Field(default_factory=Retention)
+    # A finished "Connect Google Drive" flow whose token (and client secret) to use instead of
+    # secrets.token.
+    token_flow_id: Annotated[str, Field(min_length=1, max_length=64)] | None = None
 
 
 DestinationIn = Annotated[LocalDestinationIn | GdriveDestinationIn, Field(discriminator="type")]
+
+
+class GdriveOAuthStartIn(BaseModel):
+    """Start a "Connect Google Drive" flow with the client in the form (see services.gdrive_oauth).
+    With `destination_id` and no `client_secret`, the stored client secret is used."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_id: Annotated[str, Field(min_length=1, max_length=256)]
+    client_secret: Annotated[SecretStr, Field(min_length=1, max_length=1024)] | None = None
+    scope: Literal["drive.file", "drive"] = "drive.file"
+    destination_id: uuid.UUID | None = None
+
+    @field_validator("client_id")
+    @classmethod
+    def _client_id(cls, value: str) -> str:
+        value = value.strip()
+        if not _CLIENT_ID_RE.match(value):
+            raise ValueError("Invalid OAuth client ID.")
+        return value
+
+
+class GdriveOAuthConfigOut(BaseModel):
+    redirect_url: str
+
+
+class GdriveOAuthStartOut(BaseModel):
+    flow_id: str
+    authorize_url: str
+
+
+class GdriveOAuthStatusOut(BaseModel):
+    status: Literal["pending", "connected", "failed"]
+    error: str | None = None
+    message: str | None = None
+
 
 _CONFIG_ADAPTERS: dict[str, TypeAdapter[Any]] = {
     "local": TypeAdapter(LocalConfig),

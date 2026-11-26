@@ -25,7 +25,8 @@ export function DialogFrame({ children, ...modalProps }: Omit<ComponentProps<typ
   );
 }
 
-/** Puts its children into the footer of the surrounding DialogFrame. */
+/** Puts its children into the footer of the surrounding DialogFrame, or renders them in place
+ * when there is none (the same form used on a page). */
 export function DialogFooter({ children }: { children: ReactNode }) {
   const slot = useContext(FooterContext);
   const setWanted = slot?.setWanted;
@@ -33,5 +34,6 @@ export function DialogFooter({ children }: { children: ReactNode }) {
     setWanted?.(true);
     return () => setWanted?.(false);
   }, [setWanted]);
-  return slot?.element ? createPortal(children, slot.element) : null;
+  if (!slot) return <div className="flex flex-wrap justify-end gap-2 border-t border-app-border pt-4">{children}</div>;
+  return slot.element ? createPortal(children, slot.element) : null;
 }

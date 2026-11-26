@@ -105,7 +105,22 @@ export type DestinationInput =
       config: GdriveConfig;
       secrets: SecretsInput;
       retention: Retention;
+      /** A finished "Connect Google Drive" flow to take the token from instead of secrets.token. */
+      token_flow_id?: string;
     };
+
+export type GdriveConnectStatus = "pending" | "connected" | "failed";
+
+export interface GdriveConnectStart {
+  flow_id: string;
+  authorize_url: string;
+}
+
+export interface GdriveConnectState {
+  status: GdriveConnectStatus;
+  error: string | null;
+  message: string | null;
+}
 
 export type RunStatus =
   | "queued"

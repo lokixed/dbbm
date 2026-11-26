@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com). Versions follow [semver]
 ## [Unreleased]
 
 ### Added
+- **Connect Google Drive** in the destination form: sign in to Google in a new tab instead of running
+  `rclone authorize` and pasting a token. It needs your own OAuth client of type *Web application*
+  with `https://lokixed.github.io/dbbm/oauth/google/` as a redirect URI. That static page, published
+  from `site/oauth/google/`, forwards Google's redirect to your install, so DBBM works on a LAN
+  address or plain HTTP. New setting `GDRIVE_OAUTH_REDIRECT_URL` to use your own copy of the page.
+  Pasting a token still works.
 - The version is calculated from Conventional Commits when the CI/CD run passes on `main`: a breaking change is
   a major, `feat` a minor, anything else a patch. The release job writes it into
   `backend/app/version.py`, `backend/pyproject.toml` and `frontend/package.json`, rotates this

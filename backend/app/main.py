@@ -15,6 +15,7 @@ from app.api import (
     backups,
     dashboard,
     destinations,
+    gdrive_oauth,
     health,
     jobs,
     notifications,
@@ -33,6 +34,7 @@ from app.core.headers import SecurityHeadersMiddleware
 from app.core.logging import setup_logging
 from app.core.migrations import run_migrations
 from app.services.container import Services
+from app.services.gdrive_oauth import OAuthFlows
 from app.services.outbound import OutboundPolicy
 
 logger = logging.getLogger(__name__)
@@ -95,12 +97,14 @@ def create_app(
         redoc_url=None,
         dependencies=[Depends(csrf_protect)],
     )
+    app.state.gdrive_oauth = OAuthFlows(settings.gdrive_oauth_redirect_url)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(audit.router)
     app.include_router(sources.router)
+    app.include_router(gdrive_oauth.router)
     app.include_router(destinations.router)
     app.include_router(jobs.router)
     app.include_router(runs.router)

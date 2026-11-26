@@ -15,9 +15,11 @@ from app.api.common import (
     test_out,
     undecryptable,
 )
-from app.api.deps import CurrentUser, client_ip
+from app.api.deps import CurrentUser, SessionDataDep, client_ip
+from app.api.gdrive_oauth import OAuthFlowsDep
 from app.core.config import get_settings
 from app.core.db import SessionDep
+from app.core.security import SessionData
 from app.models import Artifact, AuthStatus, Destination, Job, JobDestination
 from app.models.base import utcnow
 from app.schemas.common import SecretsInvalid, TestResultOut
@@ -32,6 +34,7 @@ from app.schemas.destination import (
 )
 from app.services.audit import write_audit
 from app.services.destination_tokens import DestinationTokenStore
+from app.services.gdrive_oauth import Flow, OAuthFlows
 from app.services.paths import PathNotAllowed, resolve_inside, to_relative
 from app.services.secrets import (
     UNDECRYPTABLE_MESSAGE,
@@ -102,11 +105,36 @@ def _local_config(body: LocalDestinationIn) -> dict[str, Any]:
     return config
 
 
-def _merged_secrets(existing: dict[str, str], body: DestinationIn) -> dict[str, str]:
+def _connected_flow(
+    body: DestinationIn, flows: OAuthFlows, session_data: SessionData | None
+) -> Flow | None:
+    """The finished connect flow named by `token_flow_id`, checked against the form."""
+    if not isinstance(body, GdriveDestinationIn) or body.token_flow_id is None:
+        return None
+
+    def refuse(message: str) -> HTTPException:
+        return invalid_secret(SecretsInvalid("token", message))
+
+    if "token" in body.secrets.model_fields_set:
+        raise refuse("Paste a token or connect Google Drive, not both.")
+    flow = flows.get(body.token_flow_id, session_data.sid) if session_data else None
+    if flow is None or flow.status != "connected" or not flow.token:
+        raise refuse("The Google Drive connection expired. Click Connect again.")
+    if flow.client_id != body.config.client_id or flow.scope != body.config.scope:
+        raise refuse("The client ID or scope changed after connecting. Click Connect again.")
+    return flow
+
+
+def _merged_secrets(
+    existing: dict[str, str], body: DestinationIn, flow: Flow | None = None
+) -> dict[str, str]:
     if not isinstance(body, GdriveDestinationIn):
         return {}
     try:
         merged = merge_secrets(existing, body.secrets, body.config.secret_fields())
+        if flow is not None and flow.token:
+            # The token only refreshes with the client that minted it.
+            merged.update(token=flow.token, client_secret=flow.client_secret)
         merged = normalize_gdrive_secrets(merged)
         check_required(merged, body.config.required_secrets())
         body.config.check_secrets(merged)
@@ -115,12 +143,16 @@ def _merged_secrets(existing: dict[str, str], body: DestinationIn) -> dict[str, 
     return merged
 
 
-def _existing_secrets(row: Destination, body: DestinationIn) -> dict[str, str]:
+def _existing_secrets(
+    row: Destination, body: DestinationIn, flow: Flow | None = None
+) -> dict[str, str]:
     try:
         return load_secrets(row.secrets_enc)
     except SecretsUnavailable:
         # Re-entering every secret is the only way out of an undecryptable blob.
-        if isinstance(body, GdriveDestinationIn) and "token" in body.secrets.model_fields_set:
+        if isinstance(body, GdriveDestinationIn) and (
+            flow is not None or "token" in body.secrets.model_fields_set
+        ):
             return {}
         raise undecryptable() from None
 
@@ -133,15 +165,21 @@ def list_destinations(db: SessionDep, _user: CurrentUser) -> list[DestinationOut
 
 @router.post("", status_code=201)
 def create_destination(
-    body: DestinationIn, request: Request, db: SessionDep, user: CurrentUser
+    body: DestinationIn,
+    request: Request,
+    db: SessionDep,
+    user: CurrentUser,
+    session_data: SessionDataDep,
+    flows: OAuthFlowsDep,
 ) -> DestinationOut:
     if _name_taken(db, body.name):
         raise name_conflict()
+    flow = _connected_flow(body, flows, session_data)
     row = Destination(
         name=body.name,
         type=body.type,
         config=_normalised_config(body),
-        secrets_enc=store_secrets(_merged_secrets({}, body)),
+        secrets_enc=store_secrets(_merged_secrets({}, body, flow)),
         retention=body.retention.model_dump(),
     )
     db.add(row)
@@ -151,10 +189,12 @@ def create_destination(
         user=user,
         object_type="destination",
         object_id=str(row.id),
-        details={"name": row.name, "type": row.type},
+        details={"name": row.name, "type": row.type, **({"connected": True} if flow else {})},
         ip=client_ip(request),
     )
     commit_or_conflict(db)
+    if flow is not None:
+        flows.discard(flow.id)
     return _to_out(row)
 
 
@@ -172,6 +212,8 @@ def update_destination(
     request: Request,
     db: SessionDep,
     user: CurrentUser,
+    session_data: SessionDataDep,
+    flows: OAuthFlowsDep,
 ) -> DestinationOut:
     row = _get_or_404(db, destination_id)
     if body.type != row.type:
@@ -181,8 +223,9 @@ def update_destination(
 
     new_config = _normalised_config(body)
     new_retention = body.retention.model_dump()
-    existing = _existing_secrets(row, body) if row.type == "gdrive" else {}
-    merged = _merged_secrets(existing, body)
+    flow = _connected_flow(body, flows, session_data)
+    existing = _existing_secrets(row, body, flow) if row.type == "gdrive" else {}
+    merged = _merged_secrets(existing, body, flow)
     config_changed = sorted(
         k for k in row.config.keys() | new_config.keys() if row.config.get(k) != new_config.get(k)
     )
@@ -194,6 +237,9 @@ def update_destination(
     }
     if isinstance(body, GdriveDestinationIn):
         provided = body.secrets.model_fields_set & set(body.config.secret_fields())
+        if flow is not None:
+            provided |= {"token", "client_secret"}
+            details["connected"] = True
         details["secrets_replaced"] = sorted(f for f in provided if f in merged)
         details["secrets_cleared"] = sorted(
             f for f in provided if f not in merged and f in existing
@@ -219,6 +265,8 @@ def update_destination(
         ip=client_ip(request),
     )
     commit_or_conflict(db)
+    if flow is not None:
+        flows.discard(flow.id)
     return _to_out(row)
 
 
@@ -271,18 +319,21 @@ async def test_unsaved_destination(
     request: Request,
     db: SessionDep,
     user: CurrentUser,
+    session_data: SessionDataDep,
+    flows: OAuthFlowsDep,
     destination_id: uuid.UUID | None = None,
 ) -> TestResultOut:
     """Test the settings in a form without saving anything. With `destination_id` (editing a
     saved destination) the stored secrets fill in any secret the form leaves unchanged. Nothing
     is written back: a refreshed Drive token or a new auth status is not stored."""
     existing: dict[str, str] = {}
+    flow = _connected_flow(body, flows, session_data)
     if destination_id is not None:
         row = _get_or_404(db, destination_id)
         if body.type != row.type:
             raise invalid_field(["type"], "Destination type cannot be changed.")
-        existing = _existing_secrets(row, body) if row.type == "gdrive" else {}
-    merged = _merged_secrets(existing, body)
+        existing = _existing_secrets(row, body, flow) if row.type == "gdrive" else {}
+    merged = _merged_secrets(existing, body, flow)
     context = StorageContext(timeout_seconds=TEST_TIMEOUT)
     result = await get_storage(body.type, _normalised_config(body), merged, context).test()
     write_audit(

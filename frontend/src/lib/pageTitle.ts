@@ -4,6 +4,8 @@ const PAGE_TITLES: readonly [string, string][] = [
   ["/runs/", "Run"],
   ["/runs", "Runs"],
   ["/sources", "Sources"],
+  ["/destinations/new", "Add destination"],
+  ["/destinations/", "Destination"],
   ["/destinations", "Destinations"],
   ["/jobs", "Jobs"],
   ["/backups", "Backups"],
@@ -13,6 +15,7 @@ const PAGE_TITLES: readonly [string, string][] = [
   ["/docs", "Docs"],
   ["/login", "Sign in"],
   ["/setup", "Setup"],
+  ["/oauth/google/done", "Google Drive"],
 ];
 
 export function pageTitle(pathname: string): string {

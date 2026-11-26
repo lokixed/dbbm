@@ -10,8 +10,10 @@ import { pageTitle } from "@/lib/pageTitle";
 import AuditPage from "@/pages/Audit";
 import BackupsPage from "@/pages/Backups";
 import DashboardPage from "@/pages/Dashboard";
+import DestinationEditorPage from "@/pages/DestinationEditor";
 import DestinationsPage from "@/pages/Destinations";
 import DocsPage from "@/pages/Docs";
+import GdriveConnectDonePage from "@/pages/GdriveConnectDone";
 import JobsPage from "@/pages/Jobs";
 import LoginPage from "@/pages/Login";
 import NotificationsPage from "@/pages/Notifications";
@@ -60,11 +62,14 @@ export default function App() {
               <Route path="/about" element={<Navigate to="/docs" replace />} />
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/oauth/google/done" element={<GdriveConnectDonePage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
                   <Route index element={<DashboardPage />} />
                   <Route path="sources" element={<SourcesPage />} />
                   <Route path="destinations" element={<DestinationsPage />} />
+                  <Route path="destinations/new" element={<DestinationEditorPage />} />
+                  <Route path="destinations/:id" element={<DestinationEditorPage />} />
                   <Route path="jobs" element={<JobsPage />} />
                   <Route path="runs" element={<RunsPage />} />
                   <Route path="runs/:id" element={<RunDetailPage />} />

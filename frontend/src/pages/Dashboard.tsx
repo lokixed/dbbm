@@ -181,7 +181,7 @@ export default function DashboardPage() {
       {dashboard.isSuccess && (
         <ReauthBanner
           destinations={dashboard.data.destinations.filter((d) => d.auth_status === "needs_reauth")}
-          onReconnect={(id) => navigate(`/destinations?reconnect=${encodeURIComponent(id)}`)}
+          onReconnect={(id) => navigate(`/destinations/${encodeURIComponent(id)}?reconnect=1`)}
         />
       )}
       {dashboard.isSuccess && dashboard.data.jobs.length === 0 && (

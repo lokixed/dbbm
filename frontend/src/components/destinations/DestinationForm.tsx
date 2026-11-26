@@ -5,14 +5,18 @@ import { useForm, useWatch } from "react-hook-form";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Field from "xedonium/Field";
-import HelperText from "xedonium/HelperText";
 import Select from "xedonium/Select";
-import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
+import { DialogFooter } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
-import { useRetentionPreview, useSaveDestination, useTestDestinationDraft } from "@/api/destinations";
-import type { DestinationRecord, RetentionPreview, TestResult } from "@/api/types";
+import {
+  useGdriveConnectConfig,
+  useRetentionPreview,
+  useSaveDestination,
+  useTestDestinationDraft,
+} from "@/api/destinations";
+import type { DestinationInput, DestinationRecord, RetentionPreview, TestResult } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { GdriveFields } from "@/components/destinations/GdriveFields";
+import { GdriveFields, type GdriveConnectProps } from "@/components/destinations/GdriveFields";
 import { PreviewSummary, RetentionSection } from "@/components/destinations/RetentionSection";
 import { TestResultPanel } from "@/components/TestResultPanel";
 import { useToast } from "@/components/toast";
@@ -25,6 +29,7 @@ import {
   toDestinationInput,
   type DestinationFormValues,
 } from "@/lib/destinationForm";
+import { useGdriveConnect } from "@/lib/gdriveConnect";
 import { buildSecrets, initialSecret, secretPayload, type SecretState } from "@/lib/secrets";
 
 interface DriveSecrets {
@@ -44,14 +49,20 @@ function hasSecret(state: SecretState, isSet: boolean): boolean {
   return state.action === "set" && secretPayload(state) !== undefined;
 }
 
-function DestinationForm({
+function typedSecret(state: SecretState): string | undefined {
+  return state.action === "set" && state.value.trim() !== "" ? state.value : undefined;
+}
+
+/** The add/edit form of a destination; `onDone` is called after a save or on Cancel. */
+export function DestinationForm({
   destination,
   focusToken,
-  onClose,
+  onDone,
 }: {
   destination: DestinationRecord | null;
+  /** Reconnect flow: open with the token field ready for a new token. */
   focusToken: boolean;
-  onClose: () => void;
+  onDone: () => void;
 }) {
   const { toast } = useToast();
   const save = useSaveDestination();
@@ -81,6 +92,38 @@ function DestinationForm({
   const keepLast = useWatch({ control, name: "keepLast" });
   const keepDays = useWatch({ control, name: "keepDays" });
   const secretsSet = record?.secrets_set ?? {};
+  const drive = useGdriveConnect();
+  const connectConfig = useGdriveConnectConfig(type === "gdrive");
+  const trimmedClientId = clientId.trim();
+  const connected =
+    drive.state.phase === "connected" &&
+    drive.state.clientId === trimmedClientId &&
+    drive.state.scope === scope;
+  const storedSecretUsable =
+    record?.type === "gdrive" &&
+    (record.config.client_id ?? "") === trimmedClientId &&
+    secrets.client_secret.action === "keep" &&
+    (secretsSet.client_secret ?? false);
+  const connectBlocked = !trimmedClientId
+    ? "Enter an OAuth client ID and secret first."
+    : !typedSecret(secrets.client_secret) && !storedSecretUsable
+      ? "Enter the client secret first."
+      : null;
+  const connectProps: GdriveConnectProps = {
+    state: drive.state,
+    connected,
+    blockedReason: connectBlocked,
+    redirectUrl: connectConfig.data?.redirect_url ?? null,
+    onConnect: () => {
+      const secret = typedSecret(secrets.client_secret);
+      void drive.connect({
+        client_id: trimmedClientId,
+        scope,
+        ...(secret ? { client_secret: secret } : {}),
+        ...(!secret && record ? { destination_id: record.id } : {}),
+      });
+    },
+  };
   const retentionChanged =
     record !== null &&
     (parsePolicyValue(keepLast) !== record.retention.keep_last ||
@@ -89,8 +132,8 @@ function DestinationForm({
   const validateSecrets = (values: DestinationFormValues): boolean => {
     const found: Record<string, string> = {};
     if (values.type === "gdrive") {
-      if (!hasSecret(secrets.token, secretsSet.token ?? false)) {
-        found.token = "Paste the token printed by rclone authorize.";
+      if (!connected && !hasSecret(secrets.token, secretsSet.token ?? false)) {
+        found.token = "Connect Google Drive, or paste the token printed by rclone authorize.";
       }
       const secretGiven = hasSecret(secrets.client_secret, secretsSet.client_secret ?? false);
       if (values.clientId.trim() && !secretGiven) {
@@ -109,7 +152,17 @@ function DestinationForm({
       !values.clientId.trim() && secrets.client_secret.action === "keep" && secretsSet.client_secret
         ? { action: "clear" }
         : secrets.client_secret;
-    return buildSecrets({ token: secrets.token, client_secret: clientSecret });
+    // After Connect the server takes the token from the flow, so none is sent.
+    const token: SecretState = connected ? { action: "keep" } : secrets.token;
+    return buildSecrets({ token, client_secret: clientSecret });
+  };
+
+  const toInput = (values: DestinationFormValues): DestinationInput => {
+    const input = toDestinationInput(values, secretsInput(values));
+    if (input.type === "gdrive" && connected && drive.state.phase === "connected") {
+      return { ...input, token_flow_id: drive.state.flowId };
+    }
+    return input;
   };
 
   // Tests the values in the form as they are now, saved or not.
@@ -119,7 +172,7 @@ function DestinationForm({
     try {
       const result = await test.mutateAsync({
         id: record?.id ?? null,
-        input: toDestinationInput(values, secretsInput(values)),
+        input: toInput(values),
       });
       setTestResult(result);
       toast({
@@ -136,13 +189,14 @@ function DestinationForm({
       try {
         const saved = await save.mutateAsync({
           id: record?.id ?? null,
-          input: toDestinationInput(values, secretsInput(values)),
+          input: toInput(values),
         });
         setRecord(saved);
         form.reset(recordToValues(saved));
         setSecrets(initialDriveSecrets(saved, false));
+        drive.reset();
         toast({ title: "Destination saved", description: saved.name, variant: "success" });
-        onClose();
+        onDone();
       } catch (error) {
         setFormError(error instanceof ApiError || error instanceof Error ? error.message : "Save failed");
       }
@@ -215,6 +269,7 @@ function DestinationForm({
           onClientSecret={(state) => setSecrets((s) => ({ ...s, client_secret: state }))}
           secretErrors={secretErrors}
           focusToken={focusToken}
+          connect={connectProps}
         />
       )}
 
@@ -259,7 +314,7 @@ function DestinationForm({
             {test.isPending ? "Testing..." : "Test connection"}
           </Button>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+            <Button type="button" variant="secondary" onClick={onDone} disabled={busy}>
               Cancel
             </Button>
             <Button type="button" onClick={submit} disabled={busy}>
@@ -269,31 +324,5 @@ function DestinationForm({
         </div>
       </DialogFooter>
     </form>
-  );
-}
-
-interface DestinationDialogProps {
-  open: boolean;
-  destination: DestinationRecord | null;
-  /** Reconnect flow: open with the token field ready for a new token. */
-  focusToken?: boolean;
-  onClose: () => void;
-}
-
-export function DestinationDialog({ open, destination, focusToken = false, onClose }: DestinationDialogProps) {
-  return (
-    <DialogFrame
-      open={open}
-      onClose={onClose}
-      title={focusToken ? "Reconnect Google Drive" : destination ? "Edit destination" : "Add destination"}
-      maxWidth="max-w-2xl"
-    >
-      <div className="px-6 pb-6 pt-4">
-      <HelperText className="mb-4">
-        Backups are copied to every destination of a job and verified there.
-      </HelperText>
-      <DestinationForm destination={destination} focusToken={focusToken} onClose={onClose} />
-      </div>
-    </DialogFrame>
   );
 }

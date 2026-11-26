@@ -3,6 +3,9 @@ import { api } from "./client";
 import type {
   DestinationInput,
   DestinationRecord,
+  DriveScope,
+  GdriveConnectStart,
+  GdriveConnectState,
   RetentionPreview,
   RetentionRunResult,
   TestResult,
@@ -87,4 +90,30 @@ export function useRunRetention() {
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       ]),
   });
+}
+
+/** The redirect URI to register in the Google OAuth client (the relay page). */
+export function useGdriveConnectConfig(enabled: boolean) {
+  return useQuery({
+    queryKey: ["gdrive-oauth-config"],
+    queryFn: () => api<{ redirect_url: string }>("/api/destinations/gdrive/oauth/config"),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
+export interface GdriveConnectRequest {
+  client_id: string;
+  /** Omitted to use the stored secret of `destination_id`. */
+  client_secret?: string;
+  scope: DriveScope;
+  destination_id?: string;
+}
+
+export function startGdriveConnect(body: GdriveConnectRequest): Promise<GdriveConnectStart> {
+  return api<GdriveConnectStart>("/api/destinations/gdrive/oauth/start", { method: "POST", body });
+}
+
+export function fetchGdriveConnectState(flowId: string): Promise<GdriveConnectState> {
+  return api<GdriveConnectState>(`/api/destinations/gdrive/oauth/${encodeURIComponent(flowId)}`);
 }

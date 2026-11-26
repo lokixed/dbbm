@@ -87,7 +87,7 @@ The code and docs are done (version 1.0.0-rc.1). What is left:
 
 ## Not planned for 1.0 (backlog)
 
-- [ ] In-app Google Drive OAuth ("Connect Google Drive" button) instead of pasting an rclone token
+- [x] In-app Google Drive OAuth ("Connect Google Drive" button) instead of pasting an rclone token, through the GitHub Pages relay (docs/DESIGN.md section 9, "Google Drive connect flow")
 - [ ] Multi-user roles, SSO, and API tokens
 - [ ] Scheduled automatic restore tests (restore into a scratch container and run a sanity query)
 - [ ] Prometheus metrics endpoint and a Grafana dashboard

@@ -110,20 +110,24 @@ Backups can also be copied to a folder in Google Drive (through [rclone](https:/
 
 ### Setup
 
-1. **OAuth client (recommended).** In the [Google Cloud Console](https://console.cloud.google.com/) create or pick a project, enable the **Google Drive API**, and create an OAuth client ID of type **Desktop app**. Without your own client, rclone's shared client is used, which is heavily rate limited.
-2. **Publish the consent screen.** Under *OAuth consent screen*, set the publishing status to **In production**. Apps left in *Testing* get refresh tokens that expire after 7 days, and backups then start failing with "authorization expired". An unverified app is fine for personal use (Google shows a warning the first time you sign in).
-3. **Create a token.** In **Destinations**, choose **Google Drive**, fill in the folder, scope and (optionally) client ID and secret. The form shows the exact command to run on a computer with a browser and rclone installed, for example:
-
-   ```bash
-   rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
-   ```
-
-   The argument is base64url-encoded JSON of the scope (and client ID/secret), so the token matches the form. Sign in, then paste everything rclone prints between `--->` and `<---End paste` into **Token** (or upload it as a file).
+1. **OAuth client.** In the [Google Cloud Console](https://console.cloud.google.com/) [create a project](https://console.cloud.google.com/projectcreate) (or pick one) and enable the [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com). Under [Google Auth Platform > Branding](https://console.cloud.google.com/auth/branding) set an app name and contact email, with the audience **External**. Then under [Clients](https://console.cloud.google.com/auth/clients) create a client of type **Web application**, add `https://lokixed.github.io/dbbm/oauth/google/` under *Authorized redirect URIs* (the destination form shows the exact value to copy), and copy the client ID and secret.
+2. **Publish the app.** Under [Audience](https://console.cloud.google.com/auth/audience) click **Publish app** so the status is **In production**. Apps left in *Testing* get refresh tokens that expire after 7 days, and backups then start failing with "authorization expired". An unverified app is fine for personal use: at sign-in Google warns that the app is not verified; click **Advanced**, then **Go to DBBM (unsafe)**.
+3. **Connect.** In **Destinations**, choose **Google Drive**, fill in the folder, scope, client ID and client secret, and click **Connect Google Drive**. Google sign-in opens in a new tab. After you allow access, that tab returns to DBBM and the form shows "Google Drive connected". Click **Save**.
 4. **Test connection** checks three things: the folder can be listed (it is created if missing), free space (not reported for some shared drives, which is not an error), and a write probe that uploads a tiny file, reads its MD5 back and deletes it permanently.
+
+**How Connect works.** Google only redirects to public `https` addresses, and most installs run on a LAN address or plain HTTP. So the redirect goes to a static page on this project's GitHub Pages site, which only sends your browser on to your DBBM (its address travels in the OAuth `state`). Your DBBM never has to be reachable from the internet. The page stores nothing and loads nothing else. The authorization code it passes along is useless without your client secret and a one-time PKCE verifier, which never leave your server. Connect requests expire after 10 minutes, can be used once, and only by the browser session that started them. To run your own copy of the page, host `site/oauth/google/` anywhere on `https`, register that URL in the OAuth client and set `GDRIVE_OAUTH_REDIRECT_URL` to it.
+
+**Or paste a token.** Without an OAuth client of your own (rclone's shared client, heavily rate limited), or with a client of type **Desktop app**, open **Or paste a token from rclone** in the form. It shows the exact command to run on a computer with a browser and rclone installed, for example:
+
+```bash
+rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
+```
+
+The argument is base64url-encoded JSON of the scope (and client ID/secret), so the token matches the form. Sign in, then paste everything rclone prints between `--->` and `<---End paste` into **Token** (or upload it as a file).
 
 **Scopes.** `drive.file` (default, recommended) lets rclone see only files and folders it created; a folder you created by hand in the Drive web UI is invisible to it, so rclone creates its own folder of the same name. `drive` grants full access to your whole Drive. For a shared drive, enter its ID (the last part of its URL).
 
-The token, refresh token and client secret are encrypted with the master key, never returned by the API and never put on a command line: every rclone call gets a private `0600` config file in a `0700` directory under `/tmp` (a tmpfs), removed right afterwards. When rclone refreshes the access token, the new token is saved back (calls for one Drive destination run one at a time so concurrent jobs cannot overwrite each other's refreshed token; the price is that two jobs never upload to the same Drive destination in parallel). If Google rejects the token (revoked, expired, wrong client), the destination is marked **Reconnect needed**, a banner appears on the dashboard and the Destinations page, and runs skip that destination until you paste a new token.
+The token, refresh token and client secret are encrypted with the master key, never returned by the API and never put on a command line: every rclone call gets a private `0600` config file in a `0700` directory under `/tmp` (a tmpfs), removed right afterwards. When rclone refreshes the access token, the new token is saved back (calls for one Drive destination run one at a time so concurrent jobs cannot overwrite each other's refreshed token; the price is that two jobs never upload to the same Drive destination in parallel). If Google rejects the token (revoked, expired, wrong client), the destination is marked **Reconnect needed**, a banner appears on the dashboard and the Destinations page, and runs skip that destination until you reconnect it (edit the destination and click **Reconnect Google Drive**, or paste a new token).
 
 ### Known limits
 
@@ -253,6 +257,7 @@ link-local addresses (including `169.254.169.254`) are always refused, private n
 | `TZ` | No | `UTC` | Container clock and log time zone (jobs use their own time zone) |
 | `PUBLIC_BASE_URL` | No | empty | Initial value of Settings > Public base URL (links in notifications) |
 | `ALLOW_PRIVATE_NOTIFICATION_TARGETS` | No | `false` | Allow webhook, Slack, SMTP and ping targets on private networks |
+| `GDRIVE_OAUTH_REDIRECT_URL` | No | `https://lokixed.github.io/dbbm/oauth/google/` | Redirect relay page for Connect Google Drive; must match the redirect URI in your OAuth client (`https`, or `http://localhost`) |
 
 ## Development
 

@@ -72,7 +72,7 @@ jobs:
           }
           workflow='[.]github/workflows/ci-cd[.]yml$'
           check backend "^(backend/|scripts/|${workflow})"
-          check frontend "^(frontend/|${workflow})"
+          check frontend "^(frontend/|site/oauth/|dev/site-tests/|${workflow})"
           check code "^(backend/|frontend/|scripts/|Dockerfile$|[.]dockerignore$|[.]github/)"
           check image "^(backend/|frontend/|scripts/|Dockerfile$|[.]dockerignore$|${workflow})"
           # Publishing stages run on any change at all (any changed file matches ".").
@@ -133,6 +133,8 @@ jobs:
       - run: yarn lint
       - run: yarn typecheck
       - run: yarn build
+      # The Google Drive OAuth relay page in site/ (no dependencies, node's own test runner).
+      - run: node --test ../dev/site-tests/*.test.mjs
 
   # Dependency, secret and image scanning. High severity findings fail the build.
   security:

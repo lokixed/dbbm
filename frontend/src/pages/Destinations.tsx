@@ -1,6 +1,6 @@
 import { DestinationLabel } from "@/components/DestinationIcon";
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import PageHeader from "xedonium/PageHeader";
@@ -14,18 +14,9 @@ import type { DestinationRecord } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
-import { DestinationDialog } from "@/components/destinations/DestinationDialog";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
-
-interface EditorState {
-  open: boolean;
-  destination: DestinationRecord | null;
-  focusToken: boolean;
-}
-
-const CLOSED: EditorState = { open: false, destination: null, focusToken: false };
 
 function location(destination: DestinationRecord): string {
   if (destination.type === "local") return destination.config.path;
@@ -38,27 +29,11 @@ export default function DestinationsPage() {
   const destinations = useDestinations();
   const test = useTestDestination();
   const remove = useDeleteDestination();
-  const [params, setParams] = useSearchParams();
-  const [editor, setEditor] = useState<EditorState>(CLOSED);
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [deleting, setDeleting] = useState<DestinationRecord | null>(null);
 
-  // Arriving from the dashboard's Reconnect action: /destinations?reconnect=<id>
-  const reconnectId = params.get("reconnect");
-  const reconnectTarget = reconnectId
-    ? (destinations.data?.find((d) => d.id === reconnectId) ?? null)
-    : null;
-  const current: EditorState = reconnectTarget
-    ? { open: true, destination: reconnectTarget, focusToken: true }
-    : editor;
-
-  const closeEditor = () => {
-    setEditor(CLOSED);
-    if (reconnectId) setParams({}, { replace: true });
-  };
-  const reconnect = (id: string) => {
-    const destination = destinations.data?.find((d) => d.id === id) ?? null;
-    if (destination) setEditor({ open: true, destination, focusToken: true });
-  };
+  const reconnect = (id: string) => navigate(`/destinations/${encodeURIComponent(id)}?reconnect=1`);
   const needsReauth = (destinations.data ?? []).filter((d) => d.auth_status === "needs_reauth");
 
   const runTest = (destination: DestinationRecord) =>
@@ -116,7 +91,7 @@ export default function DestinationsPage() {
           <RowMenu
             label={`Actions for ${d.name}`}
             items={[
-              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => setEditor({ open: true, destination: d, focusToken: false }) },
+              { key: "edit", label: "Edit", icon: <PencilIcon className="h-4 w-4" />, onClick: () => navigate(`/destinations/${encodeURIComponent(d.id)}`) },
               { key: "test", label: "Test connection", icon: <PlayIcon className="h-4 w-4" />, disabled: testing, onClick: () => runTest(d) },
               { key: "delete", label: "Delete", tone: "danger", icon: <Trash2Icon className="h-4 w-4" />, onClick: () => setDeleting(d) },
             ]}
@@ -126,10 +101,16 @@ export default function DestinationsPage() {
     },
   ];
 
+  // Older links (notifications, bookmarks): /destinations?reconnect=<id>
+  const reconnectId = params.get("reconnect");
+  if (reconnectId) {
+    return <Navigate to={`/destinations/${encodeURIComponent(reconnectId)}?reconnect=1`} replace />;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Destinations" subtitle="Where backups are stored.">
-        <Button onClick={() => setEditor({ open: true, destination: null, focusToken: false })}>
+        <Button onClick={() => navigate("/destinations/new")}>
           <PlusIcon className="h-4 w-4" /> Add destination
         </Button>
       </PageHeader>
@@ -160,13 +141,6 @@ export default function DestinationsPage() {
         />
       )}
 
-      <DestinationDialog
-        key={`${current.destination?.id ?? "new"}-${current.focusToken}-${current.open}`}
-        open={current.open}
-        destination={current.destination}
-        focusToken={current.focusToken}
-        onClose={closeEditor}
-      />
       <ConfirmDialog
         open={deleting !== null}
         title="Delete destination?"
