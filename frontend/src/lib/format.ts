@@ -26,11 +26,14 @@ export function formatSeconds(total: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-/** Elapsed time of a run; still counting while it has no end. */
+/** Elapsed time of a run; still counting while it has no end. A finished run under a second
+ * shows "<1s" rather than "0s". */
 export function formatDuration(start: string | null, end: string | null, now = Date.now()): string {
   if (!start) return "-";
   const finish = end ? new Date(end).getTime() : now;
-  return formatSeconds(Math.max(0, Math.round((finish - new Date(start).getTime()) / 1000)));
+  const ms = Math.max(0, finish - new Date(start).getTime());
+  if (end && ms < 1000) return "<1s";
+  return formatSeconds(Math.round(ms / 1000));
 }
 
 /** "1 backup", "3 backups". */

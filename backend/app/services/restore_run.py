@@ -80,6 +80,8 @@ class RestorePlan:
     # The age private key for an encrypted backup. Memory only: never part of summary(), the
     # database, the log or an audit entry, and hidden from repr() so it cannot leak in a traceback.
     private_key: str | None = field(default=None, repr=False)
+    # The source the backup was taken from, when its job still exists.
+    backup_source_id: uuid.UUID | None = None
 
     def summary(self) -> dict[str, Any]:
         """Non-secret facts shown with the run."""
@@ -89,6 +91,8 @@ class RestorePlan:
             "copy": self.copy.name,
             "path": self.key,
             "target_source": self.target_source_name,
+            "target_source_id": str(self.target_source_id),
+            "backup_source_id": str(self.backup_source_id) if self.backup_source_id else None,
             "target_type": self.target_type,
             "target_database": self.options.target_database,
             "drop": self.options.drop,
@@ -106,6 +110,7 @@ def load_restore_plan(
     timeout_seconds: int,
     username: str | None,
     private_key: str | None = None,
+    backup_source_id: uuid.UUID | None = None,
 ) -> RestorePlan:
     try:
         secrets = load_secrets(target.secrets_enc)
@@ -128,6 +133,7 @@ def load_restore_plan(
         username=username,
         encrypted=artifact.encrypted,
         private_key=private_key,
+        backup_source_id=backup_source_id,
     )
 
 

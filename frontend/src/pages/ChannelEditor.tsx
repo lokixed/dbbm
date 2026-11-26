@@ -4,11 +4,13 @@ import { useChannels } from "@/api/notifications";
 import { EditorPage } from "@/components/EditorPage";
 import { LogoLoader } from "@/components/LogoLoader";
 import { ChannelForm } from "@/components/notifications/ChannelEditor";
+import Card from "xedonium/Card";
+import { ChannelEvents } from "@/components/notifications/ChannelEvents";
 
 const FRAME = {
   subtitle: "Where failures, recoveries, overdue jobs and system warnings are sent.",
   backTo: "/notifications",
-  backLabel: "Notifications",
+  backLabel: "All channels",
   note: "Secrets (webhook URLs, passwords, headers) are stored encrypted and never shown again.",
 };
 
@@ -38,7 +40,11 @@ export default function ChannelEditorPage() {
     );
   }
   return (
-    <EditorPage title={`Edit ${channel.name}`} {...FRAME}>
+    <EditorPage title={`Edit ${channel.name}`} {...FRAME} footer={
+        <Card title="Delivery events" padded={false}>
+          <ChannelEvents channelId={channel.id} />
+        </Card>
+      }>
       <ChannelForm key={channel.id} channel={channel} onClose={back} />
     </EditorPage>
   );

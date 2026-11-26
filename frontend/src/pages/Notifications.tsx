@@ -12,60 +12,28 @@ import PencilIcon from "xedonium/icons/Pencil";
 import PlusIcon from "xedonium/icons/Plus";
 import SendIcon from "xedonium/icons/Send";
 import Trash2Icon from "xedonium/icons/Trash2";
-import RelativeTime from "xedonium/RelativeTime";
 import {
-  useChannelEvents,
   useChannels,
   useDeleteChannel,
   useSaveChannel,
   useTestChannel,
 } from "@/api/notifications";
-import type { ChannelRecord, NotificationEvent } from "@/api/types";
+import type { ChannelRecord } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
 import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
-import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
+import { ChannelEvents } from "@/components/notifications/ChannelEvents";
 import { useToast } from "@/components/toast";
 import { ChannelBulkActions } from "@/components/notifications/ChannelBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesSearch } from "@/lib/search";
 
-
-const EVENT_COLUMNS: DataGridColumn<NotificationEvent>[] = [
-  {
-    key: "time",
-    header: "Time",
-    sortable: true,
-    accessor: (event) => event.created_at,
-    render: (event) => <span className="whitespace-nowrap text-xs"><RelativeTime date={event.created_at} /></span>,
-  },
-  {
-    key: "event",
-    header: "Event",
-    render: (event) => (
-      <>
-        {event.event_type.replace("_", " ")}
-        {event.run_id && (
-          <Link className="ml-2 text-xs underline" to={`/runs/${event.run_id}`}>
-            run
-          </Link>
-        )}
-      </>
-    ),
-  },
-  { key: "status", header: "Status", render: (event) => <EventStatusBadge status={event.status} /> },
-  { key: "attempts", header: "Attempts", render: (event) => event.attempts },
-  {
-    key: "error",
-    header: "Error",
-    render: (event) => <span className="text-xs text-app-muted">{event.error ?? ""}</span>,
-  },
-];
 
 function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () => void }) {
-  const events = useChannelEvents(channel.id);
   return (
     <Card
       title={`Delivery events: ${channel.name}`}
@@ -76,19 +44,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
         </Button>
       }
     >
-      {events.isPending && <LogoLoader label="Loading events" />}
-      {events.isError && <Alert tone="danger">Could not load events: {events.error.message}</Alert>}
-      {events.isSuccess && (
-        <DataGrid
-          density="compact"
-          pageSize={10}
-          pageSizeOptions={[10, 20, 50, 100]}
-          hideFooterWhenSinglePage
-          columns={EVENT_COLUMNS}
-          rows={events.data.items}
-          empty="No messages sent through this channel yet."
-        />
-      )}
+      <ChannelEvents channelId={channel.id} />
     </Card>
   );
 }
@@ -102,6 +58,7 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState<ChannelRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const [eventsFor, setEventsFor] = useState<ChannelRecord | null>(null);
   const [results, setResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
@@ -150,7 +107,7 @@ export default function NotificationsPage() {
       header: "Name",
       render: (channel) => (
         <div className="font-medium">
-          {channel.name}
+          <Link to={`/notifications/${encodeURIComponent(channel.id)}`} className="hover:underline">{channel.name}</Link>
           {channel.warnings.map((w) => (
             <HelperText key={w} className="mt-1 font-normal text-amber-700 dark:text-amber-400">
               {w}
@@ -231,6 +188,8 @@ export default function NotificationsPage() {
         </Button>
       </PageHeader>
 
+      <SearchBox label="Search channels" placeholder="Search name, type or job" value={query} onChange={setQuery} />
+
       {channels.isPending && <LogoLoader label="Loading channels" />}
       {channels.isError && (
         <Alert tone="danger">
@@ -255,11 +214,10 @@ export default function NotificationsPage() {
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
-          searchable
           hideFooterWhenSinglePage
           columns={columns}
-          rows={channels.data}
-          empty="No channels yet. Add Slack, email or a webhook to be told when a backup fails."
+          rows={channels.data.filter((c) => matchesSearch(query, [c.name, CHANNEL_TYPE_NAME[c.type], ...c.jobs.map((j) => j.name)]))}
+          empty={query.trim() ? "No channels match." : "No channels yet. Add Slack, email or a webhook to be told when a backup fails."}
         />
       )}
 

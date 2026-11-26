@@ -222,6 +222,15 @@ def test_backups_can_be_listed_by_run(authed: TestClient) -> None:
     assert authed.get(f"/api/backups?run_id={'0' * 32}").json()["total"] == 0
 
 
+def test_a_backup_can_be_read_by_id(authed: TestClient) -> None:
+    source, backup = backed_up_mongo(authed)
+    one = authed.get(f"/api/backups/{backup['id']}")
+    assert one.status_code == 200 and one.json() == backup
+    assert one.json()["source_id"] == source["id"]
+    missing = authed.get("/api/backups/00000000-0000-0000-0000-000000000000")
+    assert missing.status_code == 404
+
+
 def test_restores_are_rate_limited(authed: TestClient) -> None:
     for _ in range(backups_api.RESTORES_PER_MINUTE):
         assert not backups_api._rate_limited("alice")
@@ -394,3 +403,54 @@ def test_older_restore_runs_find_their_engine_by_source_name(authed: TestClient)
         run_id = str(run.id)
     listed = authed.get("/api/runs").json()["items"]
     assert next(r for r in listed if r["id"] == run_id)["source_type"] == "mongo"
+
+
+def test_restores_are_listed_with_their_target_source(authed: TestClient) -> None:
+    source, backup = backed_up_mongo(authed)
+    target = make_mongo(authed, "mongo-scratch")
+    response = restore(authed, backup, restore_body(target))
+    assert response.status_code == 201, response.text
+    restored = wait_final(authed, response.json()["id"])
+    with Session(get_engine()) as db:  # a restore from before the target's id was recorded
+        older = Run(
+            job_name="Restore shop",
+            kind="restore",
+            trigger="manual",
+            status="failed",
+            step_results={"restore": {"target_source": target["name"]}},
+        )
+        db.add(older)
+        db.commit()
+        older_id = str(older.id)
+
+    def ids(src: dict[str, Any]) -> set[str]:
+        page = authed.get("/api/runs", params={"source_id": src["id"]}).json()
+        return {r["id"] for r in page["items"]}
+
+    assert ids(target) == {restored["id"], older_id}
+    # The new restore also shows on the source it was backed up from; the older one names no backup.
+    assert restored["id"] in ids(source) and older_id not in ids(source)
+
+
+def test_restores_are_listed_with_the_source_they_were_backed_up_from(authed: TestClient) -> None:
+    source, backup = backed_up_mongo(authed)
+    target = make_mongo(authed, "mongo-scratch")
+    response = restore(authed, backup, restore_body(target))
+    assert response.status_code == 201, response.text
+    restored = wait_final(authed, response.json()["id"])
+    assert restored["step_results"]["restore"]["backup_source_id"] == source["id"]
+    with Session(get_engine()) as db:  # a restore from before the backup's source was recorded
+        older = Run(
+            job_name="Restore shop",
+            kind="restore",
+            trigger="manual",
+            status="failed",
+            step_results={"restore": {"artifact_id": backup["id"], "target_source": "gone"}},
+        )
+        db.add(older)
+        db.commit()
+        older_id = str(older.id)
+
+    page = authed.get("/api/runs", params={"source_id": source["id"]}).json()
+    listed = {r["id"] for r in page["items"]}
+    assert {restored["id"], older_id} <= listed and page["total"] == 3  # plus its backup run

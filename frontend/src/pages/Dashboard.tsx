@@ -20,6 +20,7 @@ import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
+import { ViewRunsButton } from "@/components/ViewRunsButton";
 import { LogoLoader } from "@/components/LogoLoader";
 import { errorClassLabel } from "@/lib/errorClass";
 import { formatBytes } from "@/lib/format";
@@ -245,13 +246,16 @@ export default function DashboardPage() {
                     <dt className="text-app-muted">Last size</dt>
                     <dd>{entry.last_artifact_size === null ? "-" : formatBytes(entry.last_artifact_size)}</dd>
                   </dl>
-                  <Button
-                    variant="secondary"
-                    disabled={starting || active}
-                    onClick={() => runNow(entry.job_id, entry.job_name)}
-                  >
-                    <PlayIcon className="h-4 w-4" /> Run now
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={starting || active}
+                      onClick={() => runNow(entry.job_id, entry.job_name)}
+                    >
+                      <PlayIcon className="h-4 w-4" /> Run now
+                    </Button>
+                    <ViewRunsButton filter="job" id={entry.job_id} />
+                  </div>
                 </div>
               </Card>
             );

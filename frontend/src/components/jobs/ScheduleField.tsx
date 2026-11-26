@@ -3,7 +3,6 @@ import { useSchedulePreview, useTimezones } from "@/api/schedule";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Field from "xedonium/Field";
-import Label from "xedonium/Label";
 import Loader from "xedonium/Loader";
 import Select from "xedonium/Select";
 import RelativeTime from "xedonium/RelativeTime";
@@ -48,7 +47,7 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
 
   return (
     <div className="space-y-3 border border-app-border p-3">
-      <Label>Schedule</Label>
+      <h3 className="text-sm font-semibold text-app-text">Schedule</h3>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant={cron.trim() === "" ? "default" : "secondary"} onClick={() => onCron("")}>
           Manual only

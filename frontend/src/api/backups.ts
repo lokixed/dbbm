@@ -127,6 +127,15 @@ export interface RestoreInput {
 }
 
 /** All stored copies (one per destination) of the same database from the same run. */
+/** One backup copy by its id, for links that carry only the id. */
+export function useBackup(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...backupKeys.all, "one", id],
+    enabled,
+    queryFn: () => api<Backup>(`/api/backups/${encodeURIComponent(id)}`),
+  });
+}
+
 export function useBackupCopies(runId: string, database: string, enabled: boolean) {
   return useQuery({
     queryKey: [...backupKeys.all, "copies", runId, database],

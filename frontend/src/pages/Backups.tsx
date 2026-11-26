@@ -16,7 +16,6 @@ import Tooltip from "xedonium/Tooltip";
 import CopyIcon from "xedonium/icons/Copy";
 import DownloadIcon from "xedonium/icons/Download";
 import FilterIcon from "xedonium/icons/Filter";
-import SearchIcon from "xedonium/icons/Search";
 import RefreshCwIcon from "xedonium/icons/RefreshCw";
 import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import ShieldCheckIcon from "xedonium/icons/ShieldCheck";
@@ -42,6 +41,7 @@ import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
 import { restorePath } from "@/lib/backupPaths";
 import { formatBytes } from "@/lib/format";
+import { SearchBox } from "@/components/SearchBox";
 
 const EMPTY: BackupFilters = {
   jobId: "",
@@ -268,16 +268,7 @@ export default function BackupsPage() {
       />
 
       <div className="flex flex-wrap items-stretch gap-2">
-        <div className="w-full sm:w-64">
-          <Input
-            aria-label="Search backups by database, destination or job"
-            placeholder="Search database, destination or job"
-            value={search}
-            onChange={setSearch}
-            clearable
-            startAdornment={<SearchIcon className="h-4 w-4" />}
-          />
-        </div>
+        <SearchBox label="Search backups" placeholder="Search database, destination or job" value={search} onChange={setSearch} />
         <div className="flex flex-wrap items-stretch gap-2 sm:ml-auto">
           <Button variant="secondary" className="!h-auto" onClick={openFilters}>
             <FilterIcon className="mr-2 h-4 w-4" />

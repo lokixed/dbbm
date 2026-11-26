@@ -281,10 +281,28 @@ export interface UnitResult {
   destinations: DestinationOutcome[];
 }
 
+/** What a restore run read and where it wrote. Older runs lack the newer fields. */
+export interface RestoreSummary {
+  artifact_id?: string;
+  database?: string;
+  copy?: string;
+  path?: string;
+  target_source?: string;
+  target_source_id?: string;
+  backup_source_id?: string | null;
+  target_type?: string;
+  target_database?: string;
+  drop?: boolean;
+  full_instance?: boolean;
+  only?: string[];
+  encrypted?: boolean;
+}
+
 export interface StepResults {
   steps?: StepEntry[];
   units?: UnitResult[];
   warnings?: string[];
+  restore?: RestoreSummary;
 }
 
 export interface RunNotification {

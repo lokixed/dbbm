@@ -223,6 +223,7 @@ function JobForm({
       </div>
 
       <div className="space-y-3 border border-app-border p-3">
+        <h3 className="text-sm font-semibold text-app-text">Encryption</h3>
         <Switch
           checked={encrypt}
           onChange={(value) => setValue("encrypt", value, { shouldDirty: true })}
@@ -235,9 +236,9 @@ function JobForm({
               Keep it, and a recovery key, somewhere safe.
             </Alert>
             <div className="space-y-1" role="group" aria-labelledby="job-encrypt-keys-label">
-              <p id="job-encrypt-keys-label" className="text-sm text-app-text">
+              <Label id="job-encrypt-keys-label" as="p">
                 Encrypt to these keys
-              </p>
+              </Label>
               {recipients.isSuccess && recipients.data.length === 0 && (
                 <HelperText>
                   No keys yet.{" "}
@@ -277,7 +278,7 @@ function JobForm({
       )}
 
       <div className="space-y-3 border border-app-border p-3">
-        <Label>Notifications</Label>
+        <h3 className="text-sm font-semibold text-app-text">Notifications</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select
             label="Notify"
@@ -298,9 +299,9 @@ function JobForm({
           </FieldAlign>
         </div>
         <div className="space-y-1" role="group" aria-labelledby="job-channels-label">
-          <p id="job-channels-label" className="text-sm text-app-text">
+          <Label id="job-channels-label" as="p">
             Channels
-          </p>
+          </Label>
           {channels.isSuccess && channels.data.length === 0 && (
             <HelperText>
               No channels yet.{" "}

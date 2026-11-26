@@ -5,14 +5,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlmodel import Session, col, select
 
 from app.api.deps import CurrentUser, SettingsDep, client_ip
 from app.api.jobs import RunnerDep
 from app.api.run_views import run_detail, summarize_runs
 from app.core.db import SessionDep, get_engine
-from app.models import Run, RunStatus
+from app.models import Artifact, Job, JobDestination, Run, RunStatus, Source
 from app.models.run import ACTIVE_STATUSES
 from app.schemas.job import RunOut, RunPage, RunSummaryOut
 from app.services.audit import write_audit
@@ -40,11 +40,56 @@ def _get_or_404(db: Session, run_id: uuid.UUID) -> Run:
     return run
 
 
+def _runs_of_source(db: Session, source_id: uuid.UUID) -> ColumnElement[bool]:
+    """Backup runs of the source's current jobs (runs of deleted jobs have no job_id), restores
+    into it, and restores of backups taken from it."""
+    source_jobs = select(Job.id).where(col(Job.source_id) == source_id)
+    return or_(
+        col(Run.job_id).in_(source_jobs),
+        and_(
+            col(Run.kind) == "restore",
+            or_(_restored_into(db, source_id), _restored_from(db, source_id)),
+        ),
+    )
+
+
+def _restored_into(db: Session, source_id: uuid.UUID) -> ColumnElement[bool]:
+    """Restores into the source. Older ones recorded only its name, so they match by name."""
+    restore = col(Run.step_results)["restore"]
+    target_id = restore["target_source_id"].as_string()
+    into: ColumnElement[bool] = target_id == str(source_id)
+    source = db.get(Source, source_id)
+    if source is None:
+        return into
+    by_name = and_(target_id.is_(None), restore["target_source"].as_string() == source.name)
+    return or_(into, by_name)
+
+
+def _restored_from(db: Session, source_id: uuid.UUID) -> ColumnElement[bool]:
+    """Restores of backups taken from the source. Older ones did not record it, so they are traced
+    through the backup file to the job that made it, while both still exist."""
+    restore = col(Run.step_results)["restore"]
+    backup_source = restore["backup_source_id"].as_string()
+    artifact_ids = db.exec(
+        select(Artifact.id)
+        .join(Run, col(Run.id) == col(Artifact.run_id))
+        .join(Job, col(Job.id) == col(Run.job_id))
+        .where(col(Job.source_id) == source_id)
+    ).all()
+    traced = and_(
+        backup_source.is_(None),
+        restore["artifact_id"].as_string().in_([str(a) for a in artifact_ids]),
+    )
+    return or_(backup_source == str(source_id), traced)
+
+
 @router.get("")
 def list_runs(
     db: SessionDep,
     _user: CurrentUser,
     job_id: uuid.UUID | None = None,
+    source_id: uuid.UUID | None = None,
+    destination_id: uuid.UUID | None = None,
     status: RunStatus | None = None,
     date_from: Annotated[datetime | None, Query(alias="from")] = None,
     date_to: Annotated[datetime | None, Query(alias="to")] = None,
@@ -54,6 +99,16 @@ def list_runs(
     conditions = []
     if job_id:
         conditions.append(col(Run.job_id) == job_id)
+    if source_id:
+        conditions.append(_runs_of_source(db, source_id))
+    if destination_id:
+        # Runs of jobs that write there now, plus any run that stored a file there (this keeps
+        # runs of deleted jobs and of jobs since moved to another destination).
+        dest_jobs = select(JobDestination.job_id).where(
+            col(JobDestination.destination_id) == destination_id
+        )
+        dest_runs = select(Artifact.run_id).where(col(Artifact.destination_id) == destination_id)
+        conditions.append(or_(col(Run.job_id).in_(dest_jobs), col(Run.id).in_(dest_runs)))
     if status:
         conditions.append(col(Run.status) == status.value)
     if start := _as_utc(date_from):

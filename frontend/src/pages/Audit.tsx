@@ -7,7 +7,6 @@ import Drawer from "xedonium/Drawer";
 import HelperText from "xedonium/HelperText";
 import Input from "xedonium/Input";
 import FilterIcon from "xedonium/icons/Filter";
-import SearchIcon from "xedonium/icons/Search";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
@@ -18,6 +17,7 @@ import { AuditObjectLabel } from "@/components/AuditObjectLabel";
 import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
 import { AuditBulkActions } from "@/components/audit/AuditBulkActions";
+import { SearchBox } from "@/components/SearchBox";
 
 /** The object's type as the entry recorded it (sources, destinations and channels store one). */
 function recordedType(entry: AuditEntry): string | undefined {
@@ -26,7 +26,7 @@ function recordedType(entry: AuditEntry): string | undefined {
 
 const EMPTY: AuditFilters = { action: "", username: "", search: "", from: "", to: "" };
 
-/** The details as one line: `key value, key value`; the cell truncates it with an ellipsis. */
+/** The details as one line: `key value, key value`; the cell wraps it to at most two lines. */
 function summarize(details: Record<string, unknown>): string {
   return Object.entries(details)
     .map(([key, value]) => `${key} ${typeof value === "object" && value !== null ? JSON.stringify(value) : String(value)}`)
@@ -76,7 +76,7 @@ function buildColumns(onOpen: (entry: AuditEntry) => void): DataGridColumn<Audit
       render: (entry) => {
         const text = summarize(entry.details);
         return text ? (
-          <div className="max-w-[24rem] truncate text-xs text-app-muted" title={text}>
+          <div className="line-clamp-2 max-w-[28rem] break-all text-xs text-app-muted" title={text}>
             {text}
           </div>
         ) : (
@@ -197,16 +197,7 @@ export default function AuditPage() {
       />
 
       <div className="flex flex-wrap items-stretch gap-2">
-        <div className="w-full sm:w-72">
-          <Input
-            aria-label="Search action or object"
-            placeholder="Search action or object"
-            value={query}
-            onChange={setQuery}
-            clearable
-            startAdornment={<SearchIcon className="h-4 w-4" />}
-          />
-        </div>
+        <SearchBox label="Search the audit log" placeholder="Search action or object" value={query} onChange={setQuery} />
         <div className="flex flex-wrap items-stretch gap-2 sm:ml-auto">
           {filtersActive && (
             <Button variant="flat" className="!h-auto" onClick={clearFilters}>
@@ -320,6 +311,7 @@ export default function AuditPage() {
             onSelectionChange={(keys) => setCheckedIds(keys.map(String))}
             columns={columns}
             rows={log.data.items}
+            density="compact"
             pageSize={10}
             pageSizeOptions={[10, 20, 50, 100]}
             hideFooterWhenSinglePage

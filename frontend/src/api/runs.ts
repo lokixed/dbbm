@@ -18,6 +18,10 @@ export const runKeys = {
 
 export interface RunFilters {
   jobId: string;
+  /** Runs of every job that backs up this source, and restores into or from it. */
+  sourceId: string;
+  /** Runs of jobs that write to this destination, or that stored a file there. */
+  destinationId: string;
   status: RunStatus | "";
   from: string;
   to: string;
@@ -32,6 +36,8 @@ function isActive(status: RunStatus): boolean {
 function runParams(filters: RunFilters, offset: number): URLSearchParams {
   const params = new URLSearchParams({ limit: String(MAX_API_PAGE), offset: String(offset) });
   if (filters.jobId) params.set("job_id", filters.jobId);
+  if (filters.sourceId) params.set("source_id", filters.sourceId);
+  if (filters.destinationId) params.set("destination_id", filters.destinationId);
   if (filters.status) params.set("status", filters.status);
   if (filters.from) params.set("from", new Date(`${filters.from}T00:00:00`).toISOString());
   if (filters.to) params.set("to", new Date(`${filters.to}T23:59:59`).toISOString());

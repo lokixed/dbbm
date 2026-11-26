@@ -6,14 +6,15 @@ import Badge from "xedonium/Badge";
 import Drawer from "xedonium/Drawer";
 import Input from "xedonium/Input";
 import FilterIcon from "xedonium/icons/Filter";
-import SearchIcon from "xedonium/icons/Search";
 import PageHeader from "xedonium/PageHeader";
 import Select from "xedonium/Select";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import RelativeTime from "xedonium/RelativeTime";
+import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
 import { useRuns, type RunFilters } from "@/api/runs";
+import { useSources } from "@/api/sources";
 import type { RunSummary, RunStatus } from "@/api/types";
 import { FilterCell } from "@/components/FilterCell";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
@@ -22,6 +23,7 @@ import { LogoLoader } from "@/components/LogoLoader";
 import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useJobSourceType } from "@/lib/typeLookups";
 import { formatBytes, formatDuration } from "@/lib/format";
+import { SearchBox } from "@/components/SearchBox";
 
 const STATUSES: RunStatus[] = [
   "queued",
@@ -80,29 +82,56 @@ const makeColumns = (sourceTypeOf: (jobId: string | null) => string | undefined)
   },
 ];
 
-const EMPTY: RunFilters = { jobId: "", status: "", from: "", to: "" };
+const EMPTY: RunFilters = { jobId: "", sourceId: "", destinationId: "", status: "", from: "", to: "" };
+const FILTER_KEYS = ["jobId", "sourceId", "destinationId", "status", "from", "to"] as const;
+
+/** The filters live in the URL (?job=&source=&destination=&status=&from=&to=), so the edit pages
+ * can link to a filtered list and back/forward keeps them. */
+const URL_PARAM: Record<(typeof FILTER_KEYS)[number], string> = {
+  jobId: "job",
+  sourceId: "source",
+  destinationId: "destination",
+  status: "status",
+  from: "from",
+  to: "to",
+};
+
+function filtersFrom(params: URLSearchParams): RunFilters {
+  const status = params.get("status");
+  return {
+    jobId: params.get("job") ?? "",
+    sourceId: params.get("source") ?? "",
+    destinationId: params.get("destination") ?? "",
+    status: STATUSES.includes(status as RunStatus) ? (status as RunStatus) : "",
+    from: params.get("from") ?? "",
+    to: params.get("to") ?? "",
+  };
+}
+
+function toParams(filters: RunFilters): Record<string, string> {
+  return Object.fromEntries(
+    FILTER_KEYS.filter((key) => filters[key] !== "").map((key) => [URL_PARAM[key], filters[key]]),
+  );
+}
 
 export default function RunsPage() {
   const [params, setParams] = useSearchParams();
-  const statusParam = params.get("status");
-  const [filters, setFilters] = useState<RunFilters>({
-    ...EMPTY,
-    status: STATUSES.includes(statusParam as RunStatus) ? (statusParam as RunStatus) : "",
-  });
+  const filters = useMemo(() => filtersFrom(params), [params]);
   const [draft, setDraft] = useState<RunFilters>(EMPTY);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const runs = useRuns(filters);
   const jobs = useJobs();
+  const sources = useSources();
+  const destinations = useDestinations();
   const columns = makeColumns(useJobSourceType());
 
   const applyFilters = (next: RunFilters) => {
-    setFilters(next);
-    setParams(next.status ? { status: next.status } : {}, { replace: true });
+    setParams(toParams(next), { replace: true });
     setFiltersOpen(false);
   };
-  const activeCount = (["jobId", "status", "from", "to"] as const).filter((key) => filters[key] !== "").length;
-  const draftActive = (["jobId", "status", "from", "to"] as const).some((key) => draft[key] !== "");
+  const activeCount = FILTER_KEYS.filter((key) => filters[key] !== "").length;
+  const draftActive = FILTER_KEYS.some((key) => draft[key] !== "");
   const openFilters = () => {
     setDraft(filters);
     setFiltersOpen(true);
@@ -127,16 +156,7 @@ export default function RunsPage() {
       />
 
       <div className="flex flex-wrap items-stretch gap-2">
-        <div className="w-full sm:w-72">
-          <Input
-            aria-label="Search runs"
-            placeholder="Search job, trigger or status"
-            value={query}
-            onChange={setQuery}
-            clearable
-            startAdornment={<SearchIcon className="h-4 w-4" />}
-          />
-        </div>
+        <SearchBox label="Search runs" placeholder="Search job, trigger or status" value={query} onChange={setQuery} />
         <div className="flex flex-wrap items-stretch gap-2 sm:ml-auto">
           {(activeCount > 0 || query !== "") && (
             <Button
@@ -189,6 +209,28 @@ export default function RunsPage() {
               options={[
                 { value: "", label: "All jobs" },
                 ...(jobs.data ?? []).map((job) => ({ value: job.id, label: job.name })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Source">
+            <Select
+              aria-label="Filter by source"
+              value={draft.sourceId}
+              onChange={(sourceId) => setDraft({ ...draft, sourceId })}
+              options={[
+                { value: "", label: "All sources" },
+                ...(sources.data ?? []).map((source) => ({ value: source.id, label: source.name })),
+              ]}
+            />
+          </FilterCell>
+          <FilterCell label="Destination">
+            <Select
+              aria-label="Filter by destination"
+              value={draft.destinationId}
+              onChange={(destinationId) => setDraft({ ...draft, destinationId })}
+              options={[
+                { value: "", label: "All destinations" },
+                ...(destinations.data ?? []).map((dest) => ({ value: dest.id, label: dest.name })),
               ]}
             />
           </FilterCell>

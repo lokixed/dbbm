@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Loader from "xedonium/Loader";
@@ -19,6 +19,9 @@ import { useToast } from "@/components/toast";
 import { ConnectionBulkActions } from "@/components/ConnectionBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 import { SOURCE_TYPES } from "@/lib/sourceForm";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesSearch } from "@/lib/search";
+import { sourceTypeName } from "@/lib/sourceType";
 
 const typeLabel = (type: string) => SOURCE_TYPES.find((t) => t.type === type)?.label ?? type;
 
@@ -30,6 +33,7 @@ export default function SourcesPage() {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState<SourceRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   const runTest = (source: SourceRecord) =>
     test.mutate(source.id, {
@@ -58,7 +62,7 @@ export default function SourcesPage() {
   };
 
   const columns: DataGridColumn<SourceRecord>[] = [
-    { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="whitespace-nowrap font-medium">{source.name}</span> },
+    { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <Link to={`/sources/${encodeURIComponent(source.id)}`} className="whitespace-nowrap font-medium hover:underline">{source.name}</Link> },
     { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => <SourceTypeLabel type={source.type}>{typeLabel(source.type)}</SourceTypeLabel> },
     { key: "status", sortable: true, accessor: (s) => (s.last_test ? (s.last_test.ok ? "OK" : "Failed") : "Never tested"), header: "Status", render: (source) =>
         test.isPending && test.variables === source.id ? (
@@ -95,6 +99,8 @@ export default function SourcesPage() {
         </Button>
       </PageHeader>
 
+      <SearchBox label="Search sources" placeholder="Search name or type" value={query} onChange={setQuery} />
+
       {sources.isPending && <LogoLoader />}
       {sources.isError && (
         <Alert tone="danger">
@@ -121,10 +127,9 @@ export default function SourcesPage() {
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
-          searchable
           hideFooterWhenSinglePage
-          rows={sources.data}
-          empty="No sources yet. Add a database to get started."
+          rows={sources.data.filter((s) => matchesSearch(query, [s.name, sourceTypeName(s.type)]))}
+          empty={query.trim() ? "No sources match." : "No sources yet. Add a database to get started."}
         />
       )}
 

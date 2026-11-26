@@ -3,12 +3,13 @@ import Alert from "xedonium/Alert";
 import { useJobs } from "@/api/jobs";
 import { EditorPage } from "@/components/EditorPage";
 import { JobEditor } from "@/components/jobs/JobEditor";
+import { ViewRunsButton } from "@/components/ViewRunsButton";
 import { LogoLoader } from "@/components/LogoLoader";
 
 const FRAME = {
   subtitle: "What to back up, where it goes and when it runs.",
   backTo: "/jobs",
-  backLabel: "Jobs",
+  backLabel: "All jobs",
   note: "A job backs up every database of one source to one or more destinations.",
 };
 
@@ -38,7 +39,7 @@ export default function JobEditorPage() {
     );
   }
   return (
-    <EditorPage title={`Edit ${job.name}`} {...FRAME}>
+    <EditorPage title={`Edit ${job.name}`} {...FRAME} actions={<ViewRunsButton filter="job" id={job.id} />}>
       <JobEditor key={job.id} job={job} onDone={back} />
     </EditorPage>
   );

@@ -4,11 +4,12 @@ import { useSources } from "@/api/sources";
 import { EditorPage } from "@/components/EditorPage";
 import { LogoLoader } from "@/components/LogoLoader";
 import { SourceEditor } from "@/components/sources/SourceEditor";
+import { ViewRunsButton } from "@/components/ViewRunsButton";
 
 const FRAME = {
   subtitle: "Databases to back up.",
   backTo: "/sources",
-  backLabel: "Sources",
+  backLabel: "All sources",
   note: "Credentials are encrypted at rest and never shown again after saving.",
 };
 
@@ -38,7 +39,7 @@ export default function SourceEditorPage() {
     );
   }
   return (
-    <EditorPage title={`Edit ${source.name}`} {...FRAME}>
+    <EditorPage title={`Edit ${source.name}`} {...FRAME} actions={<ViewRunsButton filter="source" id={source.id} />}>
       <SourceEditor key={source.id} source={source} onDone={back} />
     </EditorPage>
   );

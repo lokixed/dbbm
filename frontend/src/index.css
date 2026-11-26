@@ -119,11 +119,19 @@ button.hover\:border-app-strong:disabled:hover {
   border-radius: 0;
 }
 
-/* The component library upper-cases nav items, card titles, buttons and subtitles. Sentence case
-   reads better for this app, so undo it everywhere except table column headers. */
-.uppercase:not(th) {
+/* The component library upper-cases nav items, card titles, buttons, subtitles and table headers.
+   Sentence case reads better for this app, so undo it everywhere. Table headers are included:
+   a sortable header is a button inside the th, so keeping the th upper-case made plain headers
+   ("ACTIONS") look different from sortable ones ("Name"). */
+.uppercase {
   text-transform: none;
   letter-spacing: normal;
+}
+
+/* Column headers stay on one line ("Total size" wrapped in the narrower edit-page tables); the
+   table scrolls sideways when the columns do not fit. */
+thead th {
+  white-space: nowrap;
 }
 
 /* Filter rows mix selects, text inputs, date inputs and buttons; make them all the same height

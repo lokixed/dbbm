@@ -23,6 +23,8 @@ import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
 import { JobBulkActions } from "@/components/jobs/JobBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesSearch } from "@/lib/search";
 
 function ScheduleBadge({ job }: { job: JobRecord }) {
   if (!job.schedule) return <Badge badgeContent="Manual" color="secondary" />;
@@ -53,6 +55,7 @@ export default function JobsPage() {
   const setEnabled = useSetJobEnabled();
   const [deleting, setDeleting] = useState<JobRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   const runNow = (job: JobRecord) =>
     run.mutate(job.id, {
@@ -95,7 +98,7 @@ export default function JobsPage() {
     {
       key: "name", sortable: true, accessor: (job) => job.name,
       header: "Name",
-      render: (job) => <span className="whitespace-nowrap font-medium">{job.name}</span>,
+      render: (job) => <Link to={`/jobs/${encodeURIComponent(job.id)}`} className="whitespace-nowrap font-medium hover:underline">{job.name}</Link>,
     },
     { key: "schedule", sortable: true, accessor: (job) => job.schedule ?? "", header: "Schedule", render: (job) => <ScheduleBadge job={job} /> },
     {
@@ -185,6 +188,8 @@ export default function JobsPage() {
         </Button>
       </PageHeader>
 
+      <SearchBox label="Search jobs" placeholder="Search job, source or destination" value={query} onChange={setQuery} />
+
       {jobs.isPending && <LogoLoader />}
       {jobs.isError && (
         <Alert tone="danger">
@@ -209,11 +214,10 @@ export default function JobsPage() {
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
-          searchable
           hideFooterWhenSinglePage
           columns={columns}
-          rows={jobs.data}
-          empty="No jobs yet. Add a source and a destination, then create a job to back them up."
+          rows={jobs.data.filter((j) => matchesSearch(query, [j.name, j.source.name, ...j.destinations.map((d) => d.name)]))}
+          empty={query.trim() ? "No jobs match." : "No jobs yet. Add a source and a destination, then create a job to back them up."}
         />
       )}
 

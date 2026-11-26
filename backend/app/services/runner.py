@@ -99,6 +99,20 @@ class NoSourceArtifactError(Exception):
     """No verified copy remains to retry from (HTTP 422)."""
 
 
+def no_databases_message(listed: Sequence[str]) -> str:
+    """Why a run has nothing to dump. A source set to "All databases" skips system databases
+    (e.g. postgres, mysql, admin); on hosted services such as Supabase the data lives in one of
+    them, so name what was skipped and how to include it."""
+    message = "There are no databases to back up on this source."
+    if not listed:
+        return message
+    return (
+        f'{message} "All databases" skips system databases, and the source has only these: '
+        f"{', '.join(listed)}. To back one up, edit the source, choose Selected databases "
+        "and tick it."
+    )
+
+
 def compute_final_status(outcomes: Sequence[bool]) -> str:
     """One outcome per (database, destination) pair: all ok, some ok, or none ok."""
     if not outcomes:
@@ -976,9 +990,10 @@ class Runner:
             except age.AgeError as exc:
                 raise RunFailedError(str(exc)) from None
 
-        databases = driver.select_databases(result.databases or [])
+        listed = result.databases or []
+        databases = driver.select_databases(listed)
         if not databases:
-            raise RunFailedError("There are no databases to back up on this source.")
+            raise RunFailedError(no_databases_message(listed))
         log.info(f"Databases to back up: {', '.join(databases)}")
         return databases, tools
 

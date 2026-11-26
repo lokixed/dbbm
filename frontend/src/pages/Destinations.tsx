@@ -1,6 +1,6 @@
 import { DestinationLabel } from "@/components/DestinationIcon";
 import { useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Loader from "xedonium/Loader";
@@ -19,6 +19,9 @@ import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
 import { ConnectionBulkActions } from "@/components/ConnectionBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesSearch } from "@/lib/search";
+import { destinationTypeName } from "@/lib/destinationType";
 
 function location(destination: DestinationRecord): string {
   if (destination.type === "local") return destination.config.path;
@@ -35,6 +38,7 @@ export default function DestinationsPage() {
   const [params] = useSearchParams();
   const [deleting, setDeleting] = useState<DestinationRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   const reconnect = (id: string) => navigate(`/destinations/${encodeURIComponent(id)}?reconnect=1`);
   const needsReauth = (destinations.data ?? []).filter((d) => d.auth_status === "needs_reauth");
@@ -71,7 +75,7 @@ export default function DestinationsPage() {
   };
 
   const columns: DataGridColumn<DestinationRecord>[] = [
-    { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <span className="whitespace-nowrap font-medium">{d.name}</span> },
+    { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <Link to={`/destinations/${encodeURIComponent(d.id)}`} className="whitespace-nowrap font-medium hover:underline">{d.name}</Link> },
     { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => <DestinationLabel type={d.type} /> },
     { key: "location", sortable: true, accessor: (d) => location(d), header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
     {
@@ -122,6 +126,8 @@ export default function DestinationsPage() {
         </Button>
       </PageHeader>
 
+      <SearchBox label="Search destinations" placeholder="Search name, type or location" value={query} onChange={setQuery} />
+
       <ReauthBanner destinations={needsReauth} onReconnect={reconnect} />
 
       {destinations.isPending && <LogoLoader />}
@@ -150,10 +156,9 @@ export default function DestinationsPage() {
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
-          searchable
           hideFooterWhenSinglePage
-          rows={destinations.data}
-          empty="No destinations yet. Add a local folder or a Google Drive folder to store backups."
+          rows={destinations.data.filter((d) => matchesSearch(query, [d.name, destinationTypeName(d.type), location(d)]))}
+          empty={query.trim() ? "No destinations match." : "No destinations yet. Add a local folder or a Google Drive folder to store backups."}
         />
       )}
 

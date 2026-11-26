@@ -173,6 +173,15 @@ def list_backups(
     return BackupPage(items=[_out(r) for r in rows], total=int(total))
 
 
+@router.get("/{backup_id}")
+def get_backup(backup_id: uuid.UUID, db: SessionDep, _user: CurrentUser) -> BackupOut:
+    artifact, dest = _artifact_or_404(db, backup_id)
+    run = db.get(Run, artifact.run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return _out((artifact, run, _original_source(db, artifact), dest))
+
+
 async def _serve_download(
     db: Session,
     request: Request,
@@ -469,7 +478,14 @@ async def restore_backup(
     )
     try:
         plan = load_restore_plan(
-            artifact, copy, target, options, DEFAULT_TIMEOUT, user.username, private_key
+            artifact,
+            copy,
+            target,
+            options,
+            DEFAULT_TIMEOUT,
+            user.username,
+            private_key,
+            backup_source_id=original.id if original else None,
         )
         run_id = await services.runner.submit_restore(plan)
     except RunFailedError as exc:

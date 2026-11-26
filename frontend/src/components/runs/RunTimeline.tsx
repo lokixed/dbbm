@@ -37,8 +37,15 @@ function StatusIcon({ status }: { status: string }) {
 const STEP_LABELS: Record<string, string> = {
   preflight: "Preflight checks",
   backup: "Dump, store and verify",
+  "fetch backup": "Fetch backup",
+  restore: "Restore",
   cleanup: "Cleanup",
 };
+
+/** A step name the maps above do not know, in sentence case like the rest. */
+function sentenceCase(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 const SUB_STEP_LABELS: Record<string, string> = {
   dump: "Dump",
@@ -55,7 +62,7 @@ function SubStep({ step }: { step: SubStepEntry }) {
       <StatusIcon status={step.status} />
       <div className="min-w-0">
         <p>
-          {SUB_STEP_LABELS[step.name] ?? step.name}
+          {SUB_STEP_LABELS[step.name] ?? sentenceCase(step.name)}
           {step.duration_ms !== null && (
             <span className="ml-2 text-app-muted">{formatMs(step.duration_ms)}</span>
           )}
@@ -104,7 +111,7 @@ function Step({ step, status }: { step: StepEntry; status: string }) {
       <StatusIcon status={status} />
       <div className="min-w-0 text-sm">
         <p className="font-medium">
-          {STEP_LABELS[step.name] ?? step.name}
+          {STEP_LABELS[step.name] ?? sentenceCase(step.name)}
           {step.duration_ms !== null && (
             <span className="ml-2 font-normal text-app-muted">{formatMs(step.duration_ms)}</span>
           )}

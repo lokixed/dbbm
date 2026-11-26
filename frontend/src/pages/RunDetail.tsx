@@ -7,7 +7,6 @@ import HelperText from "xedonium/HelperText";
 import PageHeader from "xedonium/PageHeader";
 import Table, { type TableColumn } from "xedonium/Table";
 import Tooltip from "xedonium/Tooltip";
-import ArrowLeftIcon from "xedonium/icons/ArrowLeft";
 import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import XCircleIcon from "xedonium/icons/XCircle";
 import RelativeTime from "xedonium/RelativeTime";
@@ -23,13 +22,16 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { DestinationResults } from "@/components/runs/DestinationResults";
+import { BackLink } from "@/components/BackLink";
 import { LogViewer } from "@/components/runs/LogViewer";
+import { RestoreSummaryCard } from "@/components/runs/RestoreSummaryCard";
 import { RunTimeline } from "@/components/runs/RunTimeline";
 import { useToast } from "@/components/toast";
 import { LogoLoader } from "@/components/LogoLoader";
 import { formatBytes, formatDuration } from "@/lib/format";
 import { CopyText } from "@/components/CopyText";
 import { hasRetryableFailures } from "@/lib/retry";
+import { EVENT_TYPE_LABEL } from "@/lib/notificationLabels";
 
 /** Re-renders every second while `active`, so a running duration keeps counting. */
 function useNow(active: boolean): number {
@@ -77,7 +79,7 @@ const makeNotificationColumns = ({ channelType }: TypeLookups): TableColumn<RunN
       return type ? <ChannelTypeLabel type={type}>{name}</ChannelTypeLabel> : <span className="font-medium">{name}</span>;
     },
   },
-  { key: "event", header: "Event", render: (n) => n.event_type.replace("_", " ") },
+  { key: "event", header: "Event", render: (n) => EVENT_TYPE_LABEL[n.event_type] },
   { key: "status", header: "Status", render: (n) => <EventStatusBadge status={n.status} /> },
   { key: "attempts", header: "Attempts", render: (n) => n.attempts },
   { key: "error", header: "Error", render: (n) => <span className="text-xs text-app-muted">{n.error ?? ""}</span> },
@@ -141,9 +143,7 @@ export default function RunDetailPage() {
   const hasDestinations = (data.step_results.units ?? []).some((u) => u.destinations.length > 0);
   return (
     <div className="space-y-6">
-      <Link to="/runs" className="inline-flex items-center gap-1 text-sm text-app-muted hover:underline">
-        <ArrowLeftIcon className="h-4 w-4" /> All runs
-      </Link>
+      <BackLink to="/runs" label="All runs" />
 
       <PageHeader title={data.job_name}>
         <div className="flex gap-2">
@@ -186,13 +186,17 @@ export default function RunDetailPage() {
 
       {data.error && <Alert tone="danger">{data.error}</Alert>}
 
+      {data.kind === "restore" && data.step_results.restore && (
+        <RestoreSummaryCard restore={data.step_results.restore} sourceType={data.source_type} />
+      )}
+
       {/* grid-cols-1 caps the single column at the page width; without it long log lines
           (paths) widen both cards past the screen on phones. */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card title="Progress" headingLevel={2}>
           <RunTimeline results={data.step_results} />
         </Card>
-        <Card title="Live log" headingLevel={2}>
+        <Card title="Live log" headingLevel={2} padded={false}>
           <LogViewer key={id} runId={id} onDone={() => void run.refetch()} />
         </Card>
       </div>
@@ -204,7 +208,7 @@ export default function RunDetailPage() {
             {hasDestinations ? (
               <DestinationResults results={data.step_results} />
             ) : (
-              <HelperText className="px-6 pb-6">
+              <HelperText className="px-6 py-6">
                 {active ? "No destination has been reached yet." : "No destination was reached."}
               </HelperText>
             )}

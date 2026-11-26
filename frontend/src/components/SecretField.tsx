@@ -3,6 +3,7 @@ import Badge from "xedonium/Badge";
 import Button from "xedonium/Button";
 import FileUpload from "xedonium/FileUpload";
 import Input from "xedonium/Input";
+import LockIcon from "xedonium/icons/Lock";
 import TextArea from "xedonium/TextArea";
 import { FormField } from "@/components/FormField";
 import type { SecretState } from "@/lib/secrets";
@@ -40,13 +41,23 @@ export function SecretField({
   if (isSet && state.action === "keep") {
     return (
       <FormField id={id} label={label}>
-        <div className="flex items-center gap-2">
-          <Badge badgeContent="Saved" color="success" />
-          <Button type="button" variant="secondary" onClick={() => onChange({ action: "set", value: "" })}>
+        {/* A locked field the height of an input, so the buttons beside it line up. */}
+        <div className="flex items-stretch gap-2">
+          <div className="min-w-0 flex-1">
+            <Input
+              id={id}
+              value="Saved - hidden"
+              onChange={() => undefined}
+              readOnly
+              disabled
+              startAdornment={<LockIcon className="h-4 w-4" />}
+            />
+          </div>
+          <Button type="button" variant="secondary" className="!h-auto" onClick={() => onChange({ action: "set", value: "" })}>
             Change
           </Button>
           {!required && (
-            <Button type="button" variant="flat" onClick={() => onChange({ action: "clear" })}>
+            <Button type="button" variant="flat" className="!h-auto" onClick={() => onChange({ action: "clear" })}>
               Clear
             </Button>
           )}

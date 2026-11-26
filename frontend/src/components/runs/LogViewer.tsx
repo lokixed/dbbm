@@ -107,6 +107,7 @@ export function LogViewer({ runId, onDone }: LogViewerProps) {
     <XLogViewer
       logs={entries}
       label="Run log"
+      className="!border-0"
       height={384}
       autoScroll={following}
       onAutoScrollChange={setFollowing}

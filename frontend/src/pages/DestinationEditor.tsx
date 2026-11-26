@@ -2,13 +2,14 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import Alert from "xedonium/Alert";
 import { useDestinations } from "@/api/destinations";
 import { DestinationForm } from "@/components/destinations/DestinationForm";
+import { ViewRunsButton } from "@/components/ViewRunsButton";
 import { EditorPage } from "@/components/EditorPage";
 import { LogoLoader } from "@/components/LogoLoader";
 
 const FRAME = {
   subtitle: "Where backups are stored.",
   backTo: "/destinations",
-  backLabel: "Destinations",
+  backLabel: "All destinations",
   note: "Backups are copied to every destination of a job and verified there.",
 };
 
@@ -46,7 +47,7 @@ export default function DestinationEditorPage() {
   }
   const focusToken = reconnect && destination.type === "gdrive";
   return (
-    <EditorPage title={focusToken ? `Reconnect ${destination.name}` : `Edit ${destination.name}`} {...FRAME}>
+    <EditorPage title={focusToken ? `Reconnect ${destination.name}` : `Edit ${destination.name}`} {...FRAME} actions={<ViewRunsButton filter="destination" id={destination.id} />}>
       <DestinationForm key={`${destination.id}-${focusToken}`} destination={destination} focusToken={focusToken} onDone={back} />
     </EditorPage>
   );

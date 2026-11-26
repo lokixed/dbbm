@@ -12,8 +12,9 @@ from sqlmodel import Session, select
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.models import AuditLog
+from app.services.runner import no_databases_message
 from tests.conftest import api_delete, api_post
-from tests.fakes import FakeBins, FakeMySQL, alive
+from tests.fakes import FakeBins, FakeMySQL, FakePostgres, alive
 from tests.runs_helpers import (
     PW,
     backup_files,
@@ -238,6 +239,22 @@ def test_no_databases_to_back_up(authed: TestClient, monkeypatch: pytest.MonkeyP
     source = make_source(authed, databases="all")
     run = run_now(authed, make_job(authed, source, [make_destination(authed)]))
     assert run["status"] == "failed" and "no databases to back up" in run["error"]
+    assert "mysql, sys" in run["error"] and "Selected databases" in run["error"]
+
+
+def test_all_databases_on_supabase_like_postgres_says_how_to_include_postgres(
+    authed: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Hosted Postgres (e.g. Supabase) keeps the data in "postgres", which "All databases" skips.
+    monkeypatch.setattr(FakePostgres, "listed", ["postgres"])
+    source = make_source(authed, "supabase", kind="postgres", databases="all")
+    run = run_now(authed, make_job(authed, source, [make_destination(authed)]))
+    assert run["status"] == "failed"
+    assert "only these: postgres" in run["error"] and "Selected databases" in run["error"]
+
+
+def test_no_databases_message_without_any_listed() -> None:
+    assert no_databases_message([]) == "There are no databases to back up on this source."
 
 
 # ---------- locking, concurrency, cancel ----------
@@ -423,3 +440,39 @@ def test_run_routes_need_auth_and_csrf(client: TestClient) -> None:
     assert client.get("/api/runs/00000000-0000-0000-0000-000000000000/logs").status_code == 401
     forbidden = client.post("/api/jobs/00000000-0000-0000-0000-000000000000/run")
     assert forbidden.status_code in (401, 403)
+
+
+def test_runs_list_filters_by_source(authed: TestClient) -> None:
+    dest = make_destination(authed)
+    main, other = make_source(authed), make_source(authed, "mysql-other")
+    job_a = make_job(authed, main, [dest], "job-a")
+    job_b = make_job(authed, main, [dest], "job-b")
+    job_c = make_job(authed, other, [dest], "job-c")
+    runs = [run_now(authed, job) for job in (job_a, job_b, job_c)]
+
+    by_source = authed.get("/api/runs", params={"source_id": main["id"]}).json()
+    assert by_source["total"] == 2
+    assert {r["id"] for r in by_source["items"]} == {runs[0]["id"], runs[1]["id"]}
+    for_other = authed.get("/api/runs", params={"source_id": other["id"]}).json()
+    assert [r["id"] for r in for_other["items"]] == [runs[2]["id"]]
+    unknown = authed.get("/api/runs", params={"source_id": "00000000-0000-0000-0000-000000000000"})
+    assert unknown.json()["total"] == 0
+
+
+def test_runs_list_filters_by_destination(authed: TestClient) -> None:
+    source = make_source(authed)
+    first, second = make_destination(authed), make_destination(authed, "local2", "weekly")
+    to_first = make_job(authed, source, [first], "job-a")
+    to_both = make_job(authed, source, [first, second], "job-b")
+    to_second = make_job(authed, source, [second], "job-c")
+    runs = [run_now(authed, job) for job in (to_first, to_both, to_second)]
+
+    def ids(dest: dict[str, object]) -> set[str]:
+        page = authed.get("/api/runs", params={"destination_id": str(dest["id"])}).json()
+        return {r["id"] for r in page["items"]}
+
+    assert ids(first) == {runs[0]["id"], runs[1]["id"]}
+    assert ids(second) == {runs[1]["id"], runs[2]["id"]}
+    # A deleted job's run still shows: it stored files on the destination.
+    assert api_delete(authed, f"/api/jobs/{to_second['id']}").status_code == 204
+    assert ids(second) == {runs[1]["id"], runs[2]["id"]}
