@@ -1,13 +1,16 @@
-"""Google Drive "Connect" flow: OAuth code + PKCE through a static redirect relay page.
+"""Google Drive "Connect" flow: OAuth authorization code + PKCE.
 
-Google only accepts public https redirect URIs, so the relay page (GDRIVE_OAUTH_REDIRECT_URL)
-is the registered redirect URI and forwards the browser to this install. The origin to return
-to travels in `state`. Pending flows and the tokens they produce live in memory only (single
-process, docs/DESIGN.md section 3) and expire after FLOW_TTL seconds.
+Google redirects straight back to this install, to <origin>/api/oauth/google/callback, where
+<origin> is the address the browser uses for DBBM. Google only accepts https redirect URIs (plain
+http only for localhost), so Connect needs DBBM behind https; otherwise paste an rclone token.
+Pending flows and the tokens they produce live in memory only (single process, docs/DESIGN.md
+section 3) and expire after FLOW_TTL seconds.
 """
 
 import base64
 import hashlib
+import hmac
+import ipaddress
 import json
 import secrets
 import threading
@@ -22,6 +25,7 @@ import httpx
 
 from app.services.rclone_token import normalize_token
 
+CALLBACK_PATH = "/api/oauth/google/callback"
 AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105  (an endpoint, not a secret)
 FLOW_TTL = 600.0
@@ -67,6 +71,7 @@ class Flow:
     scope: str
     sid: str
     created: float
+    redirect_uri: str
     status: Status = "pending"
     error: str | None = None
     token: str | None = field(default=None, repr=False)
@@ -95,20 +100,26 @@ def check_origin(value: str | None) -> str:
     return f"{parts.scheme}://{parts.netloc}"
 
 
-def encode_state(origin: str, nonce: str) -> str:
-    raw = json.dumps({"v": 1, "o": origin, "n": nonce}, separators=(",", ":")).encode()
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-
-
-def decode_state_nonce(state: str) -> str:
+def _is_loopback(host: str) -> bool:
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
     try:
-        data = json.loads(base64.urlsafe_b64decode(state + "=" * (-len(state) % 4)))
-    except (ValueError, TypeError):
-        raise OAuthFlowError("expired") from None
-    nonce = data.get("n") if isinstance(data, dict) else None
-    if not isinstance(nonce, str) or not nonce:
-        raise OAuthFlowError("expired")
-    return nonce
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def redirect_uri_for(origin: str | None) -> str:
+    """The callback URL on the origin the browser uses for DBBM. Google requires https for it,
+    except on a loopback host; raises ValueError (safe to show) otherwise."""
+    checked = check_origin(origin)
+    parts = urlsplit(checked)
+    if parts.scheme != "https" and not _is_loopback(parts.hostname or ""):
+        raise ValueError(
+            "Connect Google Drive needs DBBM on https (Google refuses other redirect addresses). "
+            "Put DBBM behind a reverse proxy with https, or paste an rclone token instead."
+        )
+    return checked + CALLBACK_PATH
 
 
 def _challenge(verifier: str) -> str:
@@ -147,11 +158,9 @@ class OAuthFlows:
 
     def __init__(
         self,
-        redirect_url: str,
         transport: httpx.AsyncBaseTransport | None = None,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.redirect_url = redirect_url
         self.transport = transport
         self._monotonic = monotonic
         self._lock = threading.Lock()
@@ -182,7 +191,7 @@ class OAuthFlows:
     # ---------- start ----------
 
     def start(
-        self, *, client_id: str, client_secret: str, scope: str, origin: str, sid: str
+        self, *, client_id: str, client_secret: str, scope: str, redirect_uri: str, sid: str
     ) -> tuple[Flow, str]:
         flow = Flow(
             id=secrets.token_urlsafe(16),
@@ -193,6 +202,7 @@ class OAuthFlows:
             scope=scope,
             sid=sid,
             created=self._monotonic(),
+            redirect_uri=redirect_uri,
         )
         with self._lock:
             self._sweep()
@@ -200,7 +210,7 @@ class OAuthFlows:
             self._flows[flow.id] = flow
         query = {
             "client_id": client_id,
-            "redirect_uri": self.redirect_url,
+            "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": SCOPE_URLS[scope],
             "access_type": "offline",
@@ -208,17 +218,20 @@ class OAuthFlows:
             "include_granted_scopes": "false",
             "code_challenge": _challenge(flow.verifier),
             "code_challenge_method": "S256",
-            "state": encode_state(origin, flow.nonce),
+            "state": flow.nonce,
         }
         return flow, f"{AUTHORIZE_URL}?{urlencode(query)}"
 
     # ---------- callback ----------
 
-    def claim(self, nonce: str, sid: str) -> Flow:
-        """The pending flow for a callback; a flow can be claimed once."""
+    def claim(self, state: str, sid: str) -> Flow:
+        """The pending flow whose nonce is `state`; a flow can be claimed once."""
         with self._lock:
             self._sweep()
-            flow = next((f for f in self._flows.values() if f.nonce == nonce), None)
+            flow = next(
+                (f for f in self._flows.values() if state and hmac.compare_digest(f.nonce, state)),
+                None,
+            )
             if flow is None or flow.status != "pending" or flow.exchanging:
                 raise OAuthFlowError("expired")
             if flow.sid != sid:
@@ -246,7 +259,7 @@ class OAuthFlows:
             "client_id": flow.client_id,
             "client_secret": flow.client_secret,
             "code_verifier": flow.verifier,
-            "redirect_uri": self.redirect_url,
+            "redirect_uri": flow.redirect_uri,
         }
         try:
             async with httpx.AsyncClient(

@@ -176,10 +176,6 @@ class GdriveOAuthStartIn(BaseModel):
         return value
 
 
-class GdriveOAuthConfigOut(BaseModel):
-    redirect_url: str
-
-
 class GdriveOAuthStartOut(BaseModel):
     flow_id: str
     authorize_url: str

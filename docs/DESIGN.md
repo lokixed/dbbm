@@ -38,7 +38,7 @@ A self-hosted, Docker-installed tool with a web UI that schedules and runs backu
 | Offsite transfer | `rclone` | Mature Google Drive support, checksums, retries |
 | Live logs | Server-Sent Events | One-way streaming, simpler than WebSockets |
 | Firestore | Firestore REST `exportDocuments` to a GCS staging bucket, then download through the Cloud Storage JSON API | Firestore has no dump-over-connection; export goes to Cloud Storage. Plain HTTPS calls need no CLI in the image (the Google Cloud CLI was about 1 GB) |
-| Google Drive auth | "Connect Google Drive" through a static OAuth relay page on GitHub Pages (section 9); pasting an rclone token stays as a fallback | Google needs a public HTTPS redirect URI; most installs run on a LAN address or plain HTTP. The relay hops the browser back to the install, so no rclone or terminal is needed |
+| Google Drive auth | "Connect Google Drive": OAuth with PKCE, redirecting straight back to the install over https (section 9); pasting an rclone token stays as a fallback | No terminal or rclone needed. Google only accepts https redirect URIs, so installs without https use the paste flow |
 | Backup type | Logical dumps | Portable, simple, adequate for small and medium databases |
 
 ---
@@ -381,33 +381,27 @@ class Storage(Protocol):
 - Surface token failure clearly in the UI ("Drive authorization expired - reconnect") and in notifications.
 
 ### Google Drive connect flow
-A "Connect Google Drive" button in the destination form replaces the terminal step. Pasting an rclone token stays as the fallback (rclone's default client, a Desktop app client, air-gapped setups, relay down).
+A "Connect Google Drive" button in the destination form replaces the terminal step. Pasting an rclone token stays as the fallback (rclone's default client, a Desktop app client, DBBM without https, air-gapped setups).
 
-Why a relay: Google only accepts `https` redirect URIs on a public domain (or `localhost`). An install reached at `http://192.168.1.10:8080` can't be one. A static page on GitHub Pages is the registered redirect URI and forwards the browser to the install. The browser makes the hop, so the install never needs to be reachable from the internet.
+Google redirects straight back to the install that started the flow, to `<origin>/api/oauth/google/callback`, where `<origin>` is the address the browser uses for DBBM. Google only accepts `https` redirect URIs (plain `http` only on loopback), so Connect needs DBBM behind https (section 12, "Container and network": a reverse proxy in front). The redirect is a browser navigation, so the install only has to be reachable from the browser, not from the internet.
 
-**Relay page**
-- `site/oauth/google/index.html` plus `relay.js` (an ES module), deployed with the landing page to `https://lokixed.github.io/dbbm/oauth/google/` by the existing `pages` CI job.
-- No backend, no storage, no third-party scripts, no analytics. `<meta>` CSP `default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'` (the page's own inline styles and favicon), `<meta name="referrer" content="no-referrer">` and `noindex`.
-- Reads `state` from the query, decodes the return origin from it, and calls `location.replace("<origin>/api/oauth/google/callback?<original query>")`. It passes `code`, `state`, `scope` and `error` through unchanged.
-- The return origin must be `http:` or `https:` with a host and optional port, and no path, query, fragment or user info. It must equal its own normalized form (`new URL(o).origin`), so a trailing slash or upper-case host is refused too. Anything else shows an error and redirects nowhere.
-- Self-hosters can run their own copy of the page and point `GDRIVE_OAUTH_REDIRECT_URL` at it.
+An earlier version sent the redirect through a static relay page on GitHub Pages so that installs on a LAN address or plain HTTP could use Connect too. It was removed: it made every install depend on a page outside its control and passed codes through a third party. Installs without https use the paste flow.
 
 **OAuth client**
-- The user's own Google Cloud OAuth client of type **Web application**, with the relay URL as an authorized redirect URI and the Drive API enabled. DBBM ships no shared client, so no client secret is distributed and no Google app verification is needed.
+- The user's own Google Cloud OAuth client of type **Web application**, with `https://<dbbm address>/api/oauth/google/callback` as an authorized redirect URI and the Drive API enabled. An install opened at several addresses needs the callback of each. DBBM ships no shared client, so no client secret is distributed and no Google app verification is needed.
 - The consent screen must be published ("In production"), as for the paste flow; the 7-day Testing expiry still applies.
-- Without a client ID and secret (typed, or stored for the same client ID) the button is disabled with a hint. The setup steps in the form show the redirect URI to copy (`GET /api/destinations/gdrive/oauth/config`).
+- The setup steps in the form show the redirect URI built from the page's own origin, with a copy button. The button is disabled, with a hint, when the page is not on https or loopback, and when the client ID or secret (typed, or stored for the same client ID) is missing.
 
 **Flow**
 1. In the destination form, the admin enters client ID, client secret and scope, then clicks "Connect Google Drive". For an existing destination the stored client secret is used if the field is left unchanged and the client ID is the stored one.
 2. The UI opens a blank tab first, inside the click handler, so pop-up blockers allow it. If the browser blocks it anyway, the form says so and nothing starts.
 3. `POST /api/destinations/gdrive/oauth/start` (session + CSRF) with `client_id`, optional `client_secret`, `scope` and optional `destination_id`. The server:
-   - creates a flow: id, PKCE verifier (S256), nonce, client ID and secret, scope, owner session id, created time;
-   - takes the return origin from the request's `Origin` header (set by the browser, not the page); a missing or malformed `Origin` is a `400`;
-   - sets `state` to base64url JSON `{"v":1,"o":"<origin>","n":"<nonce>"}`;
-   - returns the flow id and the Google authorize URL with `access_type=offline`, `prompt=consent`, `include_granted_scopes=false`, `code_challenge`, `state` and the relay URL as `redirect_uri`.
+   - builds the redirect URI from the request's `Origin` header (set by the browser, not the page, and the public address behind a reverse proxy) plus `/api/oauth/google/callback`. A missing or malformed `Origin`, or a non-https origin that is not loopback, is a `400` with a message pointing to the paste flow;
+   - creates a flow: id, PKCE verifier (S256), random nonce, client ID and secret, scope, redirect URI, owner session id, created time;
+   - returns the flow id and the Google authorize URL with `access_type=offline`, `prompt=consent`, `include_granted_scopes=false`, `code_challenge`, the nonce as `state` and the redirect URI.
 4. The UI drops the tab's `opener` and points it at the authorize URL, so the unsaved form survives in the original tab.
-5. Google redirects to the relay, and the relay redirects to `GET /api/oauth/google/callback`. The session cookie is `SameSite=Lax`, so it is sent on this top-level navigation.
-6. The callback requires a signed-in user. It looks up the flow by nonce and claims it: the flow must be pending, unclaimed, under 10 minutes old and owned by the same session. A second callback for the same flow gets `expired`. It exchanges the code at `https://oauth2.googleapis.com/token` with `httpx` (20 s timeout, no redirects), sending the client secret, PKCE verifier and relay URL.
+5. Google redirects the tab to `GET /api/oauth/google/callback`. The session cookie is `SameSite=Lax`, so it is sent on this top-level navigation.
+6. The callback requires a signed-in user. It finds the flow whose nonce equals `state` (constant-time compare) and claims it: the flow must be pending, unclaimed, under 10 minutes old and owned by the same session. A second callback for the same flow gets `expired`. It exchanges the code at `https://oauth2.googleapis.com/token` with `httpx` (20 s timeout, no redirects), sending the client secret, PKCE verifier and the flow's redirect URI.
 7. It converts the response to the rclone token JSON (`access_token`, `token_type`, `refresh_token`, `expiry` = now + `expires_in`, UTC RFC 3339) and runs it through `normalize_token`. It refuses a response with no `refresh_token`, or one whose granted `scope` lacks the requested Drive scope (the user unticked it on the consent screen).
 8. The token is held server-side in the flow and never sent to the browser. The callback answers `303` to the UI page `/oauth/google/done?flow=<id>` (or with `&error=<code>`). That page posts `{flow, error}` on the `BroadcastChannel` `dbbm-gdrive-connect`, tries to close itself and otherwise tells the user to close the tab. The form tab also polls `GET /api/destinations/gdrive/oauth/{flow_id}` every 2 s (status only) in case `BroadcastChannel` is unavailable, and gives up after 10 minutes.
 9. The form shows "Google Drive connected", hides the token field, and saves with `token_flow_id` and no `token`. Create/update takes the flow's token and the client secret that minted it (a token only refreshes with its own client), encrypts them, and drops the flow after the commit. The flow must match the form's client ID and scope; a flow plus a pasted token is refused. "Test connection" also accepts `token_flow_id` and leaves the flow in place. Changing the client ID or scope after connecting needs a new Connect. Reconnecting a destination marked `needs_reauth` uses the same button ("Reconnect Google Drive") on its edit page.
@@ -417,29 +411,22 @@ Why a relay: Google only accepts `https` redirect URIs on a public domain (or `l
 - At most 5 flows per session; the oldest are dropped.
 
 **Security**
-- Codes pass through the relay in the query string, so GitHub may log them and a tampered relay could forward them. PKCE plus the client secret make a captured code useless: the verifier and secret never leave the install.
-- The relay is not an open redirect: it only forwards to `/api/oauth/google/callback` on a bare origin. The callback trusts nothing from the relay beyond `code`, `state` and `error`, and `state` must match a live flow of the same session.
+- The code reaches only Google and this install. PKCE plus the client secret still make an intercepted code useless: the verifier and secret never leave the install.
+- `state` is a random nonce that must match a live, unclaimed flow of the same signed-in session, which also stops login CSRF. The callback trusts nothing else from the query beyond `code` and `error`.
 - The callback and done page get `Referrer-Policy: no-referrer` and the strict CSP (both global); the callback, under `/api`, also gets `Cache-Control: no-store`. The log redaction filter masks `code=` query values, so the uvicorn access line for the callback does not keep the code. Tokens, client secrets and verifiers are never logged. Google's error responses are reduced to a fixed error code (`access_denied`, `expired`, `not_signed_in`, `exchange_failed`, `unreachable`, `no_refresh_token`, `scope_not_granted`, `google_error`).
 - Audit log: `destination.oauth_start` when a flow starts (scope only), and `"connected": true` in the details of the `destination.create` / `destination.update` entry that saves the token.
 
 **API**
 ```
-GET  /api/destinations/gdrive/oauth/config      the redirect URI to register (the relay URL)
 POST /api/destinations/gdrive/oauth/start       body: client_id, client_secret?, scope, destination_id?; returns flow_id, authorize_url
 GET  /api/destinations/gdrive/oauth/{flow_id}   status: pending | connected | failed, error code, message; never the token
-GET  /api/oauth/google/callback                  Google redirect target (via the relay); 303 to /oauth/google/done
+GET  /api/oauth/google/callback                  Google's redirect target; 303 to /oauth/google/done
 ```
-Create, update and the unsaved test of a `gdrive` destination accept `token_flow_id` as an alternative to `secrets.token`.
-
-**Configuration**
-`GDRIVE_OAUTH_REDIRECT_URL` (section 17): relay page URL, default `https://lokixed.github.io/dbbm/oauth/google/`. It must be `https` (or `http://localhost` / `http://127.0.0.1` for development) without a query or fragment, and exactly match the redirect URI in the OAuth client.
+Create, update and the unsaved test of a `gdrive` destination accept `token_flow_id` as an alternative to `secrets.token`. There is no setting: the redirect URI always follows the address the browser uses.
 
 **Tests**
-- Backend (`tests/test_gdrive_oauth.py`): `Origin` checks, state encoding, token conversion and refusals, flow expiry, one-use claim, session binding, the per-session cap, the authorize URL, the token exchange against an `httpx.MockTransport` (PKCE verifier, error responses, unreachable Google), `token_flow_id` on create, update and test, code redaction, and the redirect URL setting.
-- Relay (`dev/site-tests/oauth-relay.test.mjs`, Node's built-in test runner, no dependencies): the origin check (rejects `javascript:`, paths, user info, malformed state) and query pass-through. CI runs it in the frontend job, which now also runs on changes to `site/oauth/` and `dev/site-tests/`.
+- Backend (`tests/test_gdrive_oauth.py`): `Origin` checks, the redirect URI (https or loopback only), token conversion and refusals, flow expiry, one-use claim, session binding, the per-session cap, the authorize URL, the token exchange against an `httpx.MockTransport` (PKCE verifier, redirect URI, error responses, unreachable Google), `token_flow_id` on create, update and test, and code redaction.
 - No new dependencies: `httpx` is already used for Firestore.
-
-Deviations from the plan this section started as: the `config` endpoint (the form needs the redirect URI before any flow exists), the callback requiring a signed-in user and not only a session cookie, the flow being claimed and kept until save (not deleted at the callback) so its status and token stay available, the blank-tab-first pop-up handling, the unsaved test accepting `token_flow_id`, the client secret being taken from the flow on save, the audit entries (`destination.oauth_start` plus a detail on save, instead of a separate "connected" entry), and `code=` redaction in logs.
 
 ---
 
@@ -516,9 +503,9 @@ POST             /sources/{id}/test
 
 GET/POST         /destinations         PUT/DELETE /destinations/{id}
 POST             /destinations/{id}/test
-GET              /destinations/gdrive/oauth/config | POST /destinations/gdrive/oauth/start
+POST             /destinations/gdrive/oauth/start
 GET              /destinations/gdrive/oauth/{flow_id}   "Connect Google Drive" (section 9)
-GET              /oauth/google/callback   Google's redirect, through the relay page
+GET              /oauth/google/callback   Google's redirect back to this install
 
 GET/POST         /jobs                 PUT/DELETE /jobs/{id}
 POST             /jobs/{id}/run        run now
@@ -656,7 +643,6 @@ If your databases run in other containers, attach this service to the same Docke
 | `MAX_CONCURRENT_RUNS` | Default 2 |
 | `LOG_LEVEL` | Default `info` |
 | `SESSION_TTL_HOURS` | Default 12 |
-| `GDRIVE_OAUTH_REDIRECT_URL` | Relay page for "Connect Google Drive" (section 9); default `https://lokixed.github.io/dbbm/oauth/google/` |
 
 ---
 

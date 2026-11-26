@@ -1,4 +1,4 @@
-"""The "Connect Google Drive" flow: start, Google's redirect (via the relay page), status."""
+"""The "Connect Google Drive" flow: start, Google's redirect back to this install, status."""
 
 import uuid
 from typing import Annotated
@@ -13,7 +13,6 @@ from app.core.db import SessionDep
 from app.core.security import SessionData
 from app.models import Destination
 from app.schemas.destination import (
-    GdriveOAuthConfigOut,
     GdriveOAuthStartIn,
     GdriveOAuthStartOut,
     GdriveOAuthStatusOut,
@@ -23,8 +22,7 @@ from app.services.gdrive_oauth import (
     ERROR_MESSAGES,
     OAuthFlowError,
     OAuthFlows,
-    check_origin,
-    decode_state_nonce,
+    redirect_uri_for,
 )
 from app.services.secrets import SecretsUnavailable, load_secrets
 
@@ -74,7 +72,7 @@ def start_flow(
 ) -> GdriveOAuthStartOut:
     sid = require_sid(session_data)
     try:
-        origin = check_origin(request.headers.get("origin"))
+        redirect_uri = redirect_uri_for(request.headers.get("origin"))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
     if body.client_secret is not None:
@@ -87,7 +85,7 @@ def start_flow(
         client_id=body.client_id,
         client_secret=client_secret,
         scope=body.scope,
-        origin=origin,
+        redirect_uri=redirect_uri,
         sid=sid,
     )
     write_audit(
@@ -101,12 +99,6 @@ def start_flow(
     )
     db.commit()
     return GdriveOAuthStartOut(flow_id=flow.id, authorize_url=url)
-
-
-@router.get("/api/destinations/gdrive/oauth/config")
-def oauth_config(_user: CurrentUser, flows: OAuthFlowsDep) -> GdriveOAuthConfigOut:
-    """The redirect URI to register in the OAuth client (the relay page)."""
-    return GdriveOAuthConfigOut(redirect_url=flows.redirect_url)
 
 
 @router.get("/api/destinations/gdrive/oauth/{flow_id}")
@@ -139,12 +131,12 @@ async def oauth_callback(
     code: str = "",
     error: str = "",
 ) -> RedirectResponse:
-    """Google redirects here through the relay page. Answers with a redirect to the UI page that
+    """Google redirects here after the consent screen. Answers with a redirect to the UI page that
     reports the result; the code and token never reach the browser beyond this request."""
     if user is None or session_data is None:
         return _done(None, "not_signed_in")
     try:
-        flow = flows.claim(decode_state_nonce(state), session_data.sid)
+        flow = flows.claim(state, session_data.sid)
     except OAuthFlowError as exc:
         return _done(None, exc.code)
     if error or not code:

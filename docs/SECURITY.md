@@ -24,12 +24,10 @@
 - **Vulnerable dependencies:** CI runs `pip-audit`, `yarn npm audit`, Trivy on the image, and
   gitleaks on the repository.
 - **Interactive API docs** (`/api/docs`) are off unless `ENABLE_DOCS=true`.
-- **A tampered or logging OAuth relay page:** Connect Google Drive sends Google's redirect through
-  a static page on GitHub Pages (`GDRIVE_OAUTH_REDIRECT_URL`). The authorization code it sees is
-  useless without the client secret and the PKCE verifier, which stay on the server. The page only
-  forwards to `/api/oauth/google/callback` on a bare origin, and the callback accepts a code only
-  for a live, one-use connect request of the same signed-in session. Self-host the page if you
-  prefer not to depend on it.
+- **A stolen OAuth code (Connect Google Drive):** Google redirects straight back to DBBM over
+  https. The code is useless without the client secret and the PKCE verifier, which stay on the
+  server, and the callback accepts it only for a live, one-use connect request of the same
+  signed-in session.
 
 ## What it does not protect against
 

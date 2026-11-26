@@ -97,7 +97,7 @@ def create_app(
         redoc_url=None,
         dependencies=[Depends(csrf_protect)],
     )
-    app.state.gdrive_oauth = OAuthFlows(settings.gdrive_oauth_redirect_url)
+    app.state.gdrive_oauth = OAuthFlows()
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
     app.include_router(health.router)

@@ -1,13 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
-from urllib.parse import urlsplit
 
 from pydantic import Field, PrivateAttr, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_KEY_LENGTH = 32
-DEFAULT_GDRIVE_OAUTH_REDIRECT_URL = "https://lokixed.github.io/dbbm/oauth/google/"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -29,8 +27,6 @@ class Settings(BaseSettings):
     # Initial value of the public_base_url setting (the setting wins once saved).
     public_base_url: str = ""
     allow_private_notification_targets: bool = False
-    # The relay page registered as the OAuth redirect URI (docs/DESIGN.md section 9).
-    gdrive_oauth_redirect_url: str = DEFAULT_GDRIVE_OAUTH_REDIRECT_URL
 
     _master_key: bytes = PrivateAttr(default=b"")
 
@@ -56,16 +52,6 @@ class Settings(BaseSettings):
         if len(key) < MIN_KEY_LENGTH:
             raise ValueError(f"The master key must be at least {MIN_KEY_LENGTH} characters long.")
         self._master_key = key.encode("utf-8")
-        return self
-
-    @model_validator(mode="after")
-    def _check_redirect_url(self) -> Self:
-        parts = urlsplit(self.gdrive_oauth_redirect_url)
-        local = parts.hostname in ("localhost", "127.0.0.1")
-        if not parts.hostname or parts.scheme != "https" and not (local and parts.scheme == "http"):
-            raise ValueError("GDRIVE_OAUTH_REDIRECT_URL must be an https URL.")
-        if parts.query or parts.fragment:
-            raise ValueError("GDRIVE_OAUTH_REDIRECT_URL must not have a query or fragment.")
         return self
 
     @model_validator(mode="after")

@@ -92,16 +92,6 @@ export function useRunRetention() {
   });
 }
 
-/** The redirect URI to register in the Google OAuth client (the relay page). */
-export function useGdriveConnectConfig(enabled: boolean) {
-  return useQuery({
-    queryKey: ["gdrive-oauth-config"],
-    queryFn: () => api<{ redirect_url: string }>("/api/destinations/gdrive/oauth/config"),
-    enabled,
-    staleTime: Infinity,
-  });
-}
-
 export interface GdriveConnectRequest {
   client_id: string;
   /** Omitted to use the stored secret of `destination_id`. */

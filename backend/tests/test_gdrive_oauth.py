@@ -1,4 +1,4 @@
-"""The "Connect Google Drive" flow: relay state, PKCE exchange, flow lifecycle, saving."""
+"""The "Connect Google Drive" flow: redirect URI, PKCE exchange, flow lifecycle, saving."""
 
 import base64
 import hashlib
@@ -14,7 +14,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.core.config import DEFAULT_GDRIVE_OAUTH_REDIRECT_URL, Settings
 from app.core.db import get_engine
 from app.core.logging import redact
 from app.models import Destination
@@ -25,14 +24,14 @@ from app.services.gdrive_oauth import (
     OAuthFlowError,
     OAuthFlows,
     check_origin,
-    decode_state_nonce,
-    encode_state,
+    redirect_uri_for,
     token_from_response,
 )
 from app.services.secrets import load_secrets
-from tests.conftest import MASTER_KEY, api_post, api_put, csrf_headers, setup_admin
+from tests.conftest import api_post, api_put, csrf_headers, setup_admin
 
-ORIGIN = "http://192.168.1.10:8080"
+ORIGIN = "https://dbbm.example.com"
+REDIRECT_URI = f"{ORIGIN}/api/oauth/google/callback"
 CLIENT_ID = "123-abc.apps.googleusercontent.com"
 CLIENT_SECRET = "GOCSPX-client-secret-value"
 CODE = "4/0AeanS0Authorization-Code"
@@ -75,14 +74,27 @@ def test_check_origin_rejects_everything_else(value: str | None) -> None:
         check_origin(value)
 
 
-def test_state_round_trip_and_garbage() -> None:
-    state = encode_state(ORIGIN, "nonce-1")
-    decoded = json.loads(base64.urlsafe_b64decode(state + "=" * (-len(state) % 4)))
-    assert decoded == {"v": 1, "o": ORIGIN, "n": "nonce-1"}
-    assert decode_state_nonce(state) == "nonce-1"
-    for bad in ("", "!!!", base64.urlsafe_b64encode(b'{"v":1}').decode()):
-        with pytest.raises(OAuthFlowError):
-            decode_state_nonce(bad)
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://dbbm.example.com",
+        "https://dbbm.example.com:8443",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://[::1]:8080",
+        "http://dbbm.localhost",
+    ],
+)
+def test_redirect_uri_is_the_installs_own_callback(origin: str) -> None:
+    assert redirect_uri_for(origin) == f"{origin}/api/oauth/google/callback"
+
+
+@pytest.mark.parametrize(
+    "origin", [None, "http://192.168.1.10:8080", "http://dbbm.example.com", "https://h/path"]
+)
+def test_redirect_uri_needs_https_or_loopback(origin: str | None) -> None:
+    with pytest.raises(ValueError):
+        redirect_uri_for(origin)
 
 
 def test_token_from_response_builds_rclone_token() -> None:
@@ -114,9 +126,9 @@ def test_token_from_response_refusals(over: dict[str, Any], scope: str, code: st
 
 def test_flows_expire_are_single_use_and_session_bound() -> None:
     clock = [0.0]
-    flows = OAuthFlows("https://relay.example/cb", monotonic=lambda: clock[0])
+    flows = OAuthFlows(monotonic=lambda: clock[0])
     flow, _ = flows.start(
-        client_id=CLIENT_ID, client_secret="s", scope="drive", origin=ORIGIN, sid="a"
+        client_id=CLIENT_ID, client_secret="s", scope="drive", redirect_uri=REDIRECT_URI, sid="a"
     )
     assert flows.get(flow.id, "b") is None
     with pytest.raises(OAuthFlowError) as other:
@@ -130,11 +142,10 @@ def test_flows_expire_are_single_use_and_session_bound() -> None:
 
 
 def test_flows_per_session_are_capped() -> None:
-    flows = OAuthFlows("https://relay.example/cb")
+    flows = OAuthFlows()
+    args = {"client_id": CLIENT_ID, "client_secret": "s", "scope": "drive"}
     ids = [
-        flows.start(client_id=CLIENT_ID, client_secret="s", scope="drive", origin=ORIGIN, sid="a")[
-            0
-        ].id
+        flows.start(**args, redirect_uri=REDIRECT_URI, sid="a")[0].id
         for _ in range(MAX_FLOWS_PER_SESSION + 2)
     ]
     alive = [i for i in ids if flows.get(i, "a") is not None]
@@ -145,17 +156,6 @@ def test_oauth_code_is_redacted_from_logs() -> None:
     line = f'"GET /api/oauth/google/callback?state=abc&code={CODE}&scope=x HTTP/1.1" 303'
     out = redact(line)
     assert CODE not in out and "state=abc" in out
-
-
-def test_redirect_url_setting_must_be_https(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_SECRET_KEY", MASTER_KEY)
-    assert Settings().gdrive_oauth_redirect_url == DEFAULT_GDRIVE_OAUTH_REDIRECT_URL
-    for bad in ("http://relay.example/cb", "https://relay.example/cb?x=1", "not a url"):
-        monkeypatch.setenv("GDRIVE_OAUTH_REDIRECT_URL", bad)
-        with pytest.raises(ValueError):
-            Settings()
-    monkeypatch.setenv("GDRIVE_OAUTH_REDIRECT_URL", "http://localhost:4000/cb")
-    assert Settings().gdrive_oauth_redirect_url == "http://localhost:4000/cb"
 
 
 # ---------- API ----------
@@ -230,12 +230,11 @@ def test_start_builds_google_url(google: FakeGoogle, authed: TestClient) -> None
         f"{url.scheme}://{url.netloc}{url.path}" == "https://accounts.google.com/o/oauth2/v2/auth"
     )
     assert query["client_id"] == CLIENT_ID
-    assert query["redirect_uri"] == DEFAULT_GDRIVE_OAUTH_REDIRECT_URL
+    assert query["redirect_uri"] == REDIRECT_URI
     assert query["scope"] == "https://www.googleapis.com/auth/drive.file"
     assert query["access_type"] == "offline" and query["prompt"] == "consent"
     assert query["code_challenge_method"] == "S256"
-    state = json.loads(base64.urlsafe_b64decode(query["state"] + "=="))
-    assert state["o"] == ORIGIN
+    assert len(query["state"]) >= 32  # a random nonce, nothing else
     assert CLIENT_SECRET not in response.text
 
 
@@ -246,6 +245,12 @@ def test_start_needs_origin_and_secret(authed: TestClient) -> None:
         headers=csrf_headers(authed),
     )
     assert no_origin.status_code == 400
+    plain_http = authed.post(
+        "/api/destinations/gdrive/oauth/start",
+        json={"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+        headers={**csrf_headers(authed), "Origin": "http://192.168.1.10:8080"},
+    )
+    assert plain_http.status_code == 400 and "https" in plain_http.json()["detail"]
     assert start(authed, client_secret=None).status_code == 422
     assert start(authed, client_id="bad id!").status_code == 422
 
@@ -260,7 +265,7 @@ def test_connect_and_create(google: FakeGoogle, authed: TestClient) -> None:
     flow_id = connect(authed)
     form = parse_qs(google[0].content.decode())
     assert form["code"] == [CODE] and form["client_secret"] == [CLIENT_SECRET]
-    assert form["redirect_uri"] == [DEFAULT_GDRIVE_OAUTH_REDIRECT_URL]
+    assert form["redirect_uri"] == [REDIRECT_URI]
     assert len(form["code_verifier"][0]) >= 43
 
     status = authed.get(f"/api/destinations/gdrive/oauth/{flow_id}")
@@ -421,8 +426,3 @@ def test_pkce_challenge_matches_verifier(google: FakeGoogle, authed: TestClient)
     verifier = parse_qs(google[0].content.decode())["code_verifier"][0]
     digest = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=")
     assert digest.decode() == challenge
-
-
-def test_config_returns_redirect_url(authed: TestClient) -> None:
-    response = authed.get("/api/destinations/gdrive/oauth/config")
-    assert response.json() == {"redirect_url": DEFAULT_GDRIVE_OAUTH_REDIRECT_URL}

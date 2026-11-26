@@ -10,7 +10,6 @@ import Select from "xedonium/Select";
 import { DialogFooter } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import {
-  useGdriveConnectConfig,
   useRetentionPreview,
   useSaveDestination,
   useTestDestinationDraft,
@@ -30,7 +29,7 @@ import {
   toDestinationInput,
   type DestinationFormValues,
 } from "@/lib/destinationForm";
-import { useGdriveConnect } from "@/lib/gdriveConnect";
+import { connectAvailable, connectRedirectUri, useGdriveConnect } from "@/lib/gdriveConnect";
 import { buildSecrets, initialSecret, secretPayload, type SecretState } from "@/lib/secrets";
 
 interface DriveSecrets {
@@ -94,7 +93,6 @@ export function DestinationForm({
   const keepDays = useWatch({ control, name: "keepDays" });
   const secretsSet = record?.secrets_set ?? {};
   const drive = useGdriveConnect();
-  const connectConfig = useGdriveConnectConfig(type === "gdrive");
   const trimmedClientId = clientId.trim();
   const connected =
     drive.state.phase === "connected" &&
@@ -105,7 +103,9 @@ export function DestinationForm({
     (record.config.client_id ?? "") === trimmedClientId &&
     secrets.client_secret.action === "keep" &&
     (secretsSet.client_secret ?? false);
-  const connectBlocked = !trimmedClientId
+  const connectBlocked = !connectAvailable()
+    ? "Connect needs DBBM on https. Open DBBM at its https address, or paste a token below."
+    : !trimmedClientId
     ? "Enter an OAuth client ID and secret first."
     : !typedSecret(secrets.client_secret) && !storedSecretUsable
       ? "Enter the client secret first."
@@ -114,7 +114,7 @@ export function DestinationForm({
     state: drive.state,
     connected,
     blockedReason: connectBlocked,
-    redirectUrl: connectConfig.data?.redirect_url ?? null,
+    redirectUrl: connectRedirectUri(),
     onConnect: () => {
       const secret = typedSecret(secrets.client_secret);
       void drive.connect({

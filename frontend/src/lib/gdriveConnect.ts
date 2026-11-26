@@ -6,6 +6,26 @@ import {
 } from "@/api/destinations";
 import type { DriveScope } from "@/api/types";
 
+/** Google sends the browser back here after the consent screen (register it in the OAuth client). */
+export const CALLBACK_PATH = "/api/oauth/google/callback";
+
+/** The redirect URI for the address DBBM is open at in this browser. */
+export function connectRedirectUri(): string {
+  return `${window.location.origin}${CALLBACK_PATH}`;
+}
+
+/** Google accepts only https redirect URIs, or plain http on the machine itself (localhost). */
+export function connectAvailable(): boolean {
+  const { protocol, hostname } = window.location;
+  if (protocol === "https:") return true;
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]"
+  );
+}
+
 /** The done page (opened in Google's tab) tells the form tab the result on this channel. */
 export const CONNECT_CHANNEL = "dbbm-gdrive-connect";
 const POLL_MS = 2000;

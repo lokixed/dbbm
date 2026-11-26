@@ -65,8 +65,7 @@ export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string |
               application type <strong>Web application</strong>. Name it, for example &quot;DBBM&quot;.
             </p>
             <p>
-              Under <strong>Authorized redirect URIs</strong> click <strong>Add URI</strong> and paste exactly (with
-              the trailing slash):
+              Under <strong>Authorized redirect URIs</strong> click <strong>Add URI</strong> and paste exactly:
             </p>
             <p>
               {redirectUrl ? (
@@ -76,9 +75,10 @@ export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string |
               )}
             </p>
             <p>
-              Leave <strong>Authorized JavaScript origins</strong> empty. This page only sends your browser back to
-              this DBBM; sign-in itself happens at Google, and your DBBM does not need to be reachable from the
-              internet.
+              It is this DBBM&apos;s own address, so it must be the <strong>https</strong> address you open DBBM at.
+              If you use DBBM at more than one address, add the callback of each. Leave{" "}
+              <strong>Authorized JavaScript origins</strong> empty. Google only sends your browser to this address,
+              so it does not have to be reachable from the internet, only from your browser.
             </p>
             <p>
               Click <strong>Create</strong>, then copy the <strong>Client ID</strong> and the{" "}
@@ -99,8 +99,9 @@ export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string |
         <Troubleshooting>
             <li>
               <strong>redirect_uri_mismatch</strong>: the redirect URI in the client must match the one above
-              exactly, including <code>https</code> and the trailing slash. Check that you edited the client whose ID
-              is in the form.
+              exactly, including <code>https</code>, the host and any port, with no trailing slash. It must be the
+              address you opened DBBM at when you clicked Connect. Check that you edited the client whose ID is in
+              the form.
             </li>
             <li>
               <strong>Access blocked</strong> or <strong>403 access_denied</strong>: the app is still in Testing and
