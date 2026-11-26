@@ -19,6 +19,11 @@ import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
 import { AuditBulkActions } from "@/components/audit/AuditBulkActions";
 
+/** The object's type as the entry recorded it (sources, destinations and channels store one). */
+function recordedType(entry: AuditEntry): string | undefined {
+  return typeof entry.details.type === "string" ? entry.details.type : undefined;
+}
+
 const EMPTY: AuditFilters = { action: "", username: "", search: "", from: "", to: "" };
 
 /** The details as one line: `key value, key value`; the cell truncates it with an ellipsis. */
@@ -56,7 +61,7 @@ function buildColumns(onOpen: (entry: AuditEntry) => void): DataGridColumn<Audit
     render: (entry) =>
       entry.object_type ? (
         <span title={entry.object_id ?? undefined}>
-          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id}>
+          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id} recordedType={recordedType(entry)}>
             {entry.object_type}
             {entry.object_id && <span className="ml-1 font-mono text-xs text-app-muted">{entry.object_id.slice(0, 8)}</span>}
           </AuditObjectLabel>
@@ -105,7 +110,7 @@ function EntryDetails({ entry }: { entry: AuditEntry }) {
       </Field>
       <Field label="Object">
         {entry.object_type ? (
-          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id}>
+          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id} recordedType={recordedType(entry)}>
             {entry.object_type}
           </AuditObjectLabel>
         ) : (

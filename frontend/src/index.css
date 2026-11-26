@@ -104,6 +104,15 @@ button.bg-red-500\/10.border-red-500\/30:hover:not(:disabled) {
   border-color: theme("colors.red.700");
 }
 
+/* A disabled button keeps its resting border under the pointer. The library's outline buttons
+   (Pagination's Prev/Next, the secondary Button, Calendar and NumberField steppers) add
+   `hover:border-app-strong` without excluding the disabled state, so after paging to the last page
+   the disabled Next under the mouse turned blue and looked clickable. All of them rest on
+   `border-app-border`. Remove this once xedonium uses `enabled:hover:` there. */
+button.hover\:border-app-strong:disabled:hover {
+  border-color: rgb(var(--color-app-border));
+}
+
 /* A table inside a card would draw a second border next to the card's own, so drop it. */
 .bg-app-card.border .overflow-x-auto.border {
   border-width: 0;

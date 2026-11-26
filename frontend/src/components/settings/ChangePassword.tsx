@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { AccordionSection } from "xedonium/Accordion";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
-import Card from "xedonium/Card";
 import Field from "xedonium/Field";
 import { useChangePassword } from "@/api/auth";
 import { useToast } from "@/components/toast";
@@ -38,7 +38,8 @@ export function ChangePassword() {
   };
 
   return (
-    <Card title="Change password" headingLevel={2}>
+    // Collapsed by default: it is rarely needed and the form sat open at the bottom of Settings.
+    <AccordionSection title="Change password" headingLevel={2} className="bg-app-card">
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -70,6 +71,6 @@ export function ChangePassword() {
           </Button>
         </div>
       </form>
-    </Card>
+    </AccordionSection>
   );
 }

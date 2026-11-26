@@ -59,7 +59,7 @@ Jobs can encrypt every backup with [age](https://github.com/FiloSottile/age) bef
 
 **Losing the private key means the backups are unrecoverable.** Nobody can open an encrypted backup without it, not even the administrator.
 
-1. Generate a key pair on your own machine, not on the server: `age-keygen -o backup-key.txt`. It prints the public key (`age1...`) and writes the private key to the file. Store that file somewhere safe and offline, for example in a password manager.
+1. Generate a key pair, never on the server. Either click **Generate a key pair** in **Settings > Backup encryption keys** (made in your browser: it downloads `backup-key.txt` and fills in the public key; needs HTTPS or localhost), or run `age-keygen -o backup-key.txt` on your own machine, which prints the public key (`age1...`) and writes the private key to the file. Store the private key file somewhere safe and offline, for example in a password manager.
 2. Make a second key pair as a recovery key and keep it somewhere else. A backup can be opened with any one of the keys it was encrypted to.
 3. Open **Settings**, section **Backup encryption keys**, and add the public keys. A private key (`AGE-SECRET-KEY-...`) is refused.
 4. Edit the job, turn on **Encrypt backups with age** and choose the keys.

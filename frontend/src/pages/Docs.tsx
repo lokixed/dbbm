@@ -219,7 +219,7 @@ Use a separate restore user with write access for the target source, not the rea
 
 Jobs can encrypt every backup with age before it is checksummed, stored or uploaded. The server only ever holds **public keys**. Losing the private key means the backups are unrecoverable, even for the administrator.
 
-1. Generate a key pair on your own machine: \`age-keygen -o backup-key.txt\`. Store the private key offline.
+1. Generate a key pair: click **Generate a key pair** in **Settings > Backup encryption keys** (made in your browser; the private key downloads as a file and is never sent to the server; needs HTTPS or localhost), or run \`age-keygen -o backup-key.txt\` on your own machine. Store the private key offline.
 2. Make a second key pair as a recovery key and keep it somewhere else.
 3. Open **Settings > Backup encryption keys** and add the public keys. A private key is refused.
 4. Edit the job, turn on **Encrypt backups with age** and choose the keys.

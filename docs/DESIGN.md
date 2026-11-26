@@ -485,6 +485,7 @@ Rules:
 - A job set to encrypt fails closed: no key, `age` missing or an `age` error fails the unit and nothing is stored.
 - Decryption runs `age --decrypt -i -` with the private key on standard input only (never a file, an argument, a log or the database). The plaintext goes to the run's work directory and is removed with it.
 - Public keys are validated (`age1` plus 58 bech32 characters); a private key pasted into the public-key field is refused. Only classic X25519 keys are accepted.
+- Settings can make a key pair in the browser (WebCrypto X25519, same format as `age-keygen`). The private key is downloaded as a file and only the public key is sent to the server, so the server still never has a private key. WebCrypto needs a secure context (HTTPS or localhost); elsewhere the button is disabled and `age-keygen` on the user's machine is the way.
 
 ### Container and network
 - Run as a non-root user; no Docker socket mount; read-only root filesystem with writable `/data`, `/backups` and a tmpfs for temp work.
