@@ -57,7 +57,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # curl is used by the compose healthcheck and to download the repository signing keys below.
 # tzdata provides the IANA zones that job schedules use (Python's zoneinfo reads them).
-RUN apt-get update \
+# OS_PATCH_DATE is set by CI to today's date. A cached layer would otherwise keep the old
+# `apt-get upgrade` result and miss newly published security fixes.
+ARG OS_PATCH_DATE=unset
+RUN echo "OS packages patched as of ${OS_PATCH_DATE}" \
+    && apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl tzdata \
     && rm -rf /var/lib/apt/lists/*

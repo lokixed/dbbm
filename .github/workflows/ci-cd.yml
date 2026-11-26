@@ -40,10 +40,14 @@ jobs:
       publish: ${{ steps.filter.outputs.publish }}
       site: ${{ steps.filter.outputs.site }}
       hub: ${{ steps.filter.outputs.hub }}
+      today: ${{ steps.today.outputs.date }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # Passed to every image build so the cached `apt-get upgrade` layer is redone once a day.
+      - id: today
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - id: filter
         env:
           EVENT: ${{ github.event_name }}
@@ -176,6 +180,7 @@ jobs:
           push: false
           load: true
           tags: dbbm:ci
+          build-args: OS_PATCH_DATE=${{ needs.changes.outputs.today }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Client tools are installed
@@ -359,6 +364,7 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: dbbm:release
+          build-args: OS_PATCH_DATE=${{ needs.changes.outputs.today }}
           cache-from: type=gha
       - name: Smoke test the release image
         if: steps.version.outputs.release == 'true'
@@ -390,6 +396,7 @@ jobs:
             org.opencontainers.image.licenses=MIT
           sbom: true # SBOM attached to the image
           provenance: mode=max
+          build-args: OS_PATCH_DATE=${{ needs.changes.outputs.today }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
