@@ -71,12 +71,18 @@ export function ScheduleField({ cron, timezone, onCron, onTimezone, error, serve
           error={error ?? serverError ?? undefined}
           value={cron}
           onChange={onCron}
-          placeholder="0 3 * * *"
+          // Empty means manual; a cron-like placeholder here read as if a daily schedule were set.
+          placeholder="Empty: manual only"
           autoComplete="off"
           style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
         />
         <Select label="Time zone" value={timezone} onChange={onTimezone} options={zoneOptions} />
       </div>
+      {cron.trim() === "" && (
+        <p className="text-sm text-app-muted">
+          Runs only when started with Run now. Pick a preset or type a cron expression to schedule it.
+        </p>
+      )}
       {cron.trim() !== "" && (
         <div className="text-sm" aria-live="polite">
           <p className="mb-1 font-medium">Next 5 runs</p>

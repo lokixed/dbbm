@@ -16,6 +16,7 @@ import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
+import { ConnectionBulkActions } from "@/components/ConnectionBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 import { SOURCE_TYPES } from "@/lib/sourceForm";
 
@@ -28,6 +29,7 @@ export default function SourcesPage() {
   const remove = useDeleteSource();
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState<SourceRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const runTest = (source: SourceRecord) =>
     test.mutate(source.id, {
@@ -56,7 +58,7 @@ export default function SourcesPage() {
   };
 
   const columns: DataGridColumn<SourceRecord>[] = [
-    { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
+    { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="whitespace-nowrap font-medium">{source.name}</span> },
     { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => <SourceTypeLabel type={source.type}>{typeLabel(source.type)}</SourceTypeLabel> },
     { key: "status", sortable: true, accessor: (s) => (s.last_test ? (s.last_test.ok ? "OK" : "Failed") : "Never tested"), header: "Status", render: (source) =>
         test.isPending && test.variables === source.id ? (
@@ -104,9 +106,18 @@ export default function SourcesPage() {
           </div>
         </Alert>
       )}
+      <ConnectionBulkActions
+        kind="source"
+        selected={(sources.data ?? []).filter((row) => selectedIds.includes(row.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {sources.isSuccess && (
         <DataGrid
           columns={columns}
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

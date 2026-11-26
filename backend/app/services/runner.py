@@ -228,6 +228,14 @@ class RetryPlan:
         return self.job_id or self.parent_id
 
 
+def _log_abort(log: RunLogger, error: str) -> str:
+    """Record why a run stopped early as an ERROR line (the log's Errors filter shows it) and
+    return the error. Steps that fail without aborting log their own errors."""
+    with suppress(OSError):
+        log.error(error)
+    return error
+
+
 def _describe(exc: BaseException, secrets: Sequence[str]) -> str:
     if isinstance(
         exc,
@@ -799,10 +807,12 @@ class Runner:
                 return RunStatus.INTERRUPTED, "Interrupted: the service was stopping."
             return RunStatus.CANCELLED, "Cancelled by user."
         except RunFailedError as exc:
-            return RunStatus.FAILED, str(exc)
+            return RunStatus.FAILED, _log_abort(log, str(exc))
         except Exception as exc:
             logger.error("Run %s crashed: %s", run_id, type(exc).__name__)
-            return RunStatus.FAILED, f"Unexpected error: {_describe(exc, state.secrets)}"
+            return RunStatus.FAILED, _log_abort(
+                log, f"Unexpected error: {_describe(exc, state.secrets)}"
+            )
 
     def _started(self, run_id: uuid.UUID, job_id: uuid.UUID, trigger: str) -> None:
         if self.hooks is None:

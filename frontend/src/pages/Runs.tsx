@@ -17,6 +17,7 @@ import { useRuns, type RunFilters } from "@/api/runs";
 import type { RunSummary, RunStatus } from "@/api/types";
 import { FilterCell } from "@/components/FilterCell";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
+import { RunBulkActions } from "@/components/runs/RunBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useJobSourceType } from "@/lib/typeLookups";
@@ -38,7 +39,7 @@ const makeColumns = (sourceTypeOf: (jobId: string | null) => string | undefined)
     header: "Job",
     render: (run) => (
       <Link to={`/runs/${run.id}`} className="font-medium hover:underline">
-        <SourceTypeLabel type={sourceTypeOf(run.job_id)}>{run.job_name}</SourceTypeLabel>
+        <SourceTypeLabel type={run.source_type ?? sourceTypeOf(run.job_id)}>{run.job_name}</SourceTypeLabel>
       </Link>
     ),
   },
@@ -107,6 +108,7 @@ export default function RunsPage() {
     setFiltersOpen(true);
   };
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const needle = query.trim().toLowerCase();
   const rows = useMemo(
     () =>
@@ -223,8 +225,16 @@ export default function RunsPage() {
           </div>
         </Alert>
       )}
+      <RunBulkActions
+        selected={rows.filter((run) => selectedIds.includes(run.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {runs.isSuccess && (
         <DataGrid
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

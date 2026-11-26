@@ -153,6 +153,8 @@ export interface RunSummary {
   parent_run_id: string | null;
   scheduled_for: string | null;
   kind: "backup" | "restore";
+  /** Engine of a restore's target source; backups take theirs from the job. */
+  source_type?: string | null;
 }
 
 export type NotifyOn = "failure" | "always" | "never";
@@ -349,6 +351,7 @@ export interface DashboardFailure {
   status: RunStatus;
   finished_at: string | null;
   error: string | null;
+  source_type?: string | null;
 }
 
 export interface DiskUsage {

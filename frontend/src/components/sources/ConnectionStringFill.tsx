@@ -1,39 +1,23 @@
-import { useState } from "react";
 import Button from "xedonium/Button";
 import HelperText from "xedonium/HelperText";
 import PasswordInput from "xedonium/PasswordInput";
-import {
-  CONNECTION_STRING_EXAMPLES,
-  ConnectionStringError,
-  parseConnectionString,
-  type ParsedConnection,
-  type SqlType,
-} from "@/lib/connectionString";
+import { CONNECTION_STRING_EXAMPLES, type SqlType } from "@/lib/connectionString";
 
 interface ConnectionStringFillProps {
   type: SqlType;
-  /** Called with what the string contained; the form fills its fields from it. */
-  onParsed: (parsed: ParsedConnection) => void;
+  value: string;
+  error: string | null;
+  onChange: (value: string) => void;
+  /** Parse the string and fill the form's fields from it. */
+  onFill: () => void;
 }
 
 /**
  * Paste a MySQL / MariaDB or PostgreSQL connection URL and fill the form's fields from it. The string
- * itself is not stored: the password goes to the encrypted password field like a typed one.
+ * itself is not stored: the password goes to the encrypted password field like a typed one. The form
+ * owns the value, so Test connection and Save can use a string that was pasted but not filled in yet.
  */
-export function ConnectionStringFill({ type, onParsed }: ConnectionStringFillProps) {
-  const [value, setValue] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const fill = () => {
-    try {
-      onParsed(parseConnectionString(type, value));
-      setValue("");
-      setError(null);
-    } catch (exc) {
-      setError(exc instanceof ConnectionStringError ? exc.message : "Could not read the connection string.");
-    }
-  };
-
+export function ConnectionStringFill({ type, value, error, onChange, onFill }: ConnectionStringFillProps) {
   return (
     <div className="space-y-2">
       <PasswordInput
@@ -41,14 +25,11 @@ export function ConnectionStringFill({ type, onParsed }: ConnectionStringFillPro
         autoComplete="off"
         placeholder={CONNECTION_STRING_EXAMPLES[type]}
         value={value}
-        onChange={(next) => {
-          setValue(next);
-          setError(null);
-        }}
+        onChange={onChange}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            fill();
+            onFill();
           }
         }}
         error={error ?? undefined}
@@ -59,7 +40,7 @@ export function ConnectionStringFill({ type, onParsed }: ConnectionStringFillPro
         }
       />
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="secondary" onClick={fill} disabled={!value.trim()}>
+        <Button type="button" variant="secondary" onClick={onFill} disabled={!value.trim()}>
           Fill in the fields
         </Button>
         <HelperText>

@@ -4,8 +4,23 @@ from collections.abc import Sequence
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
-from app.models import Artifact, Destination, NotificationChannel, NotificationEvent, Run
+from app.models import Artifact, Destination, NotificationChannel, NotificationEvent, Run, Source
 from app.schemas.job import ArtifactOut, RunNotificationOut, RunOut, RunSummaryOut
+
+
+def restore_target_types(db: Session, runs: Sequence[Run]) -> dict[uuid.UUID, str | None]:
+    """The engine of each restore run's target, for its icon. Runs from before it was recorded
+    look their target source up by name (None once that source is renamed or deleted)."""
+    infos = {r.id: (r.step_results or {}).get("restore") or {} for r in runs if r.kind == "restore"}
+    names = {str(i["target_source"]) for i in infos.values() if i.get("target_source")}
+    by_name: dict[str, str] = {}
+    if names:
+        rows = db.exec(select(Source.name, Source.type).where(col(Source.name).in_(names))).all()
+        by_name = {name: kind for name, kind in rows}
+    return {
+        run_id: info.get("target_type") or by_name.get(str(info.get("target_source")))
+        for run_id, info in infos.items()
+    }
 
 
 def summarize_runs(db: Session, runs: Sequence[Run]) -> list[RunSummaryOut]:
@@ -18,6 +33,7 @@ def summarize_runs(db: Session, runs: Sequence[Run]) -> list[RunSummaryOut]:
             .group_by(col(Artifact.run_id))
         ).all()
         stats = {run_id: (int(count), int(total)) for run_id, count, total in rows}
+    target_types = restore_target_types(db, runs)
     return [
         RunSummaryOut(
             id=str(r.id),
@@ -34,6 +50,7 @@ def summarize_runs(db: Session, runs: Sequence[Run]) -> list[RunSummaryOut]:
             parent_run_id=str(r.parent_run_id) if r.parent_run_id else None,
             scheduled_for=r.scheduled_for,
             kind=r.kind,
+            source_type=target_types.get(r.id),
         )
         for r in runs
     ]

@@ -33,7 +33,7 @@ import {
   type MongoMode,
   type SourceFormValues,
 } from "@/lib/sourceForm";
-import type { ParsedConnection } from "@/lib/connectionString";
+import { ConnectionStringError, parseConnectionString, type ParsedConnection } from "@/lib/connectionString";
 import { checkServiceAccount } from "@/lib/validation";
 
 const SECRET_FIELDS = ["password", "uri", "service_account_json"] as const;
@@ -110,14 +110,18 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
   // MySQL / PostgreSQL: "string" shows the connection-string box, which fills the host fields.
   const [sqlMode, setSqlMode] = useState<"fields" | "string">("fields");
+  const [connString, setConnString] = useState("");
+  const [connStringError, setConnStringError] = useState<string | null>(null);
   const specs = secretSpecs(type, mongoMode);
   const busy = save.isPending || test.isPending;
   const hasDatabaseList = type === "mysql" || type === "postgres" || type === "mongo";
 
-  const validateSecrets = (): boolean => {
+  type Secrets = Record<string, SecretState>;
+
+  const validateSecrets = (current: Secrets): boolean => {
     const found: Record<string, string> = {};
     for (const spec of specs) {
-      const state = secrets[spec.field];
+      const state = current[spec.field];
       const isSet = record?.secrets_set[spec.field] ?? false;
       const value = state.action === "set" ? state.value : "";
       if (spec.required && !isSet && value.trim() === "") {
@@ -134,13 +138,13 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   };
 
   // Tests the values in the form as they are now, saved or not.
-  const runTest = async (values: SourceFormValues) => {
+  const runTest = async (values: SourceFormValues, current: Secrets) => {
     setTestError(null);
     setTestResult(null);
     try {
       const result = await test.mutateAsync({
         id: record?.id ?? null,
-        input: toSourceInput(type, values, secrets),
+        input: toSourceInput(type, values, current),
       });
       setTestResult(result);
       if (result.databases) setDiscovered(result.databases);
@@ -154,28 +158,70 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
     }
   };
 
-  const checkConnection = form.handleSubmit(async (values) => {
-    setFormError(null);
-    if (!validateSecrets()) return;
-    await runTest(values);
-  });
+  const saveSource = async (values: SourceFormValues, current: Secrets) => {
+    try {
+      const saved = await save.mutateAsync({
+        id: record?.id ?? null,
+        input: toSourceInput(type, values, current),
+      });
+      setRecord(saved);
+      setSecrets(initialSecrets(saved));
+      toast({ title: "Source saved", description: saved.name, variant: "success" });
+      onClose();
+    } catch (error) {
+      setFormError(error instanceof ApiError || error instanceof Error ? error.message : "Save failed");
+    }
+  };
 
-  const submit = form.handleSubmit(async (values) => {
+  // Fills the fields from a parsed string. Returns the secrets with its password, because the state
+  // update is not visible until the next render and Test / Save need it now.
+  const fillFromString = (parsed: ParsedConnection, announce: boolean): Secrets => {
+    for (const [key, value] of Object.entries(parsed.values)) {
+      setValue(key as keyof SourceFormValues, value as never, { shouldDirty: true, shouldValidate: true });
+    }
+    const next: Secrets =
+      parsed.password === null ? secrets : { ...secrets, password: { action: "set", value: parsed.password } };
+    setSecrets(next);
+    setSqlMode("fields");
+    if (announce) {
+      toast({ title: "Fields filled in", description: "Check them, then click Test connection.", variant: "success" });
+    }
+    return next;
+  };
+
+  // In connection-string mode, parses the pasted string into the fields first. Returns the secrets to
+  // use, or null when the string is missing or cannot be read.
+  const applyConnectionString = (announce: boolean): Secrets | null => {
+    if ((type !== "mysql" && type !== "postgres") || sqlMode !== "string") return secrets;
+    if (connString.trim() === "") {
+      setConnStringError("Paste a connection string, or switch to Host fields.");
+      return null;
+    }
+    try {
+      const next = fillFromString(parseConnectionString(type, connString), announce);
+      setConnString("");
+      setConnStringError(null);
+      return next;
+    } catch (exc) {
+      setConnStringError(exc instanceof ConnectionStringError ? exc.message : "Could not read the connection string.");
+      return null;
+    }
+  };
+
+  // Validates the form, then runs `action`. A string pasted but not yet filled in is applied first,
+  // so Test and Save use it.
+  const withValidForm = (action: (values: SourceFormValues, current: Secrets) => Promise<void>) => () => {
+    const current = applyConnectionString(false);
+    if (current === null) return;
+    void form.handleSubmit(async (values) => {
       setFormError(null);
-      if (!validateSecrets()) return;
-      try {
-        const saved = await save.mutateAsync({
-          id: record?.id ?? null,
-          input: toSourceInput(type, values, secrets),
-        });
-        setRecord(saved);
-        setSecrets(initialSecrets(saved));
-        toast({ title: "Source saved", description: saved.name, variant: "success" });
-        onClose();
-      } catch (error) {
-        setFormError(error instanceof ApiError || error instanceof Error ? error.message : "Save failed");
-      }
-    });
+      if (!validateSecrets(current)) return;
+      await action(values, current);
+    })();
+  };
+
+  const checkConnection = withValidForm(runTest);
+  const submit = withValidForm(saveSource);
 
   const setSecret = (field: string) => (state: SecretState) =>
     setSecrets((current) => ({ ...current, [field]: state }));
@@ -190,18 +236,6 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   const sqlString = isSqlLike && sqlMode === "string";
   const showHostFields = type !== "firestore" && !(type === "mongo" && mongoMode === "uri") && !sqlString;
 
-  const fillFromString = (parsed: ParsedConnection) => {
-    for (const [key, value] of Object.entries(parsed.values)) {
-      setValue(key as keyof SourceFormValues, value as never, { shouldDirty: true, shouldValidate: true });
-    }
-    if (parsed.password !== null) setSecret("password")({ action: "set", value: parsed.password });
-    setSqlMode("fields");
-    toast({
-      title: "Fields filled in",
-      description: "Check them, then click Test connection.",
-      variant: "success",
-    });
-  };
   const fullInstance = type === "mongo" && mongoDumpMode === "full_oplog";
 
   return (
@@ -234,7 +268,16 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
       )}
 
       {sqlString && (type === "mysql" || type === "postgres") && (
-        <ConnectionStringFill type={type} onParsed={fillFromString} />
+        <ConnectionStringFill
+          type={type}
+          value={connString}
+          error={connStringError}
+          onChange={(next) => {
+            setConnString(next);
+            setConnStringError(null);
+          }}
+          onFill={() => void applyConnectionString(true)}
+        />
       )}
 
       {type === "mongo" && (

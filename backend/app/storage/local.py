@@ -3,6 +3,7 @@ import builtins
 import hmac
 import os
 import shutil
+import stat
 import tempfile
 import threading
 from pathlib import Path
@@ -20,6 +21,10 @@ from app.storage.base import (
 )
 
 PARTIAL_SUFFIX = ".partial"
+
+
+class PermissionsIgnoredError(Exception):
+    """The filesystem accepted chmod 0600 but the file is still readable by others."""
 
 
 def format_bytes(size: int) -> str:
@@ -54,6 +59,12 @@ class LocalStorage(BaseStorage):
             usage = shutil.disk_usage(target)
         except PathNotAllowed as exc:
             return self._fail("path", str(exc))
+        except PermissionsIgnoredError:
+            return self._fail(
+                "writable",
+                "Cannot keep backup files private: the folder ignores file permissions "
+                "(chmod 0600 has no effect). Use a folder on a Linux filesystem.",
+            )
         except OSError as exc:
             # strerror only: the full message embeds absolute filesystem paths.
             return self._fail("writable", f"Cannot write to the destination: {exc.strerror}.")
@@ -66,15 +77,21 @@ class LocalStorage(BaseStorage):
             total_bytes=usage.total,
             checks=[
                 CheckResult("path", True, "Path is inside the backup directory."),
-                CheckResult("writable", True, "Created, wrote and removed a test file."),
+                CheckResult("writable", True, "Wrote a private (0600) test file and removed it."),
             ],
         )
 
     @staticmethod
     def _probe_write(directory: Path) -> None:
+        """Write a file and make it 0600, as an upload does, so the test fails where uploads
+        would."""
         with tempfile.NamedTemporaryFile(dir=directory, prefix=".dbbm-write-test-") as handle:
             handle.write(b"ok")
             handle.flush()
+            probe = Path(handle.name)
+            probe.chmod(0o600)
+            if stat.S_IMODE(probe.stat().st_mode) & 0o077:
+                raise PermissionsIgnoredError
 
     def _root(self) -> Path:
         base = get_settings().backup_dir

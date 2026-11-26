@@ -38,6 +38,8 @@ const HEALTH_COLUMNS: DataGridColumn<DestinationHealth>[] = [
     render: (d) => (
       <div className="flex flex-wrap gap-2">
         <AuthBadge type={d.type} status={d.auth_status} />
+        {/* Only Drive has an authorization state; a local destination with no failed upload is OK. */}
+        {d.type !== "gdrive" && !d.last_error_class && <Badge badgeContent="OK" color="success" />}
         {d.last_error_class && (
           <Badge badgeContent={`Last upload: ${errorClassLabel(d.last_error_class)}`} color="warning" />
         )}
@@ -106,7 +108,7 @@ function OverviewCards({ data }: { data: Dashboard }) {
             {failures.map((f) => (
               <li key={f.run_id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
                 <Link to={`/runs/${f.run_id}`} className="min-w-0 hover:underline">
-                  <SourceTypeLabel type={sourceTypeOf(f.job_id)} className="!h-auto font-medium">
+                  <SourceTypeLabel type={f.source_type ?? sourceTypeOf(f.job_id)} className="!h-auto font-medium">
                     <span className="break-words">{f.job_name}</span>
                   </SourceTypeLabel>
                   <span className="block text-xs text-app-muted">

@@ -102,12 +102,15 @@ export function SecretField({
       )}
       <div className="flex flex-wrap items-center gap-2">
         {allowFile && (
-          <FileUpload
-            label="Upload .json file"
-            accept=".json,application/json"
-            clearOnSelect
-            onChange={(files) => void readFile(files[0])}
-          />
+          // Full width, like the field above: shrunk to its text the drop zone was a narrow box.
+          <div className="w-full">
+            <FileUpload
+              label="Upload .json file"
+              accept=".json,application/json"
+              clearOnSelect
+              onChange={(files) => void readFile(files[0])}
+            />
+          </div>
         )}
         {fileName && <span className="text-xs text-app-muted">Loaded {fileName}</span>}
         {isSet && (

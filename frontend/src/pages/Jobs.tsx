@@ -21,6 +21,7 @@ import { useDestinationType } from "@/lib/typeLookups";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { useToast } from "@/components/toast";
+import { JobBulkActions } from "@/components/jobs/JobBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 
 function ScheduleBadge({ job }: { job: JobRecord }) {
@@ -51,6 +52,7 @@ export default function JobsPage() {
   const remove = useDeleteJob();
   const setEnabled = useSetJobEnabled();
   const [deleting, setDeleting] = useState<JobRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const runNow = (job: JobRecord) =>
     run.mutate(job.id, {
@@ -93,7 +95,7 @@ export default function JobsPage() {
     {
       key: "name", sortable: true, accessor: (job) => job.name,
       header: "Name",
-      render: (job) => <span className="font-medium">{job.name}</span>,
+      render: (job) => <span className="whitespace-nowrap font-medium">{job.name}</span>,
     },
     { key: "schedule", sortable: true, accessor: (job) => job.schedule ?? "", header: "Schedule", render: (job) => <ScheduleBadge job={job} /> },
     {
@@ -194,8 +196,16 @@ export default function JobsPage() {
           </div>
         </Alert>
       )}
+      <JobBulkActions
+        selected={(jobs.data ?? []).filter((job) => selectedIds.includes(job.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {jobs.isSuccess && (
         <DataGrid
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

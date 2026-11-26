@@ -28,6 +28,7 @@ import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { EventStatusBadge } from "@/components/notifications/EventStatusBadge";
 import { useToast } from "@/components/toast";
+import { ChannelBulkActions } from "@/components/notifications/ChannelBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 import { channelToValues, toChannelInput } from "@/lib/channelForm";
 
@@ -100,6 +101,7 @@ export default function NotificationsPage() {
   const remove = useDeleteChannel();
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState<ChannelRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [eventsFor, setEventsFor] = useState<ChannelRecord | null>(null);
   const [results, setResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
@@ -172,12 +174,13 @@ export default function NotificationsPage() {
           disabled={save.isPending}
           onChange={() => toggle(channel)}
           aria-label={`${channel.enabled ? "Disable" : "Enable"} ${channel.name}`}
+          label={channel.enabled ? "On" : "Off"}
         />
       ),
     },
     {
       key: "test", sortable: true, accessor: (c) => (c.last_test ? (c.last_test.ok ? "OK" : "Failed") : "Never tested"),
-      header: "Last test",
+      header: "Status",
       render: (channel) => {
         const inline = results[channel.id];
         if (inline) {
@@ -190,7 +193,7 @@ export default function NotificationsPage() {
         return <StatusBadge lastTest={channel.last_test} />;
       },
     },
-    { key: "tested", sortable: true, accessor: (c) => c.last_test?.at ?? "", header: "Tested", render: (channel) => <LastTested lastTest={channel.last_test} /> },
+    { key: "tested", sortable: true, accessor: (c) => c.last_test?.at ?? "", header: "Last tested", render: (channel) => <LastTested lastTest={channel.last_test} /> },
     {
       key: "jobs", sortable: true, accessor: (c) => c.jobs.map((j) => j.name).join(", "),
       header: "Jobs",
@@ -239,8 +242,16 @@ export default function NotificationsPage() {
           </div>
         </Alert>
       )}
+      <ChannelBulkActions
+        selected={(channels.data ?? []).filter((c) => selectedIds.includes(c.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {channels.isSuccess && (
         <DataGrid
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

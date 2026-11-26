@@ -394,7 +394,7 @@ export function ChannelForm({ channel, onClose }: { channel: ChannelRecord | nul
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <Button type="button" variant="secondary" onClick={sendTest} disabled={busy}>
             <SendIcon className="h-4 w-4" />
-            Send Test
+            Send test
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>

@@ -106,3 +106,42 @@ def test_list_get_delete(storage: LocalStorage, source: Path, tmp_path: Path) ->
     run(storage.delete("j/a.dump"))
     run(storage.delete("j/a.dump"))  # deleting twice is fine
     assert [o.key for o in run(storage.list(""))] == ["j/b.dump"]
+
+
+# ---------- destination test (matches what an upload needs) ----------
+
+
+def test_destination_test_passes_and_leaves_no_probe_file(storage: LocalStorage) -> None:
+    result = storage.test_sync()
+    assert result.ok and [c.name for c in result.checks] == ["path", "writable"]
+    assert list(root().iterdir()) == []
+
+
+def test_destination_test_fails_when_chmod_is_refused(
+    storage: LocalStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # As on a Windows-drive mount where the files belong to another user.
+    def refuse(_self: Path, _mode: int) -> None:
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(Path, "chmod", refuse)
+    result = storage.test_sync()
+    assert not result.ok
+    assert result.message == "Cannot write to the destination: Operation not permitted."
+
+
+def test_destination_test_fails_when_permissions_are_ignored(
+    storage: LocalStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # chmod succeeds but every file still reads as 0777.
+    real_stat = os.stat_result
+
+    def world_writable(self: Path, **_kwargs: object) -> os.stat_result:
+        values = list(os.lstat(self))
+        values[0] = stat.S_IFREG | 0o777
+        return real_stat(values)
+
+    monkeypatch.setattr(Path, "chmod", lambda _self, _mode: None)
+    monkeypatch.setattr(Path, "stat", world_writable)
+    result = storage.test_sync()
+    assert not result.ok and "ignores file permissions" in result.message

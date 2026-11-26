@@ -186,7 +186,9 @@ export default function RunDetailPage() {
 
       {data.error && <Alert tone="danger">{data.error}</Alert>}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      {/* grid-cols-1 caps the single column at the page width; without it long log lines
+          (paths) widen both cards past the screen on phones. */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card title="Progress" headingLevel={2}>
           <RunTimeline results={data.step_results} />
         </Card>
@@ -195,21 +197,28 @@ export default function RunDetailPage() {
         </Card>
       </div>
 
-      <Card title="Destinations" headingLevel={2} padded={false}>
-        {hasDestinations ? (
-          <DestinationResults results={data.step_results} />
-        ) : (
-          <HelperText className="px-6 pb-6">No destination has been reached yet.</HelperText>
-        )}
-      </Card>
+      {/* A restore reads one stored copy and writes nothing to a destination. */}
+      {data.kind === "backup" && (
+        <>
+          <Card title="Destinations" headingLevel={2} padded={false}>
+            {hasDestinations ? (
+              <DestinationResults results={data.step_results} />
+            ) : (
+              <HelperText className="px-6 pb-6">
+                {active ? "No destination has been reached yet." : "No destination was reached."}
+              </HelperText>
+            )}
+          </Card>
 
-      <Card title="Artifacts" headingLevel={2} padded={false}>
-        <Table
-          columns={makeArtifactColumns(lookups)}
-          rows={data.artifacts}
-          empty={active ? "Artifacts appear here as they are stored and verified." : "This run stored no artifacts."}
-        />
-      </Card>
+          <Card title="Artifacts" headingLevel={2} padded={false}>
+            <Table
+              columns={makeArtifactColumns(lookups)}
+              rows={data.artifacts}
+              empty={active ? "Artifacts appear here as they are stored and verified." : "This run stored no artifacts."}
+            />
+          </Card>
+        </>
+      )}
 
       <Card title="Notifications" headingLevel={2} padded={false}>
         <Table

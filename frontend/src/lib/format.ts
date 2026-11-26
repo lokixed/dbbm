@@ -32,3 +32,8 @@ export function formatDuration(start: string | null, end: string | null, now = D
   const finish = end ? new Date(end).getTime() : now;
   return formatSeconds(Math.max(0, Math.round((finish - new Date(start).getTime()) / 1000)));
 }
+
+/** "1 backup", "3 backups". */
+export function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}

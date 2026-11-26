@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/toast";
+import { ConnectionBulkActions } from "@/components/ConnectionBulkActions";
 import { LogoLoader } from "@/components/LogoLoader";
 
 function location(destination: DestinationRecord): string {
@@ -33,6 +34,7 @@ export default function DestinationsPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [deleting, setDeleting] = useState<DestinationRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const reconnect = (id: string) => navigate(`/destinations/${encodeURIComponent(id)}?reconnect=1`);
   const needsReauth = (destinations.data ?? []).filter((d) => d.auth_status === "needs_reauth");
@@ -69,7 +71,7 @@ export default function DestinationsPage() {
   };
 
   const columns: DataGridColumn<DestinationRecord>[] = [
-    { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <span className="font-medium">{d.name}</span> },
+    { key: "name", sortable: true, accessor: (d) => d.name, header: "Name", render: (d) => <span className="whitespace-nowrap font-medium">{d.name}</span> },
     { key: "type", sortable: true, accessor: (d) => d.type, header: "Type", render: (d) => <DestinationLabel type={d.type} /> },
     { key: "location", sortable: true, accessor: (d) => location(d), header: "Location", render: (d) => <span className="font-mono text-xs">{location(d)}</span> },
     {
@@ -133,9 +135,18 @@ export default function DestinationsPage() {
           </div>
         </Alert>
       )}
+      <ConnectionBulkActions
+        kind="destination"
+        selected={(destinations.data ?? []).filter((row) => selectedIds.includes(row.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {destinations.isSuccess && (
         <DataGrid
           columns={columns}
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

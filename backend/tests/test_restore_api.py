@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -20,7 +21,8 @@ from app.drivers.base import (
     RestoreError,
     RestoreOptions,
 )
-from app.models import AuditLog
+from app.models import AuditLog, Run
+from app.services.restore_run import JOB_NAME_MAX, restore_run_name
 from tests.conftest import api_post
 from tests.fakes import FakeBins, FakeMySQL, FakePostgres
 from tests.runs_helpers import (
@@ -91,6 +93,8 @@ def test_restore_into_another_database(authed: TestClient, fake_bins: FakeBins) 
         "cleanup",
     ]
     assert run["step_results"]["restore"]["target_database"] == "shop_copy"
+    assert run["job_name"] == "Restore shop → shop_copy on mongo-scratch"
+    assert run["source_type"] == "mongo"
     args = fake_bins.read("mongorestore.args")
     assert "--gzip" in args and "--drop" in args and "--nsInclude=shop.*" in args
     assert "--nsFrom=shop.*" in args and "--nsTo=shop_copy.*" in args
@@ -113,6 +117,7 @@ def test_same_database_name_skips_namespace_mapping(
     target = make_mongo(authed, "mongo-scratch")
     run = wait_final(authed, restore(authed, backup, restore_body(target, "shop")).json()["id"])
     assert run["status"] == "success"
+    assert run["job_name"] == "Restore shop on mongo-scratch"
     assert "--nsFrom" not in fake_bins.read("mongorestore.args")
 
 
@@ -362,3 +367,30 @@ def test_newer_pg_restore_still_fails_on_real_errors(
     fake_bins.set_mode("pg_restore", "fail")
     run = wait_final(authed, restore(authed, backup, restore_body(target)).json()["id"])
     assert run["status"] == "failed" and "permission denied" in run["error"]
+
+
+def test_long_restore_names_fit_the_run_name_column() -> None:
+    plan = SimpleNamespace(
+        database="d" * 30,
+        target_source_name="s" * 30,
+        options=SimpleNamespace(target_database="t" * 30),
+    )
+    name = restore_run_name(plan)  # type: ignore[arg-type]
+    assert len(name) == JOB_NAME_MAX and name.endswith("…")
+
+
+def test_older_restore_runs_find_their_engine_by_source_name(authed: TestClient) -> None:
+    target = make_mongo(authed, "mongo-scratch")
+    with Session(get_engine()) as db:
+        run = Run(
+            job_name="Restore shop",
+            kind="restore",
+            trigger="manual",
+            status="failed",
+            step_results={"restore": {"target_source": target["name"]}},  # no target_type yet
+        )
+        db.add(run)
+        db.commit()
+        run_id = str(run.id)
+    listed = authed.get("/api/runs").json()["items"]
+    assert next(r for r in listed if r["id"] == run_id)["source_type"] == "mongo"

@@ -78,10 +78,30 @@ function SubStep({ step }: { step: SubStepEntry }) {
   );
 }
 
-function Step({ step }: { step: StepEntry }) {
+/** "failed" when every item failed, "warning" when some did, otherwise `fallback`. */
+function rollUp(statuses: string[], fallback: string): string {
+  const failed = statuses.filter((s) => s === "failed").length;
+  if (failed === 0) return fallback;
+  return failed === statuses.length ? "failed" : "warning";
+}
+
+/** A database is only as good as its dump and the copies of it: a stored-nowhere dump is a failure. */
+function unitStatus(unit: UnitResult): string {
+  const dump = unit.dump.status ?? "running";
+  if (dump !== "ok") return dump;
+  return rollUp(unit.destinations.map((d) => d.status), dump);
+}
+
+/** A finished step still shows its databases' failures, so a failed run never looks all green. */
+function stepStatus(step: StepEntry, units: UnitResult[]): string {
+  if (step.status !== "ok" || units.length === 0) return step.status;
+  return rollUp(units.map(unitStatus), step.status);
+}
+
+function Step({ step, status }: { step: StepEntry; status: string }) {
   return (
     <li className="flex items-start gap-3">
-      <StatusIcon status={step.status} />
+      <StatusIcon status={status} />
       <div className="min-w-0 text-sm">
         <p className="font-medium">
           {STEP_LABELS[step.name] ?? step.name}
@@ -128,11 +148,10 @@ function Destination({ outcome }: { outcome: DestinationOutcome }) {
 }
 
 function Unit({ unit }: { unit: UnitResult }) {
-  const dumpStatus = unit.dump.status ?? "running";
   return (
     <li className="border border-app-border p-3">
       <div className="flex items-start gap-2 text-sm">
-        <StatusIcon status={dumpStatus} />
+        <StatusIcon status={unitStatus(unit)} />
         <div className="min-w-0">
           <p className="font-medium">
             {unit.kind === "globals" ? "Roles and globals" : unit.database}
@@ -172,7 +191,7 @@ export function RunTimeline({ results }: { results: StepResults }) {
     <div className="space-y-4">
       <ol className="space-y-3">
         {steps.map((step) => (
-          <Step key={step.name} step={step} />
+          <Step key={step.name} step={step} status={stepStatus(step, step.name === "backup" ? units : [])} />
         ))}
       </ol>
       {units.length > 0 && (

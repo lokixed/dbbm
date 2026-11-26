@@ -109,6 +109,8 @@ class RunSummaryOut(BaseModel):
     parent_run_id: str | None = None
     scheduled_for: datetime | None = None
     kind: str = "backup"
+    # Engine of a restore's target source (backups take theirs from the job).
+    source_type: str | None = None
 
 
 class JobOut(BaseModel):
@@ -213,6 +215,7 @@ class DashboardFailureOut(BaseModel):
     status: str
     finished_at: datetime | None
     error: str | None
+    source_type: str | None = None
 
 
 class DashboardDiskOut(BaseModel):

@@ -35,6 +35,7 @@ import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
 import { RowMenu } from "@/components/RowMenu";
+import { BulkActions } from "@/components/backups/BulkActions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/toast";
 import { FilterCell } from "@/components/FilterCell";
@@ -88,6 +89,7 @@ export default function BackupsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Backup | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const backups = useBackups(filters);
   const jobs = useJobs();
   const sources = useSources();
@@ -243,7 +245,7 @@ export default function BackupsPage() {
       align: "right",
       render: (backup) => (
         <RowMenu
-          label={`Actions for ${backup.source_database}`}
+          label={`Actions for ${backup.source_database} (${backup.job_name}, ${backup.destination_name ?? "removed destination"})`}
           items={[
             { key: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => onDownload(backup) },
             { key: "restore", label: "Restore", icon: <RotateCcwIcon className="h-4 w-4" />, disabled: backup.missing, onClick: () => navigate(restorePath(backup)) },
@@ -403,10 +405,18 @@ export default function BackupsPage() {
         </Card>
       )}
 
+      <BulkActions
+        selected={(backups.data?.items ?? []).filter((b) => selectedIds.includes(b.id))}
+        onClear={() => setSelectedIds([])}
+      />
+
       {(backups.data?.items.length ?? 0) > 0 && (
         <DataGrid
           columns={columns}
           rows={backups.data?.items ?? []}
+          selectable
+          selected={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(String))}
           density="compact"
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}

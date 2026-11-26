@@ -89,6 +89,7 @@ class RestorePlan:
             "copy": self.copy.name,
             "path": self.key,
             "target_source": self.target_source_name,
+            "target_type": self.target_type,
             "target_database": self.options.target_database,
             "drop": self.options.drop,
             "full_instance": self.options.full_instance,
@@ -130,6 +131,17 @@ def load_restore_plan(
     )
 
 
+JOB_NAME_MAX = 64  # Run.job_name
+
+
+def restore_run_name(plan: RestorePlan) -> str:
+    """What the run lists show: the backup, where it goes and on which source."""
+    target = plan.options.target_database
+    into = f" → {target}" if target and target != plan.database else ""
+    name = f"Restore {plan.database}{into} on {plan.target_source_name}"
+    return name if len(name) <= JOB_NAME_MAX else name[: JOB_NAME_MAX - 1] + "…"
+
+
 def create_restore_run(runner: "Runner", run_id: uuid.UUID, plan: RestorePlan) -> None:
     from app.services.logstream import log_path_for
 
@@ -138,7 +150,7 @@ def create_restore_run(runner: "Runner", run_id: uuid.UUID, plan: RestorePlan) -
             Run(
                 id=run_id,
                 job_id=None,
-                job_name=f"Restore {plan.database}",
+                job_name=restore_run_name(plan),
                 kind="restore",
                 trigger="manual",
                 status=RunStatus.QUEUED,

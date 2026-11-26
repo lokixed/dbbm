@@ -17,6 +17,7 @@ import { formatTime } from "@/lib/format";
 import { AuditObjectLabel } from "@/components/AuditObjectLabel";
 import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
+import { AuditBulkActions } from "@/components/audit/AuditBulkActions";
 
 const EMPTY: AuditFilters = { action: "", username: "", search: "", from: "", to: "" };
 
@@ -142,6 +143,7 @@ export default function AuditPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AuditEntry | null>(null);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const columns = useMemo(() => buildColumns(setSelected), []);
 
   // The grid has no row-click hook, so a click anywhere in a row opens the entry whose time button
@@ -299,10 +301,18 @@ export default function AuditPage() {
           <HelperText>No entries match.</HelperText>
         </Card>
       )}
+      <AuditBulkActions
+        selected={(log.data?.items ?? []).filter((entry) => checkedIds.includes(entry.id))}
+        onClear={() => setCheckedIds([])}
+      />
+
       {log.isSuccess && total > 0 && (
         <div onClick={onGridClick} className="[&_tbody_tr]:cursor-pointer">
           <DataGrid
             caption="Audit log"
+            selectable
+            selected={checkedIds}
+            onSelectionChange={(keys) => setCheckedIds(keys.map(String))}
             columns={columns}
             rows={log.data.items}
             pageSize={10}

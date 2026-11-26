@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from app.api.deps import CurrentUser, ServicesDep
+from app.api.run_views import restore_target_types
 from app.core.db import SessionDep
 from app.models import Artifact, AuditLog, Destination, Job, Run, RunStatus
 from app.models.run import ACTIVE_STATUSES
@@ -84,6 +85,7 @@ def _failures(db: Session, now: datetime) -> list[DashboardFailureOut]:
         .order_by(col(Run.finished_at).desc())
         .limit(MAX_FAILURES)
     ).all()
+    target_types = restore_target_types(db, rows)
     return [
         DashboardFailureOut(
             run_id=str(r.id),
@@ -92,6 +94,7 @@ def _failures(db: Session, now: datetime) -> list[DashboardFailureOut]:
             status=r.status,
             finished_at=r.finished_at,
             error=r.error,
+            source_type=target_types.get(r.id),
         )
         for r in rows
     ]
