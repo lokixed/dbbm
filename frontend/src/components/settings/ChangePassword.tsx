@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AccordionSection } from "xedonium/Accordion";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
@@ -16,6 +17,21 @@ export function ChangePassword() {
   const [next, setNext] = useState("");
   const [repeat, setRepeat] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Open while the URL ends in #change-password (the sidebar's username links there) or after the
+  // user opens it; closing it also drops the hash, so the link opens it again next time.
+  const { hash } = useLocation();
+  const navigate = useNavigate();
+  const linked = hash === "#change-password";
+  const [userOpen, setUserOpen] = useState(false);
+  const open = linked || userOpen;
+  const setOpen = (next: boolean) => {
+    setUserOpen(next);
+    if (!next && linked) navigate({ hash: "" }, { replace: true });
+  };
+  const anchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (linked) anchor.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [linked]);
 
   const tooShort = next !== "" && next.length < MIN_LENGTH;
   const mismatch = repeat !== "" && repeat !== next;
@@ -39,7 +55,15 @@ export function ChangePassword() {
 
   return (
     // Collapsed by default: it is rarely needed and the form sat open at the bottom of Settings.
-    <AccordionSection title="Change password" headingLevel={2} className="bg-app-card">
+    // The username in the sidebar links to #change-password, which opens it and scrolls to it.
+    <div id="change-password" ref={anchor}>
+    <AccordionSection
+      title="Change password"
+      headingLevel={2}
+      className="bg-app-card"
+      open={open}
+      onChange={setOpen}
+    >
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -72,5 +96,6 @@ export function ChangePassword() {
         </div>
       </form>
     </AccordionSection>
+    </div>
   );
 }

@@ -36,7 +36,11 @@ import { matchesSearch } from "@/lib/search";
 function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () => void }) {
   // Opened from a channel's edit page ("View events") the card sits below the table: bring it into view.
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), [channel.id]);
+  // Braces, not an expression body: newer browsers return a Promise from scrollIntoView, and
+  // React would call that as the effect's cleanup ("is not a function" on close).
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [channel.id]);
   return (
     <div ref={ref}>
     <Card

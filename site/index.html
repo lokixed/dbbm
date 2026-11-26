@@ -121,7 +121,7 @@
   <main>
     <div class="wrap">
       <div class="hero">
-        <h1>Database Backup Manager</h1>
+        <h1>Database Backup &amp; Management</h1>
         <p class="lead">DBBM backs up MySQL, PostgreSQL, MongoDB and Firestore to a local volume and Google Drive, on a schedule, with a web UI. One container, one <code>docker compose up</code>.</p>
         <div class="actions">
           <a class="btn primary" href="#quick-start">Run it in 2 minutes</a>
@@ -193,6 +193,7 @@ curl http://127.0.0.1:8080/healthz</code></pre></div>
 
         <h3>Reaching your databases</h3>
         <p>Put the container on the same Docker network as your databases and use the service name as the host. For a database on the Docker host, use <code>host.docker.internal</code> (add <code>extra_hosts: ["host.docker.internal:host-gateway"]</code> on Linux) and make sure the database allows the connection. Use a read-only database user for backups.</p>
+        <p><strong>Supabase and other hosted PostgreSQL:</strong> use the <em>Session pooler</em> connection string (the direct host is IPv6-only, and the Transaction pooler does not work with <code>pg_dump</code>). Your data is in the <code>postgres</code> database, which <em>All databases</em> skips as a system database, so choose <em>Selected databases</em> and tick it.</p>
       </section>
 
       <section id="tags" aria-labelledby="tags-title">
@@ -238,7 +239,7 @@ docker compose up -d</code></pre></div>
 
         <h3>Google Drive and Firestore</h3>
         <ul>
-          <li><strong>Google Drive</strong> uses <code>rclone</code> inside the image. Create an OAuth client, publish the consent screen (apps left in Testing get tokens that expire after 7 days), then paste the token in <em>Destinations</em>.</li>
+          <li><strong>Google Drive</strong> uses <code>rclone</code> inside the image. Create an OAuth client, publish the consent screen (apps left in Testing get tokens that expire after 7 days), then click <em>Connect Google Drive</em> in <em>Destinations</em>. Your DBBM does not need to be reachable from the internet. You can also paste a token from <code>rclone authorize</code>.</li>
           <li><strong>Firestore</strong> needs the Cloud Firestore API enabled, a Cloud Storage staging bucket, and a service account with <code>roles/datastore.importExportAdmin</code> plus read and write on the bucket. The app calls Google's REST APIs directly, so no extra tool is installed.</li>
         </ul>
         <p>The full guide is in the <a href="https://github.com/lokixed/dbbm#readme">README</a> and <a href="https://github.com/lokixed/dbbm/blob/main/docs/OPERATIONS.md">operations guide</a>.</p>

@@ -143,7 +143,15 @@ function WizardBody({ backup, onClose }: { backup: Backup; onClose: () => void }
 
   return (
     <div className="space-y-5">
-      <Stepper steps={STEPS.map((label) => ({ label }))} current={step} />
+      {/* Every step takes an equal share with its number at the start, so the last one left empty
+          space on the right. From sm up (steps in a row) the last step is exactly as wide as its
+          number, so the numbers are evenly spaced across the whole card; its label is aligned to
+          the right edge and extends to the left. */}
+      <Stepper
+        steps={STEPS.map((label) => ({ label }))}
+        current={step}
+        className="[&>li:last-child]:flex-none sm:[&>li:last-child]:w-7 sm:[&>li:last-child]:items-end sm:[&>li:last-child>div:last-child]:pr-0 sm:[&>li:last-child>div:last-child]:whitespace-nowrap"
+      />
 
       {step === 0 && (
         <div className="space-y-2">

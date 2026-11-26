@@ -18,6 +18,7 @@ import PlayIcon from "xedonium/icons/Play";
 import FileTextIcon from "xedonium/icons/FileText";
 import SettingsIcon from "xedonium/icons/Settings";
 import SunIcon from "xedonium/icons/Sun";
+import UserIcon from "xedonium/icons/User";
 import { useLogout, useMe } from "@/api/auth";
 import { AppVersion } from "@/components/AppVersion";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -69,7 +70,14 @@ export function Layout() {
 
   const items: SidebarItem[] = [
     ...NAV_ITEMS,
-    { key: "account", label: user?.username ?? "Account", section: true },
+    { key: "account-divider", divider: true },
+    // The signed-in user, shown like the other items; it opens Change password in Settings.
+    {
+      key: "account",
+      label: user?.username ?? "Account",
+      icon: <UserIcon className="h-4 w-4" />,
+      href: "/settings#change-password",
+    },
     {
       key: "theme",
       label: activeTheme === "dark" ? "Light theme" : "Dark theme",

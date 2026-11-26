@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>DBBM - Database Backup & Management</title>
+    <!-- Apply the saved or device theme before the first paint (no white flash in dark mode). -->
+    <script src="/theme-init.js"></script>
+    <!-- The page background until the stylesheet loads; matches --color-app-bg in src/index.css. -->
+    <style>
+      html { background-color: #fafafa; color-scheme: light; }
+      html[data-theme="dark"] { background-color: #121212; color-scheme: dark; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
