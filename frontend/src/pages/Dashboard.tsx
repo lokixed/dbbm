@@ -12,8 +12,9 @@ import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import Tooltip from "xedonium/Tooltip";
 import PlayIcon from "xedonium/icons/Play";
 import RelativeTime, { formatRelative } from "xedonium/RelativeTime";
-import { useRunJob } from "@/api/jobs";
+import { useJobs, useRunJob } from "@/api/jobs";
 import { useDashboard } from "@/api/runs";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
@@ -142,6 +143,8 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const dashboard = useDashboard();
   const run = useRunJob();
+  const jobs = useJobs();
+  const sources = new Map((jobs.data ?? []).map((job) => [job.id, job.source]));
 
   const runNow = (jobId: string, name: string) =>
     run.mutate(jobId, {
@@ -221,6 +224,14 @@ export default function DashboardPage() {
                     {!entry.enabled && <Badge badgeContent="Disabled" color="secondary" />}
                   </div>
                   <dl className="grid grid-cols-[7rem_1fr] gap-y-1">
+                    <dt className="text-app-muted">Source</dt>
+                    <dd>
+                      {sources.get(entry.job_id) ? (
+                        <SourceTypeLabel type={sources.get(entry.job_id)?.type}>{sources.get(entry.job_id)?.name}</SourceTypeLabel>
+                      ) : (
+                        "-"
+                      )}
+                    </dd>
                     <dt className="text-app-muted">Last success</dt>
                     <dd>{entry.last_success_at ? <RelativeTime date={entry.last_success_at} /> : "Never"}</dd>
                     <dt className="text-app-muted">Next run</dt>

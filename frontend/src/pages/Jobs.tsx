@@ -15,6 +15,9 @@ import RelativeTime from "xedonium/RelativeTime";
 import { useDeleteJob, useJobs, useRunJob, useSetJobEnabled } from "@/api/jobs";
 import type { JobRecord } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
+import { DestinationLabel } from "@/components/DestinationIcon";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
+import { useDestinationType } from "@/lib/typeLookups";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JobDialog } from "@/components/jobs/JobDialog";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
@@ -44,6 +47,7 @@ export default function JobsPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const jobs = useJobs();
+  const destinationType = useDestinationType();
   const run = useRunJob();
   const remove = useDeleteJob();
   const setEnabled = useSetJobEnabled();
@@ -101,12 +105,17 @@ export default function JobsPage() {
       key: "source", sortable: true, accessor: (job) => job.source.name,
       header: "Source",
       render: (job) => (
-        <>
-          {job.source.name} <span className="text-xs text-app-muted">({job.source.type})</span>
-        </>
+        <SourceTypeLabel type={job.source.type}>{job.source.name}</SourceTypeLabel>
       ),
     },
-    { key: "destinations", sortable: true, accessor: (job) => job.destinations.map((d) => d.name).join(", "), header: "Destinations", render: (job) => job.destinations.map((d) => d.name).join(", ") },
+    { key: "destinations", sortable: true, accessor: (job) => job.destinations.map((d) => d.name).join(", "), header: "Destinations", render: (job) => (
+        <span className="inline-flex flex-wrap gap-x-4 gap-y-1">
+          {job.destinations.map((d) => (
+            <DestinationLabel key={d.id} type={destinationType(d.id)}>{d.name}</DestinationLabel>
+          ))}
+        </span>
+      ),
+    },
     {
       key: "enabled", sortable: true, accessor: (job) => (job.enabled ? 1 : 0),
       header: "Enabled",

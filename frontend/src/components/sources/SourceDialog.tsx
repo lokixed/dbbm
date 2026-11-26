@@ -13,6 +13,7 @@ import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useSaveSource, useTestSourceDraft } from "@/api/sources";
 import type { SourceRecord, SourceType, TestResult } from "@/api/types";
+import { SourceTypeIcon, SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { DatabaseMultiSelect } from "@/components/DatabaseMultiSelect";
 import { SecretField } from "@/components/SecretField";
 import { TestResultPanel } from "@/components/TestResultPanel";
@@ -53,9 +54,12 @@ function TypePicker({ onPick }: { onPick: (type: SourceType) => void }) {
             onClick={() => onPick(type)}
             className="!h-auto !items-start !justify-start !p-4 !text-left"
           >
-            <span>
-              <span className="block font-medium">{label}</span>
-              <span className="block text-xs font-normal text-app-muted">{hint}</span>
+            <span className="flex items-start gap-3">
+              <SourceTypeIcon type={type} className="h-8 w-8 !p-1" />
+              <span>
+                <span className="block font-medium">{label}</span>
+                <span className="block text-xs font-normal text-app-muted">{hint}</span>
+              </span>
             </span>
           </Button>
         ))}
@@ -184,7 +188,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5" noValidate>
       <p className="flex items-center text-sm text-app-muted">
-        {typeLabel}
+        <SourceTypeLabel type={type}>{typeLabel}</SourceTypeLabel>
         {onBack && record === null && (
           <Button type="button" variant="flat" className="ml-2" onClick={onBack}>
             Change type

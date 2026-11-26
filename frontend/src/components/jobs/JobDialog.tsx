@@ -1,4 +1,7 @@
+import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
 import { DestinationLabel } from "@/components/DestinationIcon";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
+import { CHANNEL_TYPE_NAME } from "@/lib/channelType";
 import { destinationTypeName } from "@/lib/destinationType";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useId, useState } from "react";
@@ -148,7 +151,7 @@ function JobForm({
           placeholder="Choose a source..."
           options={(sources.data ?? []).map((source) => ({
             value: source.id,
-            label: `${source.name} (${source.type})`,
+            label: <SourceTypeLabel type={source.type}>{source.name}</SourceTypeLabel>,
           }))}
           {...bindText(form, "sourceId")}
           error={errors.sourceId?.message}
@@ -311,8 +314,8 @@ function JobForm({
               key={channel.id}
               checked={selectedChannels.includes(channel.id)}
               onChange={() => toggleChannel(channel.id)}
-              label={channel.name}
-              description={`${channel.type}${channel.enabled ? "" : " (disabled)"}`}
+              label={<ChannelTypeLabel type={channel.type}>{channel.name}</ChannelTypeLabel>}
+              description={`${CHANNEL_TYPE_NAME[channel.type]}${channel.enabled ? "" : " (disabled)"}`}
             />
           ))}
           {notifyOn !== "never" && selectedChannels.length === 0 && (channels.data?.length ?? 0) > 0 && (

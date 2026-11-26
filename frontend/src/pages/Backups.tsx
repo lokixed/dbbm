@@ -1,4 +1,5 @@
 import { DestinationLabel } from "@/components/DestinationIcon";
+import { SourceTypeIcon, SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Alert from "xedonium/Alert";
@@ -201,7 +202,8 @@ export default function BackupsPage() {
       accessor: (backup) => backup.source_database.toLowerCase(),
       render: (backup) => (
         <Tooltip text="Open the run">
-          <Link to={`/runs/${backup.run_id}`} className="font-medium hover:underline">
+          <Link to={`/runs/${backup.run_id}`} className="inline-flex items-center gap-2 font-medium hover:underline">
+            <SourceTypeIcon type={backup.source_type} />
             {backup.source_database}
           </Link>
         </Tooltip>
@@ -343,7 +345,7 @@ export default function BackupsPage() {
               onChange={pickSource}
               options={[
                 { value: "", label: "All sources" },
-                ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name })),
+                ...(sources.data ?? []).map((s) => ({ value: s.id, label: <SourceTypeLabel type={s.type}>{s.name}</SourceTypeLabel> })),
               ]}
             />
           </FilterCell>

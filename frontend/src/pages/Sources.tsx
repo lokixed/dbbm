@@ -10,6 +10,7 @@ import Trash2Icon from "xedonium/icons/Trash2";
 import { useDeleteSource, useSources, useTestSource } from "@/api/sources";
 import type { SourceRecord } from "@/api/types";
 import { RowMenu } from "@/components/RowMenu";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SourceDialog } from "@/components/sources/SourceDialog";
 import { LastTested, StatusBadge } from "@/components/StatusBadge";
@@ -60,7 +61,7 @@ export default function SourcesPage() {
 
   const columns: DataGridColumn<SourceRecord>[] = [
     { key: "name", sortable: true, accessor: (s) => s.name, header: "Name", render: (source) => <span className="font-medium">{source.name}</span> },
-    { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => typeLabel(source.type) },
+    { key: "type", sortable: true, accessor: (s) => typeLabel(s.type), header: "Type", render: (source) => <SourceTypeLabel type={source.type}>{typeLabel(source.type)}</SourceTypeLabel> },
     { key: "status", sortable: true, accessor: (s) => (s.last_test ? (s.last_test.ok ? "OK" : "Failed") : "Never tested"), header: "Status", render: (source) => <StatusBadge lastTest={source.last_test} /> },
     { key: "tested", sortable: true, accessor: (s) => s.last_test?.at ?? "", header: "Last tested", render: (s) => <LastTested lastTest={s.last_test} /> },
     {

@@ -12,6 +12,11 @@ import RotateCcwIcon from "xedonium/icons/RotateCcw";
 import XCircleIcon from "xedonium/icons/XCircle";
 import RelativeTime from "xedonium/RelativeTime";
 import { ApiError } from "@/api/client";
+import { ChannelTypeLabel } from "@/components/ChannelTypeIcon";
+import { DestinationLabel } from "@/components/DestinationIcon";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
+import type { ChannelTypeKey } from "@/lib/channelType";
+import { useChannelType, useDestinationType, useJobSourceType } from "@/lib/typeLookups";
 import { useCancelRun, useRetryRun, useRun } from "@/api/runs";
 import { ACTIVE_STATUSES, type ArtifactRecord, type RunNotification } from "@/api/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -37,9 +42,19 @@ function useNow(active: boolean): number {
   return now;
 }
 
-const ARTIFACT_COLUMNS: TableColumn<ArtifactRecord>[] = [
-  { key: "database", header: "Database", render: (a) => <span className="font-medium">{a.source_database}</span> },
-  { key: "destination", header: "Destination", render: (a) => a.destination_name ?? "-" },
+interface TypeLookups {
+  sourceType: string | undefined;
+  destinationType: (id: string | null) => string | undefined;
+  channelType: (id: string | null) => ChannelTypeKey | undefined;
+}
+
+const makeArtifactColumns = ({ sourceType, destinationType }: TypeLookups): TableColumn<ArtifactRecord>[] => [
+  { key: "database", header: "Database", render: (a) => <SourceTypeLabel type={sourceType} className="font-medium">{a.source_database}</SourceTypeLabel> },
+  {
+    key: "destination",
+    header: "Destination",
+    render: (a) => <DestinationLabel type={destinationType(a.destination_id)}>{a.destination_name ?? "-"}</DestinationLabel>,
+  },
   { key: "file", header: "File", render: (a) => <CopyText value={a.path} head={14} tail={30} label="Copy file path" /> },
   {
     key: "size",
@@ -54,8 +69,14 @@ const ARTIFACT_COLUMNS: TableColumn<ArtifactRecord>[] = [
   { key: "sha", header: "SHA-256", render: (a) => <CopyText value={a.sha256} head={12} tail={6} label="Copy SHA-256" /> },
 ];
 
-const NOTIFICATION_COLUMNS: TableColumn<RunNotification>[] = [
-  { key: "channel", header: "Channel", render: (n) => <span className="font-medium">{n.channel_name ?? "-"}</span> },
+const makeNotificationColumns = ({ channelType }: TypeLookups): TableColumn<RunNotification>[] => [
+  { key: "channel", header: "Channel", 
+    render: (n) => {
+      const type = channelType(n.channel_id);
+      const name = n.channel_name ?? "-";
+      return type ? <ChannelTypeLabel type={type}>{name}</ChannelTypeLabel> : <span className="font-medium">{name}</span>;
+    },
+  },
   { key: "event", header: "Event", render: (n) => n.event_type.replace("_", " ") },
   { key: "status", header: "Status", render: (n) => <EventStatusBadge status={n.status} /> },
   { key: "attempts", header: "Attempts", render: (n) => n.attempts },
@@ -66,6 +87,11 @@ export default function RunDetailPage() {
   const { id = "" } = useParams();
   const { toast } = useToast();
   const run = useRun(id);
+  const lookups: TypeLookups = {
+    sourceType: useJobSourceType()(run.data?.job_id ?? null),
+    destinationType: useDestinationType(),
+    channelType: useChannelType(),
+  };
   const cancel = useCancelRun();
   const retry = useRetryRun();
   const navigate = useNavigate();
@@ -179,7 +205,7 @@ export default function RunDetailPage() {
 
       <Card title="Artifacts" headingLevel={2} padded={false}>
         <Table
-          columns={ARTIFACT_COLUMNS}
+          columns={makeArtifactColumns(lookups)}
           rows={data.artifacts}
           empty={active ? "Artifacts appear here as they are stored and verified." : "This run stored no artifacts."}
         />
@@ -187,7 +213,7 @@ export default function RunDetailPage() {
 
       <Card title="Notifications" headingLevel={2} padded={false}>
         <Table
-          columns={NOTIFICATION_COLUMNS}
+          columns={makeNotificationColumns(lookups)}
           rows={data.notifications}
           empty={active ? "Notifications are sent when the run finishes." : "No notification was sent for this run."}
         />

@@ -18,6 +18,8 @@ import type { RunSummary, RunStatus } from "@/api/types";
 import { FilterCell } from "@/components/FilterCell";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
 import { LogoLoader } from "@/components/LogoLoader";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
+import { useJobSourceType } from "@/lib/typeLookups";
 import { formatBytes, formatDuration } from "@/lib/format";
 
 const STATUSES: RunStatus[] = [
@@ -30,13 +32,13 @@ const STATUSES: RunStatus[] = [
   "interrupted",
 ];
 
-const COLUMNS: DataGridColumn<RunSummary>[] = [
+const makeColumns = (sourceTypeOf: (jobId: string | null) => string | undefined): DataGridColumn<RunSummary>[] => [
   {
     key: "job", sortable: true, accessor: (run) => run.job_name,
     header: "Job",
     render: (run) => (
       <Link to={`/runs/${run.id}`} className="font-medium hover:underline">
-        {run.job_name}
+        <SourceTypeLabel type={sourceTypeOf(run.job_id)}>{run.job_name}</SourceTypeLabel>
       </Link>
     ),
   },
@@ -91,6 +93,7 @@ export default function RunsPage() {
   const [query, setQuery] = useState("");
   const runs = useRuns(filters);
   const jobs = useJobs();
+  const columns = makeColumns(useJobSourceType());
 
   const applyFilters = (next: RunFilters) => {
     setFilters(next);
@@ -226,7 +229,7 @@ export default function RunsPage() {
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
           hideFooterWhenSinglePage
-          columns={COLUMNS}
+          columns={columns}
           rows={rows}
           empty='No runs match. Start one with "Run now" on the Jobs page.'
         />

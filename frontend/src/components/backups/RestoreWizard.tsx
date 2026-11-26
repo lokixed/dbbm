@@ -15,6 +15,7 @@ import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
 import { useBackupCopies, useRestoreBackup, type Backup } from "@/api/backups";
 import { useSources } from "@/api/sources";
 import type { SourceType } from "@/api/types";
+import { SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { useToast } from "@/components/toast";
 import { formatBytes } from "@/lib/format";
 
@@ -191,7 +192,11 @@ function WizardBody({ backup, onClose }: { backup: Backup; onClose: () => void }
             helperText="The source's credentials are used, so they need write access. A read-only backup user cannot restore."
             options={candidates.map((s) => ({
               value: s.id,
-              label: `${s.name}${s.id === backup.source_id ? " (original source)" : ""}`,
+              label: (
+                <SourceTypeLabel type={s.type}>
+                  {`${s.name}${s.id === backup.source_id ? " (original source)" : ""}`}
+                </SourceTypeLabel>
+              ),
             }))}
           />
           <Field
