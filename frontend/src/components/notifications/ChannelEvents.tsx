@@ -19,16 +19,21 @@ const EVENT_COLUMNS: DataGridColumn<NotificationEvent>[] = [
   {
     key: "event",
     header: "Event",
-    render: (event) => (
-      <>
-        {EVENT_TYPE_LABEL[event.event_type]}
-        {event.run_id && (
-          <Link className="ml-2 text-xs underline" to={`/runs/${event.run_id}`}>
-            run
-          </Link>
-        )}
-      </>
-    ),
+    sortable: true,
+    accessor: (event) => EVENT_TYPE_LABEL[event.event_type],
+    render: (event) => EVENT_TYPE_LABEL[event.event_type],
+  },
+  {
+    key: "run",
+    header: "Run",
+    render: (event) =>
+      event.run_id ? (
+        <Link className="whitespace-nowrap hover:underline" to={`/runs/${event.run_id}`}>
+          View run
+        </Link>
+      ) : (
+        <span className="text-app-muted">-</span>
+      ),
   },
   { key: "status", header: "Status", render: (event) => <EventStatusBadge status={event.status} /> },
   { key: "attempts", header: "Attempts", render: (event) => event.attempts },

@@ -12,6 +12,8 @@ interface DatabaseMultiSelectProps {
   discovered: string[] | null;
   onChange: (all: boolean, selected: string[]) => void;
   error?: string;
+  /** System databases "All databases" leaves out, named under the choice. */
+  skippedUnderAll?: string[];
 }
 
 export function DatabaseMultiSelect({
@@ -20,9 +22,13 @@ export function DatabaseMultiSelect({
   discovered,
   onChange,
   error,
+  skippedUnderAll = [],
 }: DatabaseMultiSelectProps) {
   const [draft, setDraft] = useState("");
   const options = [...new Set([...(discovered ?? []), ...selected])];
+  // e.g. Supabase: the data lives in "postgres", which "All databases" skips, so a run would fail.
+  const nothingUnderAll =
+    all && discovered !== null && discovered.length > 0 && discovered.every((n) => skippedUnderAll.includes(n));
 
   const toggle = (name: string) =>
     onChange(false, selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name]);
@@ -47,6 +53,18 @@ export function DatabaseMultiSelect({
           { value: "selected", label: "Selected databases" },
         ]}
       />
+      {all && skippedUnderAll.length > 0 && !nothingUnderAll && (
+        <HelperText>
+          Skips system databases ({skippedUnderAll.join(", ")}). Choose Selected databases to back one up.
+        </HelperText>
+      )}
+      {nothingUnderAll && (
+        <HelperText role="alert" className="!text-amber-700 dark:!text-amber-400">
+          This server has only system databases ({discovered.join(", ")}), which "All databases" skips, so
+          a backup would find nothing to dump. Choose Selected databases and tick the one that holds your
+          data (on Supabase and similar hosts, that is postgres).
+        </HelperText>
+      )}
       {!all && (
         <div className="space-y-2 border border-app-border p-3">
           {discovered === null && (

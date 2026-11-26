@@ -278,6 +278,13 @@ class Driver(Protocol):
     def restore(self, artifact: Path, target: Target, log: Logger) -> None: ...
 ```
 
+Database selection: a source backs up either **all** databases or a **selected** list. "All"
+never includes system databases: MySQL `information_schema`, `mysql`, `performance_schema`,
+`sys`; PostgreSQL `postgres`, `template0`, `template1`; MongoDB `admin`, `config`, `local`.
+They can still be picked under "Selected". If nothing is left to dump, the run fails in
+preflight and the error names the databases that were skipped. On hosted PostgreSQL such as
+Supabase the data lives in `postgres`, so select it explicitly.
+
 ### 8.1 MySQL
 - Tool: `mysqldump` (MySQL or MariaDB client matching your server family).
 - Typical command:

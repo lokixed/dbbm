@@ -4,8 +4,7 @@ import { useChannels } from "@/api/notifications";
 import { EditorPage } from "@/components/EditorPage";
 import { LogoLoader } from "@/components/LogoLoader";
 import { ChannelForm } from "@/components/notifications/ChannelEditor";
-import Card from "xedonium/Card";
-import { ChannelEvents } from "@/components/notifications/ChannelEvents";
+import { ViewEventsButton } from "@/components/ViewEventsButton";
 
 const FRAME = {
   subtitle: "Where failures, recoveries, overdue jobs and system warnings are sent.",
@@ -40,11 +39,7 @@ export default function ChannelEditorPage() {
     );
   }
   return (
-    <EditorPage title={`Edit ${channel.name}`} {...FRAME} footer={
-        <Card title="Delivery events" padded={false}>
-          <ChannelEvents channelId={channel.id} />
-        </Card>
-      }>
+    <EditorPage title={`Edit ${channel.name}`} {...FRAME} actions={<ViewEventsButton channelId={channel.id} />}>
       <ChannelForm key={channel.id} channel={channel} onClose={back} />
     </EditorPage>
   );

@@ -161,6 +161,8 @@ Run a restore drill (README, Restoring) after any change to a source and at leas
 | "Stored credentials cannot be decrypted" | The master key differs from the one used to save them. Restore the original key, or re-enter the credentials. |
 | Source test fails with a TLS or auth error | Check the TLS mode and the user's privileges (README, Backup user privileges). |
 | `pg_dump` older than the server | Rebuild the image with `--build-arg PG_MAJOR=<server major>` or newer. |
+| Run fails: "There are no databases to back up on this source" | The source is set to **All databases**, which skips system databases, and the server has no others. On Supabase and similar hosts the data is in `postgres`: edit the source, choose **Selected databases** and tick it. |
+| Supabase source test times out or cannot resolve the host | The direct connection is IPv6-only. Use the **Session pooler** connection string (port 5432, user `postgres.<project-ref>`), not the Transaction pooler (port 6543). |
 | Drive run fails with `auth_expired` | The OAuth consent screen is in *Testing* (tokens expire after 7 days) or access was revoked. Publish it, then re-authorize the destination. |
 | Drive run fails with `quota_exceeded` | Daily upload quota or a full Drive. Retry later or free space. |
 | Run is `interrupted` | The container stopped during the run. Check the schedule and the stop grace period. |

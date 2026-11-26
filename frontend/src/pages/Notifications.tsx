@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
 import Card from "xedonium/Card";
@@ -34,7 +34,11 @@ import { matchesSearch } from "@/lib/search";
 
 
 function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () => void }) {
+  // Opened from a channel's edit page ("View events") the card sits below the table: bring it into view.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), [channel.id]);
   return (
+    <div ref={ref}>
     <Card
       title={`Delivery events: ${channel.name}`}
       padded={false}
@@ -46,6 +50,7 @@ function EventsCard({ channel, onClose }: { channel: ChannelRecord; onClose: () 
     >
       <ChannelEvents channelId={channel.id} />
     </Card>
+    </div>
   );
 }
 
@@ -59,7 +64,11 @@ export default function NotificationsPage() {
   const [deleting, setDeleting] = useState<ChannelRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
-  const [eventsFor, setEventsFor] = useState<ChannelRecord | null>(null);
+  // The open events view lives in the URL (?events=<channel id>) so the edit page can link to it.
+  const [params, setParams] = useSearchParams();
+  const eventsFor = channels.data?.find((c) => c.id === params.get("events")) ?? null;
+  const setEventsFor = (channel: ChannelRecord | null) =>
+    setParams(channel ? { events: channel.id } : {}, { replace: true });
   const [results, setResults] = useState<Record<string, { ok: boolean; message: string }>>({});
 
   const toggle = (channel: ChannelRecord) =>

@@ -34,6 +34,7 @@ import {
   type SourceFormValues,
 } from "@/lib/sourceForm";
 import { ConnectionStringError, parseConnectionString, type ParsedConnection } from "@/lib/connectionString";
+import { SKIPPED_UNDER_ALL } from "@/lib/sourceType";
 import { checkServiceAccount } from "@/lib/validation";
 
 const SECRET_FIELDS = ["password", "uri", "service_account_json"] as const;
@@ -423,6 +424,7 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
             setValue("databases", selected, { shouldDirty: true, shouldValidate: formState.isSubmitted });
           }}
           error={(errors.databases as { message?: string } | undefined)?.message}
+          skippedUnderAll={SKIPPED_UNDER_ALL[type] ?? []}
         />
       )}
 
