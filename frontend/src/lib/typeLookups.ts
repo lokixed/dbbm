@@ -1,6 +1,7 @@
 import { useChannels } from "@/api/notifications";
 import { useDestinations } from "@/api/destinations";
 import { useJobs } from "@/api/jobs";
+import { useSources } from "@/api/sources";
 import type { ChannelTypeKey } from "@/lib/channelType";
 
 // Pages that only get an id and a name (a run, an artifact, a notification) look the type up in the
@@ -20,4 +21,9 @@ export function useDestinationType(): (destinationId: string | null) => string |
 export function useChannelType(): (channelId: string | null) => ChannelTypeKey | undefined {
   const channels = useChannels();
   return (id) => (id ? channels.data?.find((c) => c.id === id)?.type : undefined);
+}
+
+export function useSourceType(): (sourceId: string | null) => string | undefined {
+  const sources = useSources();
+  return (id) => (id ? sources.data?.find((source) => source.id === id)?.type : undefined);
 }

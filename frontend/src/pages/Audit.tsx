@@ -14,6 +14,7 @@ import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import RelativeTime from "xedonium/RelativeTime";
 import { useAuditLog, type AuditEntry, type AuditFilters } from "@/api/audit";
 import { formatTime } from "@/lib/format";
+import { AuditObjectLabel } from "@/components/AuditObjectLabel";
 import { FilterCell } from "@/components/FilterCell";
 import { LogoLoader } from "@/components/LogoLoader";
 
@@ -54,8 +55,10 @@ function buildColumns(onOpen: (entry: AuditEntry) => void): DataGridColumn<Audit
     render: (entry) =>
       entry.object_type ? (
         <span title={entry.object_id ?? undefined}>
-          {entry.object_type}
-          {entry.object_id && <span className="ml-1 font-mono text-xs text-app-muted">{entry.object_id.slice(0, 8)}</span>}
+          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id}>
+            {entry.object_type}
+            {entry.object_id && <span className="ml-1 font-mono text-xs text-app-muted">{entry.object_id.slice(0, 8)}</span>}
+          </AuditObjectLabel>
         </span>
       ) : (
         <span className="text-app-muted">-</span>
@@ -99,7 +102,15 @@ function EntryDetails({ entry }: { entry: AuditEntry }) {
       <Field label="Action">
         <code className="text-xs">{entry.action}</code>
       </Field>
-      <Field label="Object">{entry.object_type ?? "-"}</Field>
+      <Field label="Object">
+        {entry.object_type ? (
+          <AuditObjectLabel objectType={entry.object_type} objectId={entry.object_id}>
+            {entry.object_type}
+          </AuditObjectLabel>
+        ) : (
+          "-"
+        )}
+      </Field>
       {entry.object_id && (
         <Field label="Object ID">
           <code className="text-xs">{entry.object_id}</code>

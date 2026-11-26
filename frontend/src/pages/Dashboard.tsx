@@ -15,6 +15,7 @@ import RelativeTime, { formatRelative } from "xedonium/RelativeTime";
 import { useJobs, useRunJob } from "@/api/jobs";
 import { useDashboard } from "@/api/runs";
 import { SourceTypeLabel } from "@/components/SourceTypeIcon";
+import { useJobSourceType } from "@/lib/typeLookups";
 import type { Dashboard, DestinationHealth, DiskUsage } from "@/api/types";
 import { AuthBadge, ReauthBanner } from "@/components/destinations/AuthStatus";
 import { RunStatusBadge } from "@/components/RunStatusBadge";
@@ -79,6 +80,7 @@ function DiskBar({ disk, threshold }: { disk: DiskUsage; threshold: number }) {
 const FAILURES_PREVIEW = 5;
 
 function OverviewCards({ data }: { data: Dashboard }) {
+  const sourceTypeOf = useJobSourceType();
   const failures = data.failures_24h.slice(0, FAILURES_PREVIEW);
   const hiddenFailures = data.failures_24h.length - FAILURES_PREVIEW;
   return (
@@ -88,7 +90,7 @@ function OverviewCards({ data }: { data: Dashboard }) {
           {data.next_runs.length === 0 && <HelperText>No scheduled jobs.</HelperText>}
           {data.next_runs.map((n) => (
             <div key={n.job_id} className="flex justify-between gap-2">
-              <span className="font-medium">{n.job_name}</span>
+              <SourceTypeLabel type={sourceTypeOf(n.job_id)} className="font-medium">{n.job_name}</SourceTypeLabel>
               <Tooltip text={`${n.schedule} (${n.timezone})`}>
                 <span className="text-app-muted"><RelativeTime date={n.next_run_at} /></span>
               </Tooltip>
@@ -104,7 +106,9 @@ function OverviewCards({ data }: { data: Dashboard }) {
             {failures.map((f) => (
               <li key={f.run_id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
                 <Link to={`/runs/${f.run_id}`} className="min-w-0 hover:underline">
-                  <span className="block break-words font-medium">{f.job_name}</span>
+                  <SourceTypeLabel type={sourceTypeOf(f.job_id)} className="!h-auto font-medium">
+                    <span className="break-words">{f.job_name}</span>
+                  </SourceTypeLabel>
                   <span className="block text-xs text-app-muted">
                     {f.finished_at ? <RelativeTime date={f.finished_at} /> : ""}
                   </span>
