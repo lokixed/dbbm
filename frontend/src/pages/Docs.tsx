@@ -128,7 +128,7 @@ Channels also receive system warnings, whichever jobs they are attached to: an o
 3. Copy the webhook URL. It looks like \`https://hooks.slack.com/services/T000/B000/XXXX\`.
 4. In DBBM click **Add channel**, set **Type** to Slack, enter a name, paste the URL and click **Send test**, then **Save**.
 
-The URL must be \`https\`. Messages show the job, status, duration, size, any error and a link to the run. To change the destination channel, create a new webhook in Slack and replace the URL.
+The URL must be \`https\`. Messages show the job and status with a coloured bar, the trigger, duration, files and size, each destination, any error, and **Open run** and **Job's runs** buttons. The buttons appear once **Public base URL** is set under Settings > General. To change the destination channel, create a new webhook in Slack and replace the URL.
 
 ### Email
 

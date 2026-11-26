@@ -6,11 +6,12 @@ import hmac
 import json
 import smtplib
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from typing import Any
 
+from app.models.notification import EventType
 from app.schemas.notification import EmailConfig, parse_headers
 from app.services.messages import Message
 from app.services.outbound import (
@@ -23,6 +24,7 @@ from app.services.outbound import (
     send_http,
     tls_context,
 )
+from app.storage.local import format_bytes
 
 SIGNATURE_HEADER = "X-Signature-256"
 USER_AGENT = "DBBM-Notifier/1"
@@ -33,7 +35,114 @@ def sign(secret: str, body: bytes) -> str:
     return f"sha256={digest}"
 
 
+# Run status -> (emoji, side-bar colour) for Slack run messages.
+_SLACK_STATUS = {
+    "success": (":white_check_mark:", "#2eb67d"),
+    "partial": (":warning:", "#ecb22e"),
+    "failed": (":x:", "#e01e5a"),
+    "interrupted": (":warning:", "#ecb22e"),
+    "cancelled": (":no_entry_sign:", "#9e9e9e"),
+}
+_SLACK_DEST = {"ok": ":white_check_mark:", "partial": ":warning:", "failed": ":x:"}
+NO_LINK_TIP = (
+    "Set *Public base URL* in DBBM under Settings &gt; General to link these messages to the run."
+)
+
+
+def _slack_escape(text: str) -> str:
+    """Slack mrkdwn treats &, < and > as markup."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _duration(seconds: int | None) -> str:
+    if seconds is None:
+        return "-"
+    if seconds < 1:
+        return "<1s"
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, rest = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m {rest}s"
+    return f"{minutes // 60}h {minutes % 60}m"
+
+
+def _slack_time(iso: str | None) -> str:
+    """A timestamp Slack shows in each reader's own time zone, with the UTC text as fallback."""
+    if not iso:
+        return "-"
+    try:
+        moment = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return iso
+    return f"<!date^{int(moment.timestamp())}^{{date_short_pretty}} at {{time}}|{iso}>"
+
+
+def _slack_run_blocks(message: Message, run: dict[str, Any]) -> list[dict[str, Any]]:
+    """One glanceable card: status and job, one summary line, destinations, error, buttons."""
+    emoji, _ = _SLACK_STATUS.get(message.status, (":information_source:", ""))
+    artifacts = run.get("artifacts") or {}
+    count = int(artifacts.get("count") or 0)
+    size = format_bytes(int(artifacts.get("total_bytes") or 0))
+    summary = [
+        _slack_escape(str(run.get("trigger") or "-").capitalize()),
+        # Escaped: "<1s" would otherwise start a Slack link or mention.
+        f"took {_slack_escape(_duration(run.get('duration_seconds')))}",
+        f"{count} file{'' if count == 1 else 's'}, {size}",
+        f"started {_slack_time(run.get('started_at'))}",
+    ]
+    blocks: list[dict[str, Any]] = [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"{emoji} *{_slack_escape(message.title)}*"},
+        },
+        {"type": "context", "elements": [{"type": "mrkdwn", "text": " · ".join(summary)}]},
+    ]
+    destinations = run.get("destinations") or []
+    shown: list[str] = []
+    if destinations:
+        parts = []
+        for dest in destinations:
+            mark = _SLACK_DEST.get(dest.get("status"), ":grey_question:")
+            line = f"{mark} {_slack_escape(str(dest.get('name')))}"
+            if dest.get("status") != "ok" and dest.get("error"):
+                shown.append(str(dest["error"]))
+                line += f": {_slack_escape(str(dest['error']))}"
+            parts.append(line)
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(parts)}})
+    error = str(run.get("error") or "")
+    # Skip the error block when a destination line above already says the same thing.
+    if error and not any(text in error for text in shown):
+        code = _slack_escape(error.replace("```", "'''"))
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"```{code}```"}})
+    if message.links:
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": label}, "url": url}
+                    for label, url in message.links
+                ],
+            }
+        )
+    else:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": NO_LINK_TIP}]})
+    return blocks
+
+
 def slack_payload(message: Message) -> dict[str, Any]:
+    run = message.data.get("run")
+    if message.event in (EventType.RUN_FINISHED, EventType.RECOVERY) and isinstance(run, dict):
+        _, colour = _SLACK_STATUS.get(message.status, ("", "#9e9e9e"))
+        title, *details = _slack_run_blocks(message, run)
+        # The title is the message's own block, so Slack shows it once; without top-level blocks
+        # Slack prints "text" above the card as well. "text" stays as the push-notification
+        # preview. The attachment holds the details and draws the coloured side bar.
+        return {
+            "text": message.title,
+            "blocks": [title],
+            "attachments": [{"color": colour, "blocks": details}],
+        }
     text = message.title + (f" <{message.url}|Open run>" if message.url else "")
     blocks: list[dict[str, Any]] = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
     for line in message.lines:

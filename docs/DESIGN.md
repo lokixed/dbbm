@@ -595,6 +595,7 @@ UX rules:
 ## 16. Notifications and observability
 
 - Channels: Slack webhook, SMTP email, generic webhook. Messages include job, status, duration, size, error summary and a link to the run.
+- Slack run messages are one card: a status-coloured side bar, the job and status, one summary line (trigger, duration, files and size, start time shown in the reader's time zone), one line per destination, the error in a code block, and **Open run** / **Job's runs** buttons. The buttons need Settings > Public base URL; without it the card says how to set it.
 - **Dead-man's switch:** optional ping URL (e.g. Healthchecks.io) called after each successful run, so you're alerted if the whole system silently stops.
 - Structured JSON logs to stdout; per-run log files under `/data/logs` with a retention setting.
 - `/healthz` checks DB access and scheduler liveness and reports the app version in every response, healthy or not; Docker `HEALTHCHECK` uses it.

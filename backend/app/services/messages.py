@@ -36,6 +36,8 @@ class Message:
     url: str | None = None
     job_id: str | None = None
     run_id: str | None = None
+    # Buttons for chat channels (label, absolute URL); empty without a public base URL.
+    links: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def text(self) -> str:
@@ -139,12 +141,16 @@ def run_message(facts: RunFacts, base_url: str, recovery: bool = False) -> Messa
     if error:
         fields.append(("Error", error))
     url = run_link(base_url, run.id)
+    links = [("Open run", url)] if url else []
+    if url and run.job_id:
+        links.append(("Job's runs", f"{base_url.rstrip('/')}/runs?job={run.job_id}"))
     return Message(
         event=EventType.RECOVERY if recovery else EventType.RUN_FINISHED,
         title=title,
         status=run.status,
         fields=fields,
         url=url,
+        links=links,
         job_id=str(run.job_id) if run.job_id else None,
         run_id=str(run.id),
         data={
