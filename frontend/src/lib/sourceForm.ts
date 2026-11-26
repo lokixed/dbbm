@@ -40,8 +40,8 @@ export interface SourceFormValues {
 }
 
 export const SOURCE_TYPES: { type: SourceType; label: string; hint: string }[] = [
-  { type: "mysql", label: "MySQL / MariaDB", hint: "Host, port, user and password" },
-  { type: "postgres", label: "PostgreSQL", hint: "Host, port, user and password" },
+  { type: "mysql", label: "MySQL / MariaDB", hint: "Host fields or a pasted connection string" },
+  { type: "postgres", label: "PostgreSQL", hint: "Host fields or a pasted connection string" },
   { type: "mongo", label: "MongoDB", hint: "Host fields or a full connection URI" },
   { type: "firestore", label: "Firebase Firestore", hint: "Service account and staging bucket" },
 ];

@@ -9,12 +9,14 @@ import HelperText from "xedonium/HelperText";
 import RadioGroup from "xedonium/RadioGroup";
 import Select from "xedonium/Select";
 import Switch from "xedonium/Switch";
-import { DialogFooter, DialogFrame } from "@/components/DialogFrame";
+import { DialogFooter } from "@/components/DialogFrame";
 import { ApiError } from "@/api/client";
 import { useSaveSource, useTestSourceDraft } from "@/api/sources";
 import type { SourceRecord, SourceType, TestResult } from "@/api/types";
 import { SourceTypeIcon, SourceTypeLabel } from "@/components/SourceTypeIcon";
 import { DatabaseMultiSelect } from "@/components/DatabaseMultiSelect";
+import { ConnectionStringFill } from "@/components/sources/ConnectionStringFill";
+import { FirestoreSetup } from "@/components/sources/FirestoreSetup";
 import { SecretField } from "@/components/SecretField";
 import { TestResultPanel } from "@/components/TestResultPanel";
 import { useToast } from "@/components/toast";
@@ -31,6 +33,7 @@ import {
   type MongoMode,
   type SourceFormValues,
 } from "@/lib/sourceForm";
+import type { ParsedConnection } from "@/lib/connectionString";
 import { checkServiceAccount } from "@/lib/validation";
 
 const SECRET_FIELDS = ["password", "uri", "service_account_json"] as const;
@@ -105,6 +108,8 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   const projectId = useWatch({ control, name: "projectId" });
   const mongoDumpMode = useWatch({ control, name: "mongoDumpMode" });
 
+  // MySQL / PostgreSQL: "string" shows the connection-string box, which fills the host fields.
+  const [sqlMode, setSqlMode] = useState<"fields" | "string">("fields");
   const specs = secretSpecs(type, mongoMode);
   const busy = save.isPending || test.isPending;
   const hasDatabaseList = type === "mysql" || type === "postgres" || type === "mongo";
@@ -182,7 +187,21 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
 
   const typeLabel = SOURCE_TYPES.find((t) => t.type === type)?.label ?? type;
   const isSqlLike = type === "mysql" || type === "postgres";
-  const showHostFields = type !== "firestore" && !(type === "mongo" && mongoMode === "uri");
+  const sqlString = isSqlLike && sqlMode === "string";
+  const showHostFields = type !== "firestore" && !(type === "mongo" && mongoMode === "uri") && !sqlString;
+
+  const fillFromString = (parsed: ParsedConnection) => {
+    for (const [key, value] of Object.entries(parsed.values)) {
+      setValue(key as keyof SourceFormValues, value as never, { shouldDirty: true, shouldValidate: true });
+    }
+    if (parsed.password !== null) setSecret("password")({ action: "set", value: parsed.password });
+    setSqlMode("fields");
+    toast({
+      title: "Fields filled in",
+      description: "Check them, then click Test connection.",
+      variant: "success",
+    });
+  };
   const fullInstance = type === "mongo" && mongoDumpMode === "full_oplog";
 
   return (
@@ -199,6 +218,24 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
       {record?.secrets_error && <Alert tone="danger">{record.secrets_error}</Alert>}
 
       <Field label="Name" autoComplete="off" {...text("name")} />
+
+      {isSqlLike && (
+        <RadioGroup
+          label="Connection"
+          name="sqlMode"
+          direction="row"
+          value={sqlMode}
+          onChange={(value) => setSqlMode(value === "string" ? "string" : "fields")}
+          options={[
+            { value: "fields", label: "Host fields" },
+            { value: "string", label: "Connection string" },
+          ]}
+        />
+      )}
+
+      {sqlString && (type === "mysql" || type === "postgres") && (
+        <ConnectionStringFill type={type} onParsed={fillFromString} />
+      )}
 
       {type === "mongo" && (
         <RadioGroup
@@ -290,24 +327,11 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
             {...bindBool(form, "deleteStagingAfterDownload")}
           />
           <HelperText>If deleting fails the run still succeeds and shows a warning.</HelperText>
-          <Alert tone="info" title="Prerequisites">
-            <ul className="list-disc space-y-1 pl-5 text-xs">
-              <li>Billing is enabled on the Google Cloud project (exports need it).</li>
-              <li>The staging bucket is in the same location as the Firestore database.</li>
-              <li>
-                The service account has <code>roles/datastore.importExportAdmin</code> and read and
-                write access to the bucket (for example <code>roles/storage.objectAdmin</code>).
-              </li>
-              <li>
-                Add a lifecycle rule to the bucket (for example delete objects after 1 to 7 days) so
-                failed or cancelled exports do not pile up.
-              </li>
-            </ul>
-          </Alert>
+          <FirestoreSetup open={source === null} />
         </>
       )}
 
-      {specs.map((spec) => (
+      {specs.filter(() => !sqlString).map((spec) => (
         <SecretField
           key={spec.field}
           id={`secret-${spec.field}`}
@@ -382,33 +406,16 @@ function SourceForm({ type, source, onClose, onBack }: SourceFormProps) {
   );
 }
 
-interface SourceDialogProps {
-  open: boolean;
-  source: SourceRecord | null;
-  onClose: () => void;
-}
-
-export function SourceDialog({ open, source, onClose }: SourceDialogProps) {
-  return (
-    <DialogFrame open={open} onClose={onClose} title={source ? "Edit source" : "Add source"} maxWidth="max-w-2xl">
-      <div className="px-6 pb-6 pt-4">
-      <HelperText className="mb-4">
-        Credentials are encrypted at rest and never shown again after saving.
-      </HelperText>
-      <SourceDialogBody source={source} onClose={onClose} />
-      </div>
-    </DialogFrame>
-  );
-}
-
-function SourceDialogBody({ source, onClose }: Omit<SourceDialogProps, "open">) {
+/** Add or edit a source: a type picker first when adding, then the form. `onDone` runs after a
+ * save or on Cancel. */
+export function SourceEditor({ source, onDone }: { source: SourceRecord | null; onDone: () => void }) {
   const [type, setType] = useState<SourceType | null>(source?.type ?? null);
   if (type === null) return <TypePicker onPick={setType} />;
   return (
     <SourceForm
       type={type}
       source={source}
-      onClose={onClose}
+      onClose={onDone}
       onBack={source ? undefined : () => setType(null)}
     />
   );

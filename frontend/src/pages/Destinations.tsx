@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
+import Loader from "xedonium/Loader";
 import PageHeader from "xedonium/PageHeader";
 import DataGrid, { type DataGridColumn } from "xedonium/DataGrid";
 import PencilIcon from "xedonium/icons/Pencil";
@@ -36,7 +37,7 @@ export default function DestinationsPage() {
   const reconnect = (id: string) => navigate(`/destinations/${encodeURIComponent(id)}?reconnect=1`);
   const needsReauth = (destinations.data ?? []).filter((d) => d.auth_status === "needs_reauth");
 
-  const runTest = (destination: DestinationRecord) =>
+  const runTest = (destination: DestinationRecord) => {
     test.mutate(destination.id, {
       onSuccess: (result) =>
         toast({
@@ -51,6 +52,7 @@ export default function DestinationsPage() {
           variant: "error",
         }),
     });
+  };
 
   const confirmDelete = () => {
     if (!deleting) return;
@@ -73,12 +75,15 @@ export default function DestinationsPage() {
     {
       key: "status", sortable: true, accessor: (d) => (d.last_test ? (d.last_test.ok ? "OK" : "Failed") : "Never tested"),
       header: "Status",
-      render: (d) => (
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge lastTest={d.last_test} />
-          <AuthBadge type={d.type} status={d.auth_status} />
-        </div>
-      ),
+      render: (d) =>
+        test.isPending && test.variables === d.id ? (
+          <Loader variant="inline" size="sm" label="Testing..." />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge lastTest={d.last_test} />
+            <AuthBadge type={d.type} status={d.auth_status} />
+          </div>
+        ),
     },
     { key: "tested", sortable: true, accessor: (d) => d.last_test?.at ?? "", header: "Last tested", render: (d) => <LastTested lastTest={d.last_test} /> },
     {

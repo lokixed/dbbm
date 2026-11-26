@@ -3,6 +3,8 @@
 const PAGE_TITLES: readonly [string, string][] = [
   ["/runs/", "Run"],
   ["/runs", "Runs"],
+  ["/sources/new", "Add source"],
+  ["/sources/", "Source"],
   ["/sources", "Sources"],
   ["/destinations/new", "Add destination"],
   ["/destinations/", "Destination"],

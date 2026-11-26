@@ -552,7 +552,7 @@ OpenAPI docs are served at `/api/docs` (disable or protect in production).
 |---|---|
 | Setup / Login | First-run admin creation, login |
 | Dashboard | Per-job last status, next scheduled run, failures in the last 24h, disk usage, destination health |
-| Sources | List and add/edit form per DB type with a **Test connection** button; credentials are write-only (shown as "••••" after saving) |
+| Sources | List; add and edit on their own pages (`/sources/new` with a type picker first, `/sources/:id`); form per DB type with a **Test connection** button; MySQL and PostgreSQL can fill their fields from a pasted connection URL (parsed in the browser, the URL itself is not stored, unlike MongoDB's URI mode); credentials are write-only (shown as "••••" after saving) |
 | Destinations | List with status; add and edit on their own pages (`/destinations/new`, `/destinations/:id`, `?reconnect=1` for a Drive reconnect; the old `/destinations?reconnect=<id>` links redirect there). Local path check; Google Drive Connect or token paste with **Test**; retention settings |
 | Jobs | Create/edit with source, destinations, cron picker with next-fire preview, options; **Run now**, enable/disable |
 | Runs | History table with filters; run detail with step timeline, per-destination results and live log viewer; cancel and retry |

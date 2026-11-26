@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import Alert from "xedonium/Alert";
 import Badge from "xedonium/Badge";
 import Chip from "xedonium/Chip";
@@ -9,10 +10,34 @@ interface TestResultPanelProps {
   pending: boolean;
   result: TestResult | null;
   error: string | null;
+  /** What the test checks, shown while it runs. */
+  pendingDescription?: string;
 }
 
-export function TestResultPanel({ pending, result, error }: TestResultPanelProps) {
-  if (pending) return <Loader variant="dots" label="Testing connection" />;
+export function TestResultPanel({ pending, result, error, pendingDescription }: TestResultPanelProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The panel sits below a long form: bring it into view when a test starts and when it ends.
+  useEffect(() => {
+    if (pending || result || error) ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [pending, result, error]);
+
+  return (
+    <div ref={ref}>
+      <PanelBody pending={pending} result={result} error={error} pendingDescription={pendingDescription} />
+    </div>
+  );
+}
+
+function PanelBody({ pending, result, error, pendingDescription }: TestResultPanelProps) {
+  if (pending) {
+    return (
+      <Loader
+        variant="card"
+        label="Testing connection..."
+        description={pendingDescription ?? "Waiting for the result. This can take up to 2 minutes."}
+      />
+    );
+  }
   if (error) return <Alert tone="danger">{error}</Alert>;
   if (!result) return null;
 

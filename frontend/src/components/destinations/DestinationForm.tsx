@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import Alert from "xedonium/Alert";
 import Button from "xedonium/Button";
+import Loader from "xedonium/Loader";
 import Field from "xedonium/Field";
 import Select from "xedonium/Select";
 import { DialogFooter } from "@/components/DialogFrame";
@@ -283,7 +284,16 @@ export function DestinationForm({
 
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <TestResultPanel pending={test.isPending} result={testResult} error={testError} />
+      <TestResultPanel
+        pending={test.isPending}
+        result={testResult}
+        error={testError}
+        pendingDescription={
+          type === "gdrive"
+            ? "Checking the Drive folder (created if missing), the free space, and uploading, verifying and deleting a small test file. This can take up to 2 minutes."
+            : "Checking that the folder exists and is writable, and the free space."
+        }
+      />
 
       <ConfirmDialog
         open={confirm !== null}
@@ -311,7 +321,13 @@ export function DestinationForm({
       <DialogFooter>
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <Button type="button" variant="secondary" onClick={checkConnection} disabled={busy}>
-            {test.isPending ? "Testing..." : "Test connection"}
+            {test.isPending ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader variant="spinner" size="sm" label="Testing connection" /> Testing...
+              </span>
+            ) : (
+              "Test connection"
+            )}
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={onDone} disabled={busy}>

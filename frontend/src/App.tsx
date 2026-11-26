@@ -21,6 +21,7 @@ import RunDetailPage from "@/pages/RunDetail";
 import RunsPage from "@/pages/Runs";
 import SettingsPage from "@/pages/Settings";
 import SetupPage from "@/pages/Setup";
+import SourceEditorPage from "@/pages/SourceEditor";
 import SourcesPage from "@/pages/Sources";
 
 const queryClient = new QueryClient({
@@ -67,6 +68,8 @@ export default function App() {
                 <Route element={<Layout />}>
                   <Route index element={<DashboardPage />} />
                   <Route path="sources" element={<SourcesPage />} />
+                  <Route path="sources/new" element={<SourceEditorPage />} />
+                  <Route path="sources/:id" element={<SourceEditorPage />} />
                   <Route path="destinations" element={<DestinationsPage />} />
                   <Route path="destinations/new" element={<DestinationEditorPage />} />
                   <Route path="destinations/:id" element={<DestinationEditorPage />} />

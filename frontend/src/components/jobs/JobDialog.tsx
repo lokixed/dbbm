@@ -159,7 +159,7 @@ function JobForm({
         {noSources && (
           <HelperText>
             No sources yet.{" "}
-            <Link className="underline" to="/sources">
+            <Link className="underline" to="/sources/new">
               Add one first
             </Link>
             .
@@ -177,26 +177,27 @@ function JobForm({
 
       <div className="space-y-2">
         <Label>Destinations</Label>
-        <div className="space-y-1 border border-app-border p-3">
+        <div className="flex flex-col gap-3 border border-app-border p-3">
           {noDestinations && (
             <HelperText>
               No destinations yet.{" "}
-              <Link className="underline" to="/destinations">
+              <Link className="underline" to="/destinations/new">
                 Add one first
               </Link>
               .
             </HelperText>
           )}
           {destinations.data?.map((destination) => (
-            <Checkbox
-              key={destination.id}
-              checked={selectedDestinations.includes(destination.id)}
-              onChange={() => toggleDestination(destination.id)}
-              label={<DestinationLabel type={destination.type}>{destination.name}</DestinationLabel>}
-              description={`${destinationTypeName(destination.type)}${
-                destination.type === "local" ? ` - ${destination.config.path}` : ""
-              }`}
-            />
+            <div key={destination.id} className="block">
+              <Checkbox
+                checked={selectedDestinations.includes(destination.id)}
+                onChange={() => toggleDestination(destination.id)}
+                label={<DestinationLabel type={destination.type}>{destination.name}</DestinationLabel>}
+                description={`${destinationTypeName(destination.type)} - ${
+                  destination.type === "local" ? destination.config.path : destination.config.remote_folder
+                }`}
+              />
+            </div>
           ))}
         </div>
         {errors.destinationIds?.message && (

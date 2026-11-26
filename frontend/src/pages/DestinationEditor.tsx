@@ -1,14 +1,16 @@
-import type { ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Alert from "xedonium/Alert";
-import Button from "xedonium/Button";
-import Card from "xedonium/Card";
-import HelperText from "xedonium/HelperText";
-import ArrowLeftIcon from "xedonium/icons/ArrowLeft";
-import PageHeader from "xedonium/PageHeader";
 import { useDestinations } from "@/api/destinations";
 import { DestinationForm } from "@/components/destinations/DestinationForm";
+import { EditorPage } from "@/components/EditorPage";
 import { LogoLoader } from "@/components/LogoLoader";
+
+const FRAME = {
+  subtitle: "Where backups are stored.",
+  backTo: "/destinations",
+  backLabel: "Destinations",
+  note: "Backups are copied to every destination of a job and verified there.",
+};
 
 /**
  * Add or edit a destination on its own page:
@@ -22,17 +24,11 @@ export default function DestinationEditorPage() {
   const reconnect = params.get("reconnect") === "1";
   const back = () => navigate("/destinations");
 
-  const backLink = (
-    <Button variant="secondary" onClick={back}>
-      <ArrowLeftIcon className="h-4 w-4" /> Destinations
-    </Button>
-  );
-
   if (!id) {
     return (
-      <Layout title="Add destination" action={backLink}>
+      <EditorPage title="Add destination" {...FRAME}>
         <DestinationForm destination={null} focusToken={false} onDone={back} />
-      </Layout>
+      </EditorPage>
     );
   }
 
@@ -50,22 +46,8 @@ export default function DestinationEditorPage() {
   }
   const focusToken = reconnect && destination.type === "gdrive";
   return (
-    <Layout title={focusToken ? `Reconnect ${destination.name}` : `Edit ${destination.name}`} action={backLink}>
+    <EditorPage title={focusToken ? `Reconnect ${destination.name}` : `Edit ${destination.name}`} {...FRAME}>
       <DestinationForm key={`${destination.id}-${focusToken}`} destination={destination} focusToken={focusToken} onDone={back} />
-    </Layout>
-  );
-}
-
-function Layout({ title, action, children }: { title: string; action: ReactNode; children: ReactNode }) {
-  return (
-    <div className="space-y-6">
-      <PageHeader title={title} subtitle="Where backups are stored.">
-        {action}
-      </PageHeader>
-      <Card className="max-w-3xl">
-        <HelperText className="mb-4">Backups are copied to every destination of a job and verified there.</HelperText>
-        {children}
-      </Card>
-    </div>
+    </EditorPage>
   );
 }

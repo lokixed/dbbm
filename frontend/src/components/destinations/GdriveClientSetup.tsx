@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
 import { AccordionSection } from "xedonium/Accordion";
 import { CopyText } from "@/components/CopyText";
+import { ExtLink as Ext, SetupStep as Step, Troubleshooting } from "@/components/SetupSteps";
 
 // Google Cloud Console pages (Google Auth Platform). They open in the project picked in the console.
 const LINKS = {
@@ -12,23 +12,6 @@ const LINKS = {
   connections: "https://myaccount.google.com/connections",
   unverified: "https://support.google.com/cloud/answer/7454865",
 };
-
-function Ext({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a className="text-app-text underline" href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  );
-}
-
-function Step({ title, children }: { title: ReactNode; children: ReactNode }) {
-  return (
-    <li className="space-y-1">
-      <div className="font-medium text-app-text">{title}</div>
-      <div className="space-y-1">{children}</div>
-    </li>
-  );
-}
 
 /** Step-by-step setup of the user's own OAuth client for "Connect Google Drive". */
 export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string | null; open: boolean }) {
@@ -113,9 +96,7 @@ export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string |
           </Step>
         </ol>
 
-        <div className="space-y-1">
-          <div className="font-medium text-app-text">If it does not work</div>
-          <ul className="list-disc space-y-1 pl-5">
+        <Troubleshooting>
             <li>
               <strong>redirect_uri_mismatch</strong>: the redirect URI in the client must match the one above
               exactly, including <code>https</code> and the trailing slash. Check that you edited the client whose ID
@@ -134,8 +115,7 @@ export function GdriveClientSetup({ redirectUrl, open }: { redirectUrl: string |
               <strong>The new tab was blocked</strong>: allow pop-ups for this DBBM in your browser, then click Connect
               again.
             </li>
-          </ul>
-        </div>
+        </Troubleshooting>
       </div>
     </AccordionSection>
   );
