@@ -16,7 +16,7 @@ docker compose exec dbbm python -m app.cli backup-db
 docker compose pull   # or: docker compose build
 docker compose up -d
 # 3. Check the version and the scheduler.
-curl -s http://127.0.0.1:8080/healthz
+curl -s http://localhost:8080/healthz
 ```
 
 Database migrations run automatically at start. **Downgrade:** migrations only move forward. To go
@@ -37,14 +37,14 @@ Versions follow [semantic versioning](https://semver.org). Changes are listed in
 
 ## HTTPS behind a reverse proxy
 
-Keep the published port on `127.0.0.1` and put a proxy in front. Set `COOKIE_SECURE=true` and the
+Put a proxy in front of the published port. Set `COOKIE_SECURE=true` and the
 **Public base URL** in Settings. The app sends HSTS when `COOKIE_SECURE=true`.
 
 Caddy:
 
 ```
 backup.example.com {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy localhost:8080
 }
 ```
 

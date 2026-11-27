@@ -80,11 +80,11 @@ printf 'DBBM_UID=%s\\nDBBM_GID=%s\\n' "$(id -u)" "$(id -g)" > .env
 docker compose up --build -d
 \`\`\`
 
-Open http://127.0.0.1:8080, create the admin account, then sign in.
+Open http://localhost:8080, create the admin account, then sign in.
 
-- The port is bound to \`127.0.0.1\` only. Put Caddy or Traefik in front for HTTPS and set \`COOKIE_SECURE=true\` in \`.env\`.
+- Port 8080 is published on all host interfaces. To reach it from other machines, put Caddy or Traefik in front for HTTPS and set \`COOKIE_SECURE=true\` in \`.env\`.
 - The master key comes from \`APP_SECRET_KEY\` or \`APP_SECRET_KEY_FILE\`. Losing it means re-entering every stored credential.
-- Health check: \`curl http://127.0.0.1:8080/healthz\`.
+- Health check: \`curl http://localhost:8080/healthz\`.
 - Optional limits: \`DBBM_MEM_LIMIT\` (default 2g) and \`DBBM_CPUS\` (default 2).
 - No databases to try? \`make dev-dbs-up\` starts sample MySQL, PostgreSQL and MongoDB servers.`,
   },
@@ -292,7 +292,7 @@ docker compose exec dbbm python -m app.cli backup-db
 docker compose pull   # or: docker compose build
 docker compose up -d
 # 3. Check the version and the scheduler.
-curl -s http://127.0.0.1:8080/healthz
+curl -s http://localhost:8080/healthz
 \`\`\`
 
 Migrations run automatically and only move forward. To downgrade, stop the container, restore the \`app.db\` copy from step 1 and start the older image.
@@ -304,11 +304,11 @@ Migrations run automatically and only move forward. To downgrade, stop the conta
 
 ### HTTPS behind a reverse proxy
 
-Keep the published port on 127.0.0.1, set \`COOKIE_SECURE=true\` and the Public base URL in Settings. Caddy:
+Put a proxy in front of the published port, set \`COOKIE_SECURE=true\` and the Public base URL in Settings. Caddy:
 
 \`\`\`nginx
 backup.example.com {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy localhost:8080
 }
 \`\`\`
 

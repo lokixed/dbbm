@@ -7,7 +7,7 @@ services:
     # Match the host user so the bind mounts and the key file are readable and writable.
     user: "${DBBM_UID:-10001}:${DBBM_GID:-10001}"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
       # Container clock and log time zone. Job schedules use their own time zone (set per job;
@@ -20,7 +20,7 @@ services:
       ALLOW_PRIVATE_NOTIFICATION_TARGETS: "${ALLOW_PRIVATE_NOTIFICATION_TARGETS:-false}"
       # How many backup runs may execute at the same time; extra runs wait as "queued".
       MAX_CONCURRENT_RUNS: "${MAX_CONCURRENT_RUNS:-2}"
-      # Plain HTTP on 127.0.0.1 by default; set to true when served over HTTPS (reverse proxy).
+      # Plain HTTP by default; set to true when served over HTTPS (reverse proxy).
       COOKIE_SECURE: "${COOKIE_SECURE:-false}"
     # The image runs exactly one uvicorn worker: it owns the scheduler (lock file
     # /data/scheduler.lock). Never start a second container on the same ./data.

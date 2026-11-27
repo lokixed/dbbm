@@ -18,13 +18,13 @@ printf 'DBBM_UID=%s\nDBBM_GID=%s\n' "$(id -u)" "$(id -g)" > .env
 docker compose up --build -d
 ```
 
-Open <http://127.0.0.1:8080>, create the admin account, then sign in.
+Open <http://localhost:8080>, create the admin account, then sign in.
 
 A prebuilt image is on Docker Hub (`lokixed/dbbm`) and GHCR (`ghcr.io/lokixed/dbbm`). The [landing page](https://lokixed.github.io/dbbm/) and [docs/DOCKERHUB.md](docs/DOCKERHUB.md) list the tags and a compose file that uses the image instead of building.
 
-- The port is bound to `127.0.0.1` only. Put Caddy or Traefik in front for HTTPS and set `COOKIE_SECURE=true` in `.env`.
+- Port 8080 is published on all host interfaces. To reach it from other machines, put Caddy or Traefik in front for HTTPS and set `COOKIE_SECURE=true` in `.env`.
 - Losing `app_key.txt` means re-entering every stored credential.
-- Health check: `curl http://127.0.0.1:8080/healthz` returns the status, the database check, the app version and the scheduler state, for example `{"status":"ok","db":"ok","version":"1.0.0","scheduler":{...}}`. The version is also in the web UI footer.
+- Health check: `curl http://localhost:8080/healthz` returns the status, the database check, the app version and the scheduler state, for example `{"status":"ok","db":"ok","version":"1.0.0","scheduler":{...}}`. The version is also in the web UI footer.
 
 ## Add your first source and destination
 

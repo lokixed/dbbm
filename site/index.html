@@ -162,7 +162,7 @@ mkdir -p data backups</code></pre></div>
     restart: unless-stopped
     user: "1000:1000"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
       COOKIE_SECURE: "false" # plain HTTP on localhost; use "true" behind HTTPS
@@ -186,10 +186,10 @@ secrets:
 
         <h3>3. Start it</h3>
         <div class="code"><pre><code>docker compose up -d
-curl http://127.0.0.1:8080/healthz</code></pre></div>
-        <p>Open <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>, create the admin account, then add a <strong>source</strong>, a <strong>destination</strong> and a <strong>job</strong>, and press <strong>Run now</strong>.</p>
+curl http://localhost:8080/healthz</code></pre></div>
+        <p>Open <a href="http://localhost:8080">http://localhost:8080</a>, create the admin account, then add a <strong>source</strong>, a <strong>destination</strong> and a <strong>job</strong>, and press <strong>Run now</strong>.</p>
 
-        <p class="note">The port is bound to <code>127.0.0.1</code> on purpose. To use it from other machines, put Caddy or Traefik in front for HTTPS and set <code>COOKIE_SECURE=true</code>. Run only one container per <code>./data</code> folder: the container owns the scheduler.</p>
+        <p class="note">Port 8080 is published on all host interfaces. To use it from other machines, put Caddy or Traefik in front for HTTPS and set <code>COOKIE_SECURE=true</code>. Run only one container per <code>./data</code> folder: the container owns the scheduler.</p>
 
         <h3>Reaching your databases</h3>
         <p>Put the container on the same Docker network as your databases and use the service name as the host. For a database on the Docker host, use <code>host.docker.internal</code> (add <code>extra_hosts: ["host.docker.internal:host-gateway"]</code> on Linux) and make sure the database allows the connection. Use a read-only database user for backups.</p>

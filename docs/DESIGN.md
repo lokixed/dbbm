@@ -483,7 +483,7 @@ Rules:
 
 ### Container and network
 - Run as a non-root user; no Docker socket mount; read-only root filesystem with writable `/data`, `/backups` and a tmpfs for temp work.
-- Bind to `127.0.0.1` and put Caddy or Traefik in front for HTTPS. Never expose the app port directly.
+- The example compose files publish port 8080 on all host interfaces so the quick start works on any host. For access from other machines, put Caddy or Traefik in front for HTTPS (or firewall the port); the app speaks plain HTTP only. Operators who want local-only access can publish `127.0.0.1:8080:8080` instead.
 - Provide least-privilege, read-only database users per engine (see section 8) and document them.
 - Pin base-image and tool versions; scan the image in CI.
 
@@ -614,7 +614,7 @@ services:
   dbbm:
     image: yourname/dbbm:latest
     restart: unless-stopped
-    ports: ["127.0.0.1:8080:8080"]
+    ports: ["8080:8080"]
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
       TZ: UTC

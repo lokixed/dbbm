@@ -35,7 +35,7 @@ services:
     # Match your host user so the bind mounts are readable and writable.
     user: "1000:1000"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     environment:
       APP_SECRET_KEY_FILE: /run/secrets/app_key
       COOKIE_SECURE: "false" # plain HTTP on localhost; use "true" behind HTTPS
@@ -67,13 +67,13 @@ mkdir -p data backups
 docker compose up -d
 ```
 
-Open <http://127.0.0.1:8080>, create the admin account, then add a source, a destination and a
-job. Health check: `curl http://127.0.0.1:8080/healthz`.
+Open <http://localhost:8080>, create the admin account, then add a source, a destination and a
+job. Health check: `curl http://localhost:8080/healthz`.
 
 ## Good to know
 
-- The port is bound to `127.0.0.1` only. Put Caddy or Traefik in front for HTTPS and set
-  `COOKIE_SECURE=true`.
+- Port 8080 is published on all host interfaces. To reach it from other machines, put Caddy or
+  Traefik in front for HTTPS and set `COOKIE_SECURE=true`.
 - **Losing `app_key.txt` means re-entering every stored credential.**
 - Run exactly one container per `./data` folder. The container owns the scheduler.
 - `/data` holds the metadata database and run logs; `/backups` holds the backup files.

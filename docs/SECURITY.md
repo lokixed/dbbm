@@ -39,7 +39,7 @@
 - **Compromised admin session:** there is one admin role. Every signed-in user can download,
   delete and restore. Multi-user roles are not part of 1.0.
 - **Plain HTTP:** without a reverse proxy, passwords and cookies cross the network in clear text.
-  Keep the port on `127.0.0.1` or put HTTPS in front.
+  Put HTTPS in front, or restrict the published port with a firewall.
 - **Unencrypted backups on shared storage:** local and Drive copies are as private as the volume
   or account that holds them unless you turn on age encryption.
 - **Denial of service:** there is login rate limiting, but no general request limit. Do not expose
